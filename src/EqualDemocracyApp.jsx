@@ -89,6 +89,7 @@ export default function EqualDemocracyApp() {
 
 		if (savedUser) {
 			setCurrentUser(JSON.parse(savedUser));
+			setView("home");
 		}
 
 		if (savedProposals) {
