@@ -4,7 +4,6 @@ import EqualDemocracyApp from "./EqualDemocracyApp";
 
 createRoot(document.getElementById("root")).render(
 	<StrictMode>
-		<p>Hello</p>
 		<EqualDemocracyApp />
 	</StrictMode>
 );
