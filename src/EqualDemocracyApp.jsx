@@ -604,7 +604,12 @@ function HomeView({
 // ============================================================================
 
 function ProposalCard({ proposal, currentUser, onThumbsUp, onDiscuss }) {
-	const hasVoted = proposal.votedBy.has(currentUser.id);
+	const [hasVoted, setHasVoted] = useState(
+		proposal.votedBy.has(currentUser.id)
+	);
+	useEffect(() => {
+		setHasVoted(proposal.votedBy.has(currentUser.id));
+	}, [proposal]);
 
 	return (
 		<div className="bg-white rounded-2xl shadow-md p-6 space-y-4 hover:shadow-lg transition-shadow">
