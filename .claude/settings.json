@@ -10,7 +10,8 @@
       "Bash(pnpm install:*)",
       "Bash(pnpm --filter web exec tsc --noEmit)",
       "Bash(pnpm --filter web add -D @types/howler)",
-      "Bash(pnpm --filter web add howler)"
+      "Bash(pnpm --filter web add howler)",
+      "Bash(npx expo:*)"
     ]
   }
 }

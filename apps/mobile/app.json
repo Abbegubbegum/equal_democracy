@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Equal Democracy",
+    "slug": "equal-democracy",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "equaldemocracy",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.equaldemocracy.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#00236a"
+      },
+      "package": "com.equaldemocracy.app"
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
