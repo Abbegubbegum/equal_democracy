@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
@@ -13,7 +14,7 @@ import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("Proposals");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await connectDB();
 
 	// CSRF protection for state-changing methods
@@ -31,7 +32,7 @@ export default async function handler(req, res) {
 			const { sessionId } = req.query;
 
 			// Get the active session (with optional sessionId)
-			const activeSession = await getActiveSession(sessionId);
+			const activeSession = await getActiveSession(sessionId ? String(sessionId) : null);
 
 			// If no active session, return empty array
 			if (!activeSession) {
@@ -88,7 +89,7 @@ export default async function handler(req, res) {
 
 		try {
 			// Get the active session (with optional sessionId)
-			const activeSession = await getActiveSession(sessionId);
+			const activeSession = await getActiveSession(sessionId ? String(sessionId) : null);
 
 			// If no active session, cannot create proposal
 			if (!activeSession) {

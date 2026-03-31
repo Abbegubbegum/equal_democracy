@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Survey, SurveyVote } from "@/lib/models";
 import { csrfProtection } from "@/lib/csrf";
@@ -5,7 +6,7 @@ import { createLogger } from "@/lib/logger";
 
 const log = createLogger("Survey");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	// CSRF protection for state-changing methods
@@ -19,7 +20,7 @@ export default async function handler(req, res) {
 			const { visitorId } = req.query;
 
 			// Find the active survey
-			const survey = await Survey.findOne({ status: "active" }).lean();
+			const survey = await Survey.findOne({ status: "active" }).lean() as any;
 
 			if (!survey) {
 				return res.status(200).json({ survey: null });
@@ -48,7 +49,7 @@ export default async function handler(req, res) {
 				const existingVote = await SurveyVote.findOne({
 					surveyId: survey._id,
 					visitorId,
-				}).lean();
+				}).lean() as any;
 				if (existingVote) {
 					userVote = existingVote.choiceId;
 				}

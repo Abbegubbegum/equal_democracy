@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth/[...nextauth]";
 import connectDB from "../../lib/mongodb";
@@ -6,7 +7,7 @@ import { createLogger } from "@/lib/logger";
 
 const log = createLogger("DebugUser");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await connectDB();
 
 	const session = await getServerSession(req, res, authOptions);
@@ -43,7 +44,7 @@ export default async function handler(req, res) {
 
 		// GET request - if user is superadmin, allow checking other users by email query param
 		if (req.method === "GET" && req.query.email && user.isSuperAdmin) {
-			const checkUser = await User.findOne({ email: req.query.email.toLowerCase() });
+			const checkUser = await User.findOne({ email: String(req.query.email).toLowerCase() });
 
 			if (!checkUser) {
 				return res.status(404).json({ message: "User not found" });

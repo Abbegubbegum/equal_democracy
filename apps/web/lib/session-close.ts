@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import {
 	Proposal,
 	FinalVote,
@@ -11,16 +12,30 @@ import { createLogger } from "./logger";
 
 const log = createLogger("SessionClose");
 
-/**
- * Closes a standard session: determines winners, archives proposals, updates session status.
- * For survey/ranking sessions, use archiveSession() instead.
- *
- * @param {Object} session - Mongoose Session document (must be already fetched)
- * @param {Object} options
- * @param {boolean} options.sendEmails - Whether to send result emails to participants (default: false)
- * @returns {Object} { topProposals: Array } - The winning proposals that were saved
- */
-export async function closeStandardSession(session, { sendEmails = false } = {}) {
+/** Shape of a Mongoose Session document as used in close/archive operations */
+interface SessionDocument {
+	_id: mongoose.Types.ObjectId;
+	place: string;
+	sessionType: string;
+	singleResult: boolean;
+	tiebreakerActive: boolean;
+	tiebreakerProposals: mongoose.Types.ObjectId[];
+	tiebreakerScheduled?: Date;
+	phase2TerminationScheduled?: Date;
+	startDate?: Date;
+	createdAt?: Date;
+	status: string;
+	phase: string;
+	endDate?: Date;
+	activeUsers?: mongoose.Types.ObjectId[];
+	save(): Promise<unknown>;
+}
+
+interface CloseOptions {
+	sendEmails?: boolean;
+}
+
+export async function closeStandardSession(session: SessionDocument, { sendEmails = false }: CloseOptions = {}) {
 	const topProposals = await Proposal.find({
 		sessionId: session._id,
 		status: "top3",
@@ -29,12 +44,9 @@ export async function closeStandardSession(session, { sendEmails = false } = {})
 	const savedProposals = [];
 
 	if (session.singleResult) {
-		// Single result mode: find proposal with highest net result (yesVotes - noVotes)
-		// If tied: start 30-second tiebreaker round (once). If still tied: all win.
 		let bestResult = -Infinity;
 		const proposalsWithVotes = [];
 
-		// During tiebreaker, only evaluate the tied proposals
 		let evaluationProposals = topProposals;
 		if (session.tiebreakerActive) {
 			evaluationProposals = await Proposal.find({
@@ -64,7 +76,6 @@ export async function closeStandardSession(session, { sendEmails = false } = {})
 
 		const tiedProposals = proposalsWithVotes.filter(item => item.result === bestResult);
 
-		// Tie detected and no tiebreaker yet: start tiebreaker round
 		if (tiedProposals.length > 1 && !session.tiebreakerActive) {
 			const tiedIds = tiedProposals.map(item => item.proposal._id);
 			const scheduledTime = new Date(Date.now() + 30 * 1000);
@@ -88,7 +99,6 @@ export async function closeStandardSession(session, { sendEmails = false } = {})
 			};
 		}
 
-		// Save winners (single winner or co-winners after tiebreaker)
 		for (const item of tiedProposals) {
 			const topProposal = await TopProposal.create({
 				sessionId: session._id,
@@ -106,7 +116,6 @@ export async function closeStandardSession(session, { sendEmails = false } = {})
 			savedProposals.push(topProposal);
 		}
 	} else {
-		// Normal mode: save all proposals with yes-majority
 		for (const proposal of topProposals) {
 			const yesVotes = await FinalVote.countDocuments({
 				sessionId: session._id,
@@ -138,13 +147,11 @@ export async function closeStandardSession(session, { sendEmails = false } = {})
 		}
 	}
 
-	// Archive all proposals in this session
 	await Proposal.updateMany(
 		{ sessionId: session._id },
 		{ status: "archived" }
 	);
 
-	// Close the session
 	session.status = "closed";
 	session.phase = "closed";
 	session.tiebreakerActive = false;
@@ -156,7 +163,6 @@ export async function closeStandardSession(session, { sendEmails = false } = {})
 		savedProposals: savedProposals.length,
 	});
 
-	// Auto-archive municipal item when its linked session closes
 	if (session.sessionType === "municipal") {
 		await MunicipalSession.updateOne(
 			{ "items.sessionId": session._id },
@@ -170,7 +176,6 @@ export async function closeStandardSession(session, { sendEmails = false } = {})
 		log.info("Municipal item auto-archived", { sessionId: session._id.toString() });
 	}
 
-	// Optionally send result emails to all participants
 	if (sendEmails) {
 		await sendResultEmails(session, savedProposals);
 	}
@@ -178,13 +183,7 @@ export async function closeStandardSession(session, { sendEmails = false } = {})
 	return { topProposals: savedProposals };
 }
 
-/**
- * Archives a survey/ranking session: sets status to archived and closes it.
- *
- * @param {Object} session - Mongoose Session document (must be already fetched)
- * @returns {Object} { success: true }
- */
-export async function archiveRankingSession(session) {
+export async function archiveRankingSession(session: SessionDocument) {
 	session.status = "archived";
 	session.endDate = new Date();
 	await session.save();
@@ -197,25 +196,17 @@ export async function archiveRankingSession(session) {
 	return { success: true };
 }
 
-/**
- * Closes any session type - delegates to the appropriate method.
- *
- * @param {Object} session - Mongoose Session document
- * @param {Object} options
- * @param {boolean} options.sendEmails - Whether to send result emails (only for standard sessions)
- * @returns {Object} Result from the appropriate close function
- */
-export async function closeSession(session, options = {}) {
+export async function closeSession(session: SessionDocument, options: CloseOptions = {}) {
 	if (session.sessionType === "survey") {
 		return archiveRankingSession(session);
 	}
 	return closeStandardSession(session, options);
 }
 
-async function sendResultEmails(session, savedProposals) {
+async function sendResultEmails(session: SessionDocument, savedProposals: Array<{ title: string; yesVotes: number; noVotes: number }>) {
 	try {
 		const settings = await Settings.findOne();
-		const language = settings?.language || "sv";
+		const language = (settings?.language as string) || "sv";
 
 		const participantIds = session.activeUsers || [];
 		const participants = await User.find({
@@ -225,7 +216,7 @@ async function sendResultEmails(session, savedProposals) {
 		for (const user of participants) {
 			try {
 				await sendSessionResultsEmail(
-					user.email,
+					user.email as string,
 					session.place,
 					savedProposals.map((tp) => ({
 						title: tp.title,
@@ -237,11 +228,11 @@ async function sendResultEmails(session, savedProposals) {
 			} catch (emailError) {
 				log.error("Failed to send results email", {
 					email: user.email,
-					error: emailError.message,
+					error: (emailError as Error).message,
 				});
 			}
 		}
 	} catch (emailError) {
-		log.error("Email sending process failed", { error: emailError.message });
+		log.error("Email sending process failed", { error: (emailError as Error).message });
 	}
 }

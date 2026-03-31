@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth/[...nextauth]";
 import connectDB from "../../lib/mongodb";
@@ -15,7 +16,7 @@ import { createLogger } from "../../lib/logger";
 
 const log = createLogger("Votes");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await connectDB();
 
 	// CSRF protection for state-changing methods
@@ -64,7 +65,7 @@ export default async function handler(req, res) {
 			}
 
 			// Check if termination countdown is active (allows vote changes)
-			const rawSession = await Session.findById(activeSession._id).lean();
+			const rawSession = await Session.findById(activeSession._id).lean() as any;
 			const terminationActive = !!rawSession?.phase2TerminationScheduled;
 
 			// During tiebreaker, only allow votes on the tied proposals
@@ -171,7 +172,7 @@ export default async function handler(req, res) {
 		// Check if user has voted in the current session
 		if (checkSession === "true" && session) {
 			try {
-				const activeSession = await getActiveSession(sessionId);
+				const activeSession = await getActiveSession(sessionId ? String(sessionId) : null);
 
 				// If no active session, cannot vote
 				if (!activeSession) {
@@ -200,38 +201,38 @@ export default async function handler(req, res) {
 		}
 
 		if (proposalId) {
-			if (!validateObjectId(proposalId)) {
+			if (!validateObjectId(String(proposalId))) {
 				return res
 					.status(400)
 					.json({ message: "Invalid proposal ID format" });
 			}
 
-			if (userId && !validateObjectId(userId)) {
+			if (userId && !validateObjectId(String(userId))) {
 				return res
 					.status(400)
 					.json({ message: "Invalid user ID format" });
 			}
 
 			try {
-				const activeSession = await getActiveSession(sessionId);
-				const voteSessionId = activeSession ? activeSession._id : toObjectId(sessionId);
+				const activeSession = await getActiveSession(sessionId ? String(sessionId) : null);
+				const voteSessionId = activeSession ? activeSession._id : toObjectId(String(sessionId));
 				const yesCount = await FinalVote.countDocuments({
 					sessionId: voteSessionId,
-					proposalId: toObjectId(proposalId),
+					proposalId: toObjectId(String(proposalId)),
 					choice: "yes",
 				});
 				const noCount = await FinalVote.countDocuments({
 					sessionId: voteSessionId,
-					proposalId: toObjectId(proposalId),
+					proposalId: toObjectId(String(proposalId)),
 					choice: "no",
 				});
 
 				let hasVoted = false;
 				if (userId) {
-					hasVoted = await FinalVote.exists({
-						proposalId: toObjectId(proposalId),
-						userId: toObjectId(userId),
-					});
+					hasVoted = !!(await FinalVote.exists({
+						proposalId: toObjectId(String(proposalId)),
+						userId: toObjectId(String(userId)),
+					}));
 				}
 
 				return res.status(200).json({
@@ -263,7 +264,7 @@ async function checkAutoClose(activeSession) {
 		}
 
 		// Don't auto-close if a termination timer is active — let the timer handle it
-		const rawSession = await Session.findById(activeSession._id).lean();
+		const rawSession = await Session.findById(activeSession._id).lean() as any;
 		if (rawSession?.phase2TerminationScheduled) {
 			return false;
 		}
@@ -287,7 +288,7 @@ async function checkAutoClose(activeSession) {
 					sessionId: activeSession._id.toString(),
 					userCount: activeUserIds.length,
 				});
-				const result = await closeSession(activeSession, { sendEmails: true });
+				const result = await closeSession(activeSession, { sendEmails: true }) as any;
 				if (result.tiebreakerStarted) {
 					await broadcaster.broadcast("tiebreaker-started", {
 						sessionId: activeSession._id.toString(),
@@ -309,7 +310,7 @@ async function checkAutoClose(activeSession) {
 			const sessionStartTime = new Date(activeSession.startDate);
 			const currentTime = new Date();
 			const elapsedHours =
-				(currentTime - sessionStartTime) / (1000 * 60 * 60);
+				(currentTime.getTime() - sessionStartTime.getTime()) / (1000 * 60 * 60);
 
 			if (elapsedHours >= sessionLimitHours) {
 				log.info("Session time limit exceeded, closing", {

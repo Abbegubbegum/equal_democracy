@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
@@ -9,7 +10,7 @@ import { createLogger } from "@/lib/logger";
 
 const log = createLogger("AdminCloseSession");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	// CSRF protection for state-changing methods
@@ -55,7 +56,7 @@ export default async function handler(req, res) {
 			});
 		}
 
-		const result = await closeSession(sessionToClose);
+		const result = await closeSession(sessionToClose) as any;
 
 		return res.status(200).json({
 			message: "Session closed successfully",

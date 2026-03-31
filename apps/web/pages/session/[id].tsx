@@ -818,7 +818,7 @@ export default function SessionPage() {
 	// Home view - standard sessions only (surveys are handled by /session/survey/[id].js)
 	const activeProposals = proposals
 		.filter((p) => p.status === "active")
-		.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+		.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
 	let topProposals = proposals
 		.filter((p) => p.status === "top3")

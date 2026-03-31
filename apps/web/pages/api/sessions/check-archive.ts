@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session, Proposal } from "@/lib/models";
 import broadcaster from "@/lib/sse-broadcaster";
@@ -5,7 +6,7 @@ import { createLogger } from "@/lib/logger";
 
 const log = createLogger("Sessions");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	if (req.method !== "POST") {

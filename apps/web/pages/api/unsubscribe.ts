@@ -1,10 +1,12 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { User } from "@/lib/models";
 
-export default async function handler(req, res) {
-	const { email } = req.query;
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+	const { email: emailParam } = req.query;
+	const email = String(emailParam || "");
 
-	if (!email) {
+	if (!emailParam) {
 		return res.status(400).send(htmlPage("Missing email parameter", false));
 	}
 

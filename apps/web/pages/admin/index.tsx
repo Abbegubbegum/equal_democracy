@@ -200,7 +200,7 @@ function SettingsPanel({ isSuperAdmin }) {
 		setSaving(true);
 		setMessage("");
 		try {
-			const body = {
+			const body: Record<string, unknown> = {
 				language,
 				theme,
 			};
@@ -292,7 +292,7 @@ function SettingsPanel({ isSuperAdmin }) {
 							max="168"
 							value={sessionLimitHours}
 							onChange={(e) =>
-								setSessionLimitHours(e.target.value)
+								setSessionLimitHours(Number(e.target.value))
 							}
 							className="w-full max-w-md border border-slate-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
 							placeholder="24"

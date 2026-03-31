@@ -1,4 +1,5 @@
-import NextAuth from "next-auth";
+import NextAuth, { type NextAuthOptions } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import connectDB from "../../../lib/mongodb";
@@ -7,7 +8,7 @@ import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("Auth");
 
-export const authOptions = {
+export const authOptions: NextAuthOptions = {
 	providers: [
 		CredentialsProvider({
 			name: "Email Code",
@@ -108,7 +109,7 @@ export const authOptions = {
 					await connectDB();
 					const dbUser = await User.findById(token.id);
 					if (!dbUser) {
-						return {};
+						return {} as JWT;
 					}
 					token.email = dbUser.email;
 					token.name = dbUser.name;

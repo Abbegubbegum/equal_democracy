@@ -104,7 +104,7 @@ Vallentuna Framåt Vallentuna
 				`.trim();
 
 				try {
-					await sendEmail(user.email, emailSubject, emailBody);
+					await sendEmail(user.email, emailSubject, emailBody, emailBody);
 					results.emailsSent++;
 				} catch (error) {
 					log.error("Failed to send email", { email: user.email, error: error.message });
@@ -195,6 +195,7 @@ export async function sendTestNotification(userId, type = "email") {
 		await sendEmail(
 			user.email,
 			"Testnotifikation från Vallentuna Framåt",
+			testMessage,
 			testMessage
 		);
 		return { success: true, type: "email", to: user.email };

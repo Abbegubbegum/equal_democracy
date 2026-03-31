@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
@@ -13,7 +14,7 @@ const log = createLogger("ExtractAgenda");
  * Extract items from municipal agenda URL
  * Superadmin only
  */
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await connectDB();
 
 	if (req.method !== "POST") {

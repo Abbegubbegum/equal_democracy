@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
@@ -14,7 +15,7 @@ const log = createLogger("MunicipalSessions");
  * GET: Requires login
  * PATCH/DELETE: Superadmin only
  */
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await connectDB();
 
 	const session = await getServerSession(req, res, authOptions);
@@ -30,18 +31,19 @@ export default async function handler(req, res) {
 		try {
 			const { status, limit, municipality } = req.query;
 
-			const query = {};
+			const query: Record<string, unknown> = {};
 			if (status) {
-				query.status = status;
+				query.status = String(status);
 			}
 			if (municipality) {
-				query.municipality = municipality.charAt(0).toUpperCase() + municipality.slice(1);
+				const m = String(municipality);
+				query.municipality = m.charAt(0).toUpperCase() + m.slice(1);
 			}
 
 			const sessions = await MunicipalSession.find(query)
 				.populate("createdBy", "name email")
 				.sort({ meetingDate: -1 })
-				.limit(limit ? parseInt(limit) : 50);
+				.limit(limit ? parseInt(String(limit)) : 50);
 
 			return res.status(200).json({ sessions });
 		} catch (error) {

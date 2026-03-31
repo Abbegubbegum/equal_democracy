@@ -599,7 +599,7 @@ function SessionCard({ session, onClick, t, primaryDark, accentColor }) {
 								{(() => {
 									const now = new Date();
 									const archive = new Date(session.archiveDate);
-									const diff = archive - now;
+									const diff = archive.getTime() - now.getTime();
 									if (diff <= 0)
 										return t("ranking.rankingEnded") || "Ended";
 									const days = Math.floor(diff / (1000 * 60 * 60 * 24));

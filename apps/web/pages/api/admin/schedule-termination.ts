@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
@@ -13,7 +14,7 @@ const log = createLogger("AdminScheduleTermination");
  * Manually schedules Phase 2 termination (60-second countdown).
  * When the timer expires, the session closes and results become visible.
  */
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	if (!csrfProtection(req, res)) {
@@ -41,7 +42,7 @@ export default async function handler(req, res) {
 			_id: sessionId,
 			status: "active",
 			phase: "phase2",
-		}).lean();
+		}).lean() as any;
 
 		if (!activeSession) {
 			return res.status(404).json({ error: "Active phase2 session not found" });
@@ -49,7 +50,7 @@ export default async function handler(req, res) {
 
 		if (activeSession.phase2TerminationScheduled) {
 			const scheduledTime = new Date(activeSession.phase2TerminationScheduled);
-			const secondsRemaining = Math.max(0, Math.floor((scheduledTime - new Date()) / 1000));
+			const secondsRemaining = Math.max(0, Math.floor((scheduledTime.getTime() - new Date().getTime()) / 1000));
 			return res.status(200).json({
 				terminationScheduled: true,
 				scheduledTime,

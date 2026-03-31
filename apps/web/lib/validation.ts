@@ -1,36 +1,20 @@
 import mongoose from "mongoose";
 
-/**
- * Validates if a string is a valid MongoDB ObjectId
- * @param {string} id - The ID to validate
- * @returns {boolean} - True if valid ObjectId format
- */
-export const validateObjectId = (id) => {
+export const validateObjectId = (id: string): boolean => {
 	if (!id || typeof id !== "string") {
 		return false;
 	}
 	return mongoose.Types.ObjectId.isValid(id);
 };
 
-/**
- * Converts a string to MongoDB ObjectId with validation
- * @param {string} id - The ID to convert
- * @returns {mongoose.Types.ObjectId} - MongoDB ObjectId
- * @throws {Error} - If ID format is invalid
- */
-export const toObjectId = (id) => {
+export const toObjectId = (id: string): mongoose.Types.ObjectId => {
 	if (!validateObjectId(id)) {
 		throw new Error("Invalid ObjectId format");
 	}
 	return new mongoose.Types.ObjectId(id);
 };
 
-/**
- * Validates email format
- * @param {string} email - Email to validate
- * @returns {boolean} - True if valid email format
- */
-export const validateEmail = (email) => {
+export const validateEmail = (email: string): boolean => {
 	if (!email || typeof email !== "string") {
 		return false;
 	}
@@ -38,13 +22,7 @@ export const validateEmail = (email) => {
 	return emailRegex.test(email);
 };
 
-/**
- * Sanitizes string input by trimming and limiting length
- * @param {string} str - String to sanitize
- * @param {number} maxLength - Maximum allowed length
- * @returns {string} - Sanitized string
- */
-export const sanitizeString = (str, maxLength = 1000) => {
+export const sanitizeString = (str: string, maxLength = 1000): string => {
 	if (!str || typeof str !== "string") {
 		return "";
 	}

@@ -76,8 +76,8 @@ export default function MunicipalityPage() {
 
 			// Get board info for available boards
 			const boardList = Array.from(boards).map((boardSlug) => ({
-				slug: boardSlug,
-				...BOARD_INFO[boardSlug],
+				slug: boardSlug as string,
+				...BOARD_INFO[boardSlug as string],
 			}));
 
 			setAvailableBoards(boardList);

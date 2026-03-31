@@ -105,7 +105,7 @@ export default function LayeredTreemaps({ expenseCategories, incomeCategories, o
 			{/* Dynamic balance header */}
 			<div className="p-6 pb-4">
 				<h2 className={`text-lg font-bold ${balanceColor}`}>
-					Balans: {balanceFormatted > 0 ? '+' : ''}{balanceFormatted} mnkr
+					Balans: {balance > 0 ? '+' : ''}{balanceFormatted} mnkr
 				</h2>
 			</div>
 
@@ -151,7 +151,7 @@ export default function LayeredTreemaps({ expenseCategories, incomeCategories, o
 						opacity: viewMode === 'aligned' ? 0.5 : 1,
 					}}
 				>
-					<SimpleTreemap categories={scaledIncomeCategories} onAmountChange={onIncomeChange} taxBaseInfo={taxBaseInfo} onCategoryClick={onCategoryClick} />
+					<SimpleTreemap categories={scaledIncomeCategories} taxBaseInfo={taxBaseInfo} onCategoryClick={onCategoryClick} />
 				</div>
 
 				{/* Expenses Treemap */}
@@ -177,7 +177,7 @@ export default function LayeredTreemaps({ expenseCategories, incomeCategories, o
 						opacity: 1,
 					}}
 				>
-					<SimpleTreemap categories={filteredExpenseCategories} onAmountChange={onExpenseChange} taxBaseInfo={null} onCategoryClick={onCategoryClick} />
+					<SimpleTreemap categories={filteredExpenseCategories} taxBaseInfo={null} onCategoryClick={onCategoryClick} />
 				</div>
 			</div>
 		</div>

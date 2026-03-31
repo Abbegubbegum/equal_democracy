@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session, Proposal, ThumbsUp } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
@@ -11,7 +12,7 @@ const log = createLogger("Sessions");
  * Checks if a scheduled phase transition should be executed
  * Called periodically from frontend to check if 90 seconds have passed
  */
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	if (req.method !== "POST") {
@@ -30,7 +31,7 @@ export default async function handler(req, res) {
 
 		// Build query for session - add sessionId if provided
 		// Only standard sessions can transition to phase 2 (surveys stay in phase 1 until archived)
-		const sessionQuery = {
+		const sessionQuery: Record<string, unknown> = {
 			status: "active",
 			phase: "phase1",
 			phase1TransitionScheduled: { $exists: true },
@@ -54,7 +55,7 @@ export default async function handler(req, res) {
 
 		// If time hasn't passed yet, return countdown
 		if (now < scheduledTime) {
-			const secondsRemaining = Math.floor((scheduledTime - now) / 1000);
+			const secondsRemaining = Math.floor((scheduledTime.getTime() - now.getTime()) / 1000);
 			return res.status(200).json({
 				transitionExecuted: false,
 				secondsRemaining: secondsRemaining,
@@ -63,7 +64,7 @@ export default async function handler(req, res) {
 
 		// Build atomic update query - add sessionId if provided
 		// Only standard sessions can transition (surveys stay in phase 1)
-		const atomicQuery = {
+		const atomicQuery: Record<string, unknown> = {
 			status: "active",
 			phase: "phase1",
 			phase1TransitionScheduled: {

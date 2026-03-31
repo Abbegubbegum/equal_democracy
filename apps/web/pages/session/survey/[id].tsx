@@ -420,7 +420,7 @@ function SurveyCountdownBanner({ archiveDate, t, primaryColor }) {
 		const updateCountdown = () => {
 			const now = new Date();
 			const archive = new Date(archiveDate);
-			const diff = archive - now;
+			const diff = archive.getTime() - now.getTime();
 
 			if (diff <= 0) {
 				setIsExpired(true);

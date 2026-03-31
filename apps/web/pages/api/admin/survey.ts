@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Survey, SurveyVote } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
@@ -8,7 +9,7 @@ import { createLogger } from "@/lib/logger";
 
 const log = createLogger("AdminSurvey");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	// CSRF protection for state-changing methods

@@ -130,7 +130,8 @@ VALIDERING:
 		});
 
 		// Extract JSON from response
-		const responseText = message.content[0].text;
+		const firstBlock = message.content[0];
+		const responseText = firstBlock.type === "text" ? firstBlock.text : "";
 
 		log.debug("Claude response preview", { preview: responseText.substring(0, 300) });
 

@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
@@ -12,7 +13,7 @@ const log = createLogger("CloseItem");
  * Close a specific item in a municipal session
  * For council members with canCloseQuestions permission
  */
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await connectDB();
 
 	if (req.method !== "POST") {

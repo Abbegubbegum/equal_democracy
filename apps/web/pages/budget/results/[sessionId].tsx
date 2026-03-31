@@ -163,7 +163,6 @@ export default function BudgetResultsPage() {
 						session={budgetSession}
 						allocations={medianAllocations}
 						incomeAllocations={medianIncomeAllocations}
-						readOnly={true}
 					/>
 				</div>
 

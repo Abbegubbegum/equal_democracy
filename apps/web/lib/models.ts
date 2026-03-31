@@ -1236,72 +1236,37 @@ const SurveyVoteSchema = new mongoose.Schema(
 // Ensure one vote per visitor per survey
 SurveyVoteSchema.index({ surveyId: 1, visitorId: 1 }, { unique: true });
 
+type AnyModel = mongoose.Model<any>;
+
+function safeModel(name: string, schema: mongoose.Schema): AnyModel {
+	return ((mongoose.models[name] as AnyModel | undefined) ?? mongoose.model(name, schema)) as AnyModel;
+}
+
 // Export models
-export const User = mongoose.models.User || mongoose.model("User", UserSchema);
-export const Proposal =
-	mongoose.models.Proposal || mongoose.model("Proposal", ProposalSchema);
-export const ThumbsUp =
-	mongoose.models.ThumbsUp || mongoose.model("ThumbsUp", ThumbsUpSchema);
-export const Comment =
-	mongoose.models.Comment || mongoose.model("Comment", CommentSchema);
-export const CommentRating =
-	mongoose.models.CommentRating ||
-	mongoose.model("CommentRating", CommentRatingSchema);
-export const FinalVote =
-	mongoose.models.FinalVote || mongoose.model("FinalVote", FinalVoteSchema);
+export const User = safeModel("User", UserSchema);
+export const Proposal = safeModel("Proposal", ProposalSchema);
+export const ThumbsUp = safeModel("ThumbsUp", ThumbsUpSchema);
+export const Comment = safeModel("Comment", CommentSchema);
+export const CommentRating = safeModel("CommentRating", CommentRatingSchema);
+export const FinalVote = safeModel("FinalVote", FinalVoteSchema);
+export const LoginCode = safeModel("LoginCode", LoginCodeSchema);
+export const TopProposal = safeModel("TopProposal", TopProposalSchema);
+export const SessionRequest = safeModel("SessionRequest", SessionRequestSchema);
+export const BudgetSession = safeModel("BudgetSession", BudgetSessionSchema);
+export const BudgetVote = safeModel("BudgetVote", BudgetVoteSchema);
+export const BudgetResult = safeModel("BudgetResult", BudgetResultSchema);
+export const Survey = safeModel("Survey", SurveySchema);
+export const SurveyVote = safeModel("SurveyVote", SurveyVoteSchema);
+export const MunicipalSession = safeModel("MunicipalSession", MunicipalSessionSchema);
+export const CitizenProposal = safeModel("CitizenProposal", CitizenProposalSchema);
+export const CitizenProposalRating = safeModel("CitizenProposalRating", CitizenProposalRatingSchema);
 
-export const LoginCode =
-	mongoose.models.LoginCode || mongoose.model("LoginCode", LoginCodeSchema);
+// Force-refresh Settings and Session so schema updates always apply in dev (HMR)
+if (mongoose.models["Settings"]) delete mongoose.models["Settings"];
+export const Settings: AnyModel = mongoose.model("Settings", SettingsSchema);
 
-// Force delete cached model to ensure schema updates are applied
-if (mongoose.models.Settings) {
-	delete mongoose.models.Settings;
-}
-export const Settings = mongoose.model("Settings", SettingsSchema);
-
-// Force delete cached model to ensure schema updates are applied
-if (mongoose.models.Session) {
-	delete mongoose.models.Session;
-}
-export const Session = mongoose.model("Session", SessionSchema);
-
-export const TopProposal =
-	mongoose.models.TopProposal ||
-	mongoose.model("TopProposal", TopProposalSchema);
-
-export const SessionRequest =
-	mongoose.models.SessionRequest ||
-	mongoose.model("SessionRequest", SessionRequestSchema);
-
-export const BudgetSession =
-	mongoose.models.BudgetSession ||
-	mongoose.model("BudgetSession", BudgetSessionSchema);
-
-export const BudgetVote =
-	mongoose.models.BudgetVote ||
-	mongoose.model("BudgetVote", BudgetVoteSchema);
-
-export const BudgetResult =
-	mongoose.models.BudgetResult ||
-	mongoose.model("BudgetResult", BudgetResultSchema);
-
-export const Survey =
-	mongoose.models.Survey || mongoose.model("Survey", SurveySchema);
-
-export const SurveyVote =
-	mongoose.models.SurveyVote || mongoose.model("SurveyVote", SurveyVoteSchema);
-
-export const MunicipalSession =
-	mongoose.models.MunicipalSession ||
-	mongoose.model("MunicipalSession", MunicipalSessionSchema);
-
-export const CitizenProposal =
-	mongoose.models.CitizenProposal ||
-	mongoose.model("CitizenProposal", CitizenProposalSchema);
-
-export const CitizenProposalRating =
-	mongoose.models.CitizenProposalRating ||
-	mongoose.model("CitizenProposalRating", CitizenProposalRatingSchema);
+if (mongoose.models["Session"]) delete mongoose.models["Session"];
+export const Session: AnyModel = mongoose.model("Session", SessionSchema);
 
 // BudgetArgument - structured debate arguments tied to budget categories
 const BudgetArgumentSchema = new mongoose.Schema(
@@ -1325,6 +1290,4 @@ BudgetArgumentSchema.index(
 	{ unique: true }
 );
 
-export const BudgetArgument =
-	mongoose.models.BudgetArgument ||
-	mongoose.model("BudgetArgument", BudgetArgumentSchema);
+export const BudgetArgument = safeModel("BudgetArgument", BudgetArgumentSchema);

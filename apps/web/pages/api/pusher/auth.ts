@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import Pusher from "pusher";
@@ -10,7 +11,7 @@ const log = createLogger("PusherAuth");
  * This endpoint authorizes users to join the presence channel
  * and provides user info (id, name) for the presence roster
  */
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	if (req.method !== "POST") {
 		return res.status(405).json({ error: "Method not allowed" });
 	}

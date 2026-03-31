@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
@@ -16,7 +17,7 @@ export const config = {
 	},
 };
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await connectDB();
 
 	if (req.method !== "POST") {
@@ -46,7 +47,7 @@ export default async function handler(req, res) {
 			maxFileSize: 10 * 1024 * 1024, // 10MB max
 		});
 
-		const [fields, files] = await new Promise((resolve, reject) => {
+		const [fields, files] = await new Promise<[formidable.Fields, formidable.Files]>((resolve, reject) => {
 			form.parse(req, (err, parsedFields, parsedFiles) => {
 				if (err) reject(err);
 				resolve([parsedFields, parsedFiles]);

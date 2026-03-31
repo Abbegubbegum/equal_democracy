@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
@@ -11,7 +12,7 @@ const log = createLogger("CitizenProposals");
  * GET/POST /api/citizen-proposals
  * List and create citizen proposals
  */
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await connectDB();
 
 	const session = await getServerSession(req, res, authOptions);
@@ -21,18 +22,18 @@ export default async function handler(req, res) {
 		try {
 			const { status, category, sort } = req.query;
 
-			const query = {};
+			const query: Record<string, unknown> = {};
 
 			// Filter by status (default: active; "all" returns everything)
 			if (status && status !== "all") {
-				query.status = status;
+				query.status = String(status);
 			} else if (!status) {
 				query.status = "active";
 			}
 
 			// Filter by category
 			if (category) {
-				query.categories = parseInt(category);
+				query.categories = parseInt(String(category));
 			}
 
 			// Determine sort order

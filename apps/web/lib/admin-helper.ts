@@ -1,16 +1,11 @@
 import { User } from "./models";
 import { createLogger } from "./logger";
+import type { AuthUser } from "@repo/types";
 
 const log = createLogger("AdminHelper");
 
-/**
- * Check if admin can create more sessions
- * @param {string} userId - The admin's user ID
- * @returns {Promise<{canCreate: boolean, currentCount: number, limit: number, message?: string}>}
- */
-export async function checkAdminSessionLimit(userId) {
+export async function checkAdminSessionLimit(userId: string) {
 	try {
-		// Get user to check their session limit and admin status
 		const user = await User.findById(userId);
 
 		if (!user) {
@@ -22,7 +17,6 @@ export async function checkAdminSessionLimit(userId) {
 			};
 		}
 
-		// Superadmins have unlimited sessions
 		if (user.isSuperAdmin) {
 			return {
 				canCreate: true,
@@ -31,7 +25,6 @@ export async function checkAdminSessionLimit(userId) {
 			};
 		}
 
-		// Regular admins have limits based on remainingSessions
 		if (user.isAdmin && user.adminStatus === "approved") {
 			const remaining = user.remainingSessions || 0;
 			const total = user.sessionLimit || 10;
@@ -47,7 +40,6 @@ export async function checkAdminSessionLimit(userId) {
 			};
 		}
 
-		// Not an admin
 		return {
 			canCreate: false,
 			remaining: 0,
@@ -55,7 +47,7 @@ export async function checkAdminSessionLimit(userId) {
 			message: "User is not an approved admin",
 		};
 	} catch (error) {
-		log.error("Failed to check admin session limit", { userId, error: error.message });
+		log.error("Failed to check admin session limit", { userId, error: (error as Error).message });
 		return {
 			canCreate: false,
 			remaining: 0,
@@ -65,29 +57,14 @@ export async function checkAdminSessionLimit(userId) {
 	}
 }
 
-/**
- * Check if user has admin or superadmin privileges
- * @param {Object} user - The user object from session
- * @returns {boolean}
- */
-export function isAdmin(user) {
-	return user?.isAdmin === true && user?.adminStatus === "approved";
+export function isAdmin(user: AuthUser | null | undefined): boolean {
+	return user?.isAdmin === true && (user as AuthUser & { adminStatus?: string })?.adminStatus === "approved";
 }
 
-/**
- * Check if user is a superadmin
- * @param {Object} user - The user object from session
- * @returns {boolean}
- */
-export function isSuperAdmin(user) {
+export function isSuperAdmin(user: AuthUser | null | undefined): boolean {
 	return user?.isSuperAdmin === true;
 }
 
-/**
- * Check if user has at least admin privileges (admin or superadmin)
- * @param {Object} user - The user object from session
- * @returns {boolean}
- */
-export function hasAdminAccess(user) {
+export function hasAdminAccess(user: AuthUser | null | undefined): boolean {
 	return isSuperAdmin(user) || isAdmin(user);
 }

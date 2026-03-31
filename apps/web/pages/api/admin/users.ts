@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../lib/mongodb";
 import {
 	User,
@@ -11,7 +12,7 @@ import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("AdminUsers");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await connectDB();
 	const session = await requireAdmin(req, res);
 	if (!session) return; // handled

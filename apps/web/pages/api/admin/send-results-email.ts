@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session, User, TopProposal, Settings } from "@/lib/models";
 import { sendSessionResultsEmail } from "@/lib/email";
@@ -8,7 +9,7 @@ import { createLogger } from "@/lib/logger";
 
 const log = createLogger("ResultsEmail");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	// CSRF protection for state-changing methods

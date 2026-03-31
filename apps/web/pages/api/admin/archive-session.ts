@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
@@ -12,7 +13,7 @@ const log = createLogger("ArchiveSession");
  * Archives a ranking session manually
  * POST /api/admin/archive-session
  */
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	if (req.method !== "POST") {

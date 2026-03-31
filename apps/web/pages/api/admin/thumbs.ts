@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../lib/mongodb";
 import { ThumbsUp, User, Proposal } from "../../../lib/models";
 import { requireAdmin } from "../../../lib/admin";
@@ -7,7 +8,7 @@ import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("AdminThumbs");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await connectDB();
 
 	// CSRF protection for state-changing methods
@@ -21,24 +22,24 @@ export default async function handler(req, res) {
 	try {
 		if (req.method === "GET") {
 			const { proposalId, userId } = req.query;
-			const filter = {};
+			const filter: Record<string, unknown> = {};
 
 			if (proposalId) {
-				if (!validateObjectId(proposalId)) {
+				if (!validateObjectId(String(proposalId))) {
 					return res
 						.status(400)
 						.json({ message: "Invalid proposalId format" });
 				}
-				filter.proposalId = toObjectId(proposalId);
+				filter.proposalId = toObjectId(String(proposalId));
 			}
 
 			if (userId) {
-				if (!validateObjectId(userId)) {
+				if (!validateObjectId(String(userId))) {
 					return res
 						.status(400)
 						.json({ message: "Invalid userId format" });
 				}
-				filter.userId = toObjectId(userId);
+				filter.userId = toObjectId(String(userId));
 			}
 
 			const data = await ThumbsUp.find(filter)
@@ -93,12 +94,12 @@ export default async function handler(req, res) {
 
 		if (req.method === "DELETE") {
 			const { id } = req.query;
-			if (!id || !validateObjectId(id)) {
+			if (!id || !validateObjectId(String(id))) {
 				return res
 					.status(400)
 					.json({ message: "Invalid thumbs up ID" });
 			}
-			await ThumbsUp.findByIdAndDelete(toObjectId(id));
+			await ThumbsUp.findByIdAndDelete(toObjectId(String(id)));
 			return res.status(204).end();
 		}
 

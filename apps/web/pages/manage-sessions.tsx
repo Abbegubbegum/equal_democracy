@@ -817,10 +817,10 @@ function SessionsPanel() {
 													<p className="text-sm text-slate-500">
 														Duration:{" "}
 														{Math.floor(
-															(new Date() -
+															(new Date().getTime() -
 																new Date(
 																	activeSession.startDate
-																)) /
+																).getTime()) /
 																(1000 * 60 * 60)
 														)}{" "}
 														hours
@@ -988,7 +988,7 @@ function SessionsPanel() {
 							const startDate = new Date(sessionItem.startDate);
 							const endDate = new Date(sessionItem.endDate);
 							const durationHours = Math.floor(
-								(endDate - startDate) / (1000 * 60 * 60)
+								(endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60)
 							);
 							const durationDays = Math.floor(durationHours / 24);
 							const remainingHours = durationHours % 24;

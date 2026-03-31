@@ -92,7 +92,7 @@ export default function TreemapTestPage() {
 					<h2 className="text-lg font-semibold text-gray-800 mb-4">
 						Treemap Visualisering
 					</h2>
-					<SimpleTreemap categories={categories} />
+					<SimpleTreemap categories={categories} taxBaseInfo={null} onCategoryClick={() => {}} />
 				</div>
 
 				<div className="bg-white rounded-lg shadow-sm p-6">

@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
@@ -8,7 +9,7 @@ import { createLogger } from "@/lib/logger";
 
 const log = createLogger("BudgetSessions");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await connectDB();
 
 	const session = await getServerSession(req, res, authOptions);
@@ -28,12 +29,12 @@ export default async function handler(req, res) {
 		try {
 			const { status, createdBy } = req.query;
 
-			const query = {};
+			const query: Record<string, unknown> = {};
 			if (status) {
-				query.status = status;
+				query.status = String(status);
 			}
 			if (createdBy) {
-				query.createdBy = createdBy;
+				query.createdBy = String(createdBy);
 			}
 
 			// Don't populate creator info for regular users (anonymity)

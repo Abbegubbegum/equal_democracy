@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session, Proposal, ThumbsUp, FinalVote } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
@@ -8,7 +9,7 @@ import { createLogger } from "@/lib/logger";
 
 const log = createLogger("LivePanel");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	const session = await getServerSession(req, res, authOptions);
@@ -27,7 +28,7 @@ export default async function handler(req, res) {
 			const activeSession = await Session.findOne({
 				_id: sessionId,
 				status: "active",
-			}).lean();
+			}).lean() as any;
 
 			if (!activeSession) {
 				return res.status(404).json({ error: "Active session not found" });
@@ -54,7 +55,7 @@ export default async function handler(req, res) {
 				if (terminationScheduled) {
 					scheduledTime = new Date(activeSession.phase2TerminationScheduled);
 					const now = new Date();
-					secondsRemaining = Math.max(0, Math.floor((scheduledTime - now) / 1000));
+					secondsRemaining = Math.max(0, Math.floor((scheduledTime.getTime() - now.getTime()) / 1000));
 				}
 
 				return res.status(200).json({
@@ -98,7 +99,7 @@ export default async function handler(req, res) {
 			if (transitionScheduled) {
 				scheduledTime = new Date(activeSession.phase1TransitionScheduled);
 				const now = new Date();
-				secondsRemaining = Math.max(0, Math.floor((scheduledTime - now) / 1000));
+				secondsRemaining = Math.max(0, Math.floor((scheduledTime.getTime() - now.getTime()) / 1000));
 			}
 
 			const calculatedTopCount = totalProposals >= 2

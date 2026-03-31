@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import bcrypt from "bcryptjs";
 import connectDB from "../../../lib/mongodb";
 import { LoginCode, Settings } from "../../../lib/models";
@@ -10,7 +11,7 @@ function random6() {
 	return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	if (req.method !== "POST")
 		return res.status(405).json({ message: "Method not allowed" });
 

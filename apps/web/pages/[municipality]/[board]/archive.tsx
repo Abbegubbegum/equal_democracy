@@ -16,7 +16,9 @@ const CATEGORY_NAMES = {
 
 export default function BoardArchivePage() {
 	const router = useRouter();
-	const { municipality, board } = router.query;
+	const { municipality: municipalityParam, board: boardParam } = router.query;
+	const municipality = String(municipalityParam || "");
+	const board = String(boardParam || "");
 	const { t } = useTranslation();
 	const [sessions, setSessions] = useState([]);
 	const [loading, setLoading] = useState(true);

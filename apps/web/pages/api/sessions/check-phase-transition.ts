@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session, Proposal, ThumbsUp } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
@@ -14,7 +15,7 @@ const log = createLogger("Sessions");
  * 2. 75% of proposals have been rated
  * Then schedules transition after 90 seconds
  */
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	if (req.method !== "GET") {
@@ -55,7 +56,7 @@ export default async function handler(req, res) {
 			const now = new Date();
 			const secondsRemaining = Math.max(
 				0,
-				Math.floor((scheduledTime - now) / 1000)
+				Math.floor((scheduledTime.getTime() - now.getTime()) / 1000)
 			);
 
 			return res.status(200).json({

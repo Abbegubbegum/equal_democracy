@@ -1,11 +1,15 @@
 import { useRef, useCallback } from "react";
 
+interface SoundOptions {
+	volume?: number;
+}
+
 /**
  * Lazy-loading sound hook that defers loading howler.js until first play.
  * Drop-in replacement for useSound with the same [play] return API.
  */
-export function useLazySound(src, options = {}) {
-	const playFnRef = useRef(null);
+export function useLazySound(src: string, options: SoundOptions = {}): [() => void] {
+	const playFnRef = useRef<(() => void) | null>(null);
 	const loadingRef = useRef(false);
 
 	const play = useCallback(() => {

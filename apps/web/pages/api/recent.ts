@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth/[...nextauth]";
 import connectDB from "@/lib/mongodb";
@@ -13,7 +14,7 @@ import { createLogger } from "@/lib/logger";
 
 const log = createLogger("api/recent");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	if (req.method !== "GET") return res.status(405).end();
 
 	const session = await getServerSession(req, res, authOptions);
@@ -106,7 +107,7 @@ export default async function handler(req, res) {
 			})),
 		];
 
-		candidates.sort((a, b) => new Date(b.date) - new Date(a.date));
+		candidates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
 		return res.status(200).json(candidates.slice(0, 6));
 	} catch (error) {

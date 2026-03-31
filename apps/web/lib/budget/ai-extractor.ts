@@ -15,7 +15,7 @@ const log = createLogger("BudgetAIExtractor");
  * @param {string} documentType - "expenses" or "income"
  * @returns {Promise<Object>} - Extracted budget data
  */
-export async function extractBudgetFromPDF(pdfBuffer, documentType = "expenses") {
+export async function extractBudgetFromPDF(pdfBuffer: Buffer, documentType = "expenses") {
 	// Initialize Anthropic client
 	const anthropic = new Anthropic({
 		apiKey: process.env.ANTHROPIC_API_KEY,
@@ -195,7 +195,8 @@ VALIDERING:
 		});
 
 		// Extract JSON from response
-		const responseText = message.content[0].text;
+		const firstBlock = message.content[0];
+		const responseText = firstBlock.type === "text" ? firstBlock.text : "";
 
 		log.debug("Claude response preview", { preview: responseText.substring(0, 500) });
 

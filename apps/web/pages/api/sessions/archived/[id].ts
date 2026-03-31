@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session, Proposal } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
@@ -6,7 +7,7 @@ import { createLogger } from "@/lib/logger";
 
 const log = createLogger("ArchivedSession");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	if (req.method !== "GET") {
@@ -31,7 +32,7 @@ export default async function handler(req, res) {
 			status: "archived",
 		})
 			.select("_id place startDate endDate surveyDurationDays activeUsers sessionType")
-			.lean();
+			.lean() as any;
 
 		if (!archivedSession) {
 			return res.status(404).json({ error: "Archived session not found" });

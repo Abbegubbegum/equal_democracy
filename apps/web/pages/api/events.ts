@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 /**
  * Pusher configuration endpoint
  * Returns Pusher public key and cluster for client-side connection
@@ -7,7 +8,7 @@
  * directly in the client code. This endpoint provides a way to dynamically
  * fetch the config if needed.
  */
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	// Only allow GET requests
 	if (req.method !== "GET") {
 		return res.status(405).json({ error: "Method not allowed" });

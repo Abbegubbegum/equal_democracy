@@ -9,6 +9,7 @@ declare module "next-auth" {
       image?: string | null;
       isAdmin: boolean;
       isSuperAdmin: boolean;
+      adminStatus?: string;
       municipality?: string;
     };
   }
@@ -17,6 +18,7 @@ declare module "next-auth" {
     id: string;
     isAdmin: boolean;
     isSuperAdmin: boolean;
+    adminStatus?: string;
     municipality?: string;
   }
 }
@@ -26,6 +28,8 @@ declare module "next-auth/jwt" {
     id: string;
     isAdmin: boolean;
     isSuperAdmin: boolean;
+    adminStatus?: string;
     municipality?: string;
+    lastRefreshed?: number;
   }
 }

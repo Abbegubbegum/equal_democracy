@@ -6,29 +6,24 @@ import { User } from "./models";
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_ADDRESS = "Vallentuna Framåt <no-reply@votes.abbegubbegum.dev>";
 
-/**
- * Check if a user has opted out of emails.
- * Returns true if the email should be skipped.
- */
-async function isOptedOut(email) {
+async function isOptedOut(email: string): Promise<boolean> {
 	try {
 		await dbConnect();
 		const user = await User.findOne(
 			{ email: email.toLowerCase() },
 			{ emailOptOut: 1 }
 		).lean();
-		return user?.emailOptOut === true;
+		return (user as { emailOptOut?: boolean } | null)?.emailOptOut === true;
 	} catch {
-		// If lookup fails, send the email anyway
 		return false;
 	}
 }
 
-function getBaseUrl() {
+function getBaseUrl(): string {
 	return process.env.NEXTAUTH_URL || "https://votes.abbegubbegum.dev";
 }
 
-function unsubscribeFooterHtml(email, language = "sv") {
+function unsubscribeFooterHtml(email: string, language = "sv"): string {
 	const unsubscribeUrl = `${getBaseUrl()}/api/unsubscribe?email=${encodeURIComponent(email)}`;
 	return `
       <div style="margin-top:40px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:12px">
@@ -37,24 +32,14 @@ function unsubscribeFooterHtml(email, language = "sv") {
       </div>`;
 }
 
-function unsubscribeFooterText(email, language = "sv") {
+function unsubscribeFooterText(email: string, language = "sv"): string {
 	const unsubscribeUrl = `${getBaseUrl()}/api/unsubscribe?email=${encodeURIComponent(email)}`;
 	return `\n\n---\n${t(language, "email.unsubscribe.text")}\n${t(language, "email.unsubscribe.linkText")}: ${unsubscribeUrl}`;
 }
 
-/**
- * Central email send function. Handles opt-out checking and appending
- * the unsubscribe footer. All other email helpers should use this.
- * @param {string} to - Recipient email
- * @param {string} subject - Email subject
- * @param {string} text - Plain text content
- * @param {string} html - HTML content
- * @param {string} language - Language code for unsubscribe footer
- */
-export async function sendEmail(to, subject, text, html, language = "en") {
+export async function sendEmail(to: string, subject: string, text: string, html: string, language = "en"): Promise<void> {
 	if (await isOptedOut(to)) return;
 
-	// Append unsubscribe footer
 	text += unsubscribeFooterText(to, language);
 
 	const lastDivIndex = html.lastIndexOf("</div>");
@@ -74,10 +59,7 @@ export async function sendEmail(to, subject, text, html, language = "en") {
 	});
 }
 
-/**
- * Send a login code email (always sent, no opt-out check)
- */
-export async function sendLoginCode(email, code, language = "sv") {
+export async function sendLoginCode(email: string, code: string, language = "sv"): Promise<void> {
 	const subject = t(language, "email.loginCode.subject");
 	const text = `${t(language, "email.loginCode.yourCode", { code })}\n\n${t(
 		language,
@@ -100,15 +82,18 @@ export async function sendLoginCode(email, code, language = "sv") {
 	});
 }
 
-/**
- * Send session results email
- */
+interface TopProposalSummary {
+	title: string;
+	yesVotes: number;
+	noVotes: number;
+}
+
 export async function sendSessionResultsEmail(
-	email,
-	sessionPlace,
-	topProposals,
+	email: string,
+	sessionPlace: string,
+	topProposals: TopProposalSummary[],
 	language = "sv"
-) {
+): Promise<void> {
 	const subject = t(language, "email.sessionResults.subject", {
 		place: sessionPlace,
 	});
@@ -155,17 +140,17 @@ Vallentuna Framåt
 	const html = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#1e293b">
       <h2 style="color:#002d75">${t(
-			language,
-			"email.sessionResults.thankYou"
-		)}</h2>
+		language,
+		"email.sessionResults.thankYou"
+	)}</h2>
 
       <p><strong>${t(language, "email.sessionResults.session", {
-			place: sessionPlace,
-		})}</strong></p>
+		place: sessionPlace,
+	})}</strong></p>
 
       ${
-			topProposals.length > 0
-				? `
+		topProposals.length > 0
+			? `
         <h3 style="color:#002d75;margin-top:24px">${t(
 			language,
 			"email.sessionResults.proposalsVotedThrough"
@@ -191,11 +176,11 @@ Vallentuna Framåt
           ${t(language, "email.sessionResults.electionPromise")}
         </p>
       `
-				: `<p style="color:#64748b">${t(
-						language,
-						"email.sessionResults.noMajority"
-				  )}</p>`
-		}
+			: `<p style="color:#64748b">${t(
+					language,
+					"email.sessionResults.noMajority"
+			  )}</p>`
+	}
 
       <p style="margin-top:32px;color:#64748b">
         ${t(language, "email.sessionResults.bestRegards")},<br/>
@@ -207,22 +192,19 @@ Vallentuna Framåt
 	await sendEmail(email, subject, text, html, language);
 }
 
-/**
- * Send broadcast email to user
- */
 export async function sendBroadcastEmail(
-	email,
-	subject,
-	message,
+	email: string,
+	subject: string,
+	message: string,
 	language = "sv"
-) {
+): Promise<void> {
 	const text = message;
 	const html = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#1e293b">
       ${message
-			.split("\n")
-			.map((line) => `<p>${line}</p>`)
-			.join("")}
+		.split("\n")
+		.map((line) => `<p>${line}</p>`)
+		.join("")}
 
       <p style="margin-top:32px;color:#64748b">
         ${t(language, "email.broadcast.bestRegards")},<br/>
@@ -234,16 +216,13 @@ export async function sendBroadcastEmail(
 	await sendEmail(email, subject, text, html, language);
 }
 
-/**
- * Send admin application notification to superadmins
- */
 export async function sendAdminApplicationNotification(
-	email,
-	applicantName,
-	applicantEmail,
-	organization,
-	requestedSessions
-) {
+	email: string,
+	applicantName: string,
+	applicantEmail: string,
+	organization: string,
+	requestedSessions: number
+): Promise<void> {
 	const subject = "New Admin Application";
 
 	const text = `A new user has applied to become an admin.
@@ -283,14 +262,11 @@ Vallentuna Framåt
 	await sendEmail(email, subject, text, html);
 }
 
-/**
- * Send admin application approval notification to applicant
- */
 export async function sendAdminApprovalNotification(
-	email,
-	name,
-	sessionLimit
-) {
+	email: string,
+	name: string,
+	sessionLimit: number
+): Promise<void> {
 	const subject = "Your Admin Application Has Been Approved";
 
 	const text = `Congratulations ${name}!
@@ -326,10 +302,7 @@ Vallentuna Framåt
 	await sendEmail(email, subject, text, html);
 }
 
-/**
- * Send admin application denial notification to applicant
- */
-export async function sendAdminDenialNotification(email, name) {
+export async function sendAdminDenialNotification(email: string, name: string): Promise<void> {
 	const subject = "Your Admin Application Has Been Denied";
 
 	const text = `Hello ${name},
@@ -366,17 +339,14 @@ Vallentuna Framåt
 	await sendEmail(email, subject, text, html);
 }
 
-/**
- * Send session request notification to superadmins
- */
 export async function sendSessionRequestNotification(
-	email,
-	adminName,
-	adminEmail,
-	organization,
-	currentRemaining,
-	requestedSessions
-) {
+	email: string,
+	adminName: string,
+	adminEmail: string,
+	organization: string | undefined,
+	currentRemaining: number,
+	requestedSessions: number
+): Promise<void> {
 	const subject = "New Session Request";
 
 	const text = `An admin has requested more sessions
@@ -418,14 +388,11 @@ Vallentuna Framåt
 	await sendEmail(email, subject, text, html);
 }
 
-/**
- * Send session request approval notification to admin
- */
 export async function sendSessionRequestApprovalNotification(
-	email,
-	name,
-	grantedSessions
-) {
+	email: string,
+	name: string,
+	grantedSessions: number
+): Promise<void> {
 	const subject = "Your Session Request Has Been Approved";
 
 	const text = `Hello ${name},
@@ -461,10 +428,7 @@ Vallentuna Framåt
 	await sendEmail(email, subject, text, html);
 }
 
-/**
- * Send session request denial notification to admin
- */
-export async function sendSessionRequestDenialNotification(email, name) {
+export async function sendSessionRequestDenialNotification(email: string, name: string): Promise<void> {
 	const subject = "Your Session Request Has Been Denied";
 
 	const text = `Hello ${name},

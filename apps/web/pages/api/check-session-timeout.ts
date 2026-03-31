@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session, Settings } from "@/lib/models";
 import { closeSession } from "@/lib/session-close";
@@ -9,7 +10,7 @@ const log = createLogger("SessionTimeout");
  * API endpoint to check and automatically close sessions that have exceeded their time limit
  * This can be called periodically by a cron job or manually
  */
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	if (req.method !== "POST" && req.method !== "GET") {
 		return res.status(405).json({ error: "Method not allowed" });
 	}
@@ -41,7 +42,7 @@ export default async function handler(req, res) {
 
 			const sessionStartTime = new Date(session.startDate);
 			const elapsedHours =
-				(currentTime - sessionStartTime) / (1000 * 60 * 60);
+				(currentTime.getTime() - sessionStartTime.getTime()) / (1000 * 60 * 60);
 
 			// If session has exceeded the time limit, close it
 			if (elapsedHours >= sessionLimitHours) {

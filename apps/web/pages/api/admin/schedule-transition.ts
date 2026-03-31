@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session, Proposal } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
@@ -13,7 +14,7 @@ const log = createLogger("AdminScheduleTransition");
  * Manually schedules a phase transition (90-second countdown)
  * without requiring the automatic 75% conditions to be met.
  */
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	if (!csrfProtection(req, res)) {
@@ -49,7 +50,7 @@ export default async function handler(req, res) {
 		// Already scheduled
 		if (activeSession.phase1TransitionScheduled) {
 			const scheduledTime = new Date(activeSession.phase1TransitionScheduled);
-			const secondsRemaining = Math.max(0, Math.floor((scheduledTime - new Date()) / 1000));
+			const secondsRemaining = Math.max(0, Math.floor((scheduledTime.getTime() - new Date().getTime()) / 1000));
 			return res.status(200).json({
 				transitionScheduled: true,
 				scheduledTime,

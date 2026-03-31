@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session } from "@/lib/models";
 import { closeSession } from "@/lib/session-close";
@@ -10,7 +11,7 @@ const log = createLogger("ExecuteScheduledTermination");
  * Executes a scheduled Phase 2 termination when the 60-second timer expires.
  * Uses atomic query to prevent double execution from concurrent clients.
  */
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	if (req.method !== "POST") {
@@ -27,7 +28,7 @@ export default async function handler(req, res) {
 			status: "active",
 			phase: "phase2",
 			phase2TerminationScheduled: { $exists: true, $ne: null },
-		}).lean();
+		}).lean() as any;
 
 		if (!pendingSession) {
 			return res.status(200).json({
@@ -40,7 +41,7 @@ export default async function handler(req, res) {
 
 		// If time hasn't passed yet, return countdown
 		if (now < scheduledTime) {
-			const secondsRemaining = Math.floor((scheduledTime - now) / 1000);
+			const secondsRemaining = Math.floor((scheduledTime.getTime() - now.getTime()) / 1000);
 			return res.status(200).json({
 				terminationExecuted: false,
 				secondsRemaining,
@@ -80,7 +81,7 @@ export default async function handler(req, res) {
 
 		// Re-fetch the session since closeSession needs a fresh document
 		const sessionToClose = await Session.findById(activeSession._id);
-		const result = await closeSession(sessionToClose, { sendEmails: true });
+		const result = await closeSession(sessionToClose, { sendEmails: true }) as any;
 
 		if (result.tiebreakerStarted) {
 			// Tie detected — broadcast tiebreaker event instead of closing

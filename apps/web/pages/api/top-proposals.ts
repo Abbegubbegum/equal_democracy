@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { TopProposal, Session } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
@@ -10,7 +11,7 @@ const log = createLogger("TopProposals");
  * Public endpoint to get winning proposals from the most recently closed session
  * Returns proposals with yes-majority from the latest closed session
  */
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	const session = await getServerSession(req, res, authOptions);

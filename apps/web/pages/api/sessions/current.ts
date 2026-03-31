@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
@@ -7,7 +8,7 @@ import { createLogger } from "@/lib/logger";
 
 const log = createLogger("Sessions");
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	await dbConnect();
 
 	if (req.method !== "GET") {
@@ -23,7 +24,7 @@ export default async function handler(req, res) {
 		// Get sessionId from query parameter (optional for backward compatibility)
 		const { sessionId } = req.query;
 
-		const activeSession = await getActiveSession(sessionId);
+		const activeSession = await getActiveSession(String(sessionId || "") || null);
 
 		// If no active session exists, return null
 		if (!activeSession) {
@@ -38,11 +39,11 @@ export default async function handler(req, res) {
 		// (create proposal, rate, vote, comment) via registerActiveUser() helper
 
 		// Use lean() to get raw doc with phase2TerminationScheduled (bypasses schema cache)
-		const rawSession = await Session.findById(activeSession._id).lean();
+		const rawSession = await Session.findById(activeSession._id).lean() as any;
 		let terminationSecondsRemaining = null;
 		if (rawSession?.phase2TerminationScheduled) {
 			const scheduledTime = new Date(rawSession.phase2TerminationScheduled);
-			terminationSecondsRemaining = Math.max(0, Math.floor((scheduledTime - new Date()) / 1000));
+			terminationSecondsRemaining = Math.max(0, Math.floor((scheduledTime.getTime() - new Date().getTime()) / 1000));
 		}
 
 		// Tiebreaker state
@@ -51,7 +52,7 @@ export default async function handler(req, res) {
 		const tiebreakerActive = !!rawSession?.tiebreakerActive;
 		if (tiebreakerActive && rawSession?.tiebreakerScheduled) {
 			const tbTime = new Date(rawSession.tiebreakerScheduled);
-			tiebreakerSecondsRemaining = Math.max(0, Math.floor((tbTime - new Date()) / 1000));
+			tiebreakerSecondsRemaining = Math.max(0, Math.floor((tbTime.getTime() - new Date().getTime()) / 1000));
 			tiebreakerProposalIds = (rawSession.tiebreakerProposals || []).map(id => id.toString());
 		}
 
