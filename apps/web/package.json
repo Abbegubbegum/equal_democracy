@@ -14,8 +14,8 @@
     "backup": "node scripts/backup-to-mongodb.js"
   },
   "dependencies": {
-    "@repo/types": "workspace:*",
     "@anthropic-ai/sdk": "^0.69.0",
+    "@repo/types": "workspace:*",
     "@vercel/analytics": "^1.6.1",
     "bcryptjs": "^3.0.2",
     "csrf": "^3.1.0",
@@ -23,6 +23,7 @@
     "dotenv": "^17.2.3",
     "formidable": "^3.5.4",
     "howler": "^2.2.4",
+    "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.546.0",
     "mongodb": "^6.20.0",
     "mongoose": "^8.19.1",
@@ -41,6 +42,7 @@
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/howler": "^2.2.12",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.15.3",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

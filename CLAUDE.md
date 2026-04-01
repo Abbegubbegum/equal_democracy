@@ -221,6 +221,16 @@ Session types: `"standard"` · `"survey"` · `"municipal"`
 - `GET/POST /api/admin/survey`
 - `GET/POST /api/admin/session-limit`
 
+### Mobile Auth (JWT)
+Mobile apps cannot use NextAuth cookies. These endpoints implement the same OTP flow but return JWT tokens instead.
+- `POST /api/auth/request-code` — Request OTP (shared with web, no changes)
+- `POST /api/mobile/auth/verify-code` — Submit OTP, returns `{ accessToken, refreshToken, user }`
+- `POST /api/mobile/auth/refresh` — Exchange refresh token for new token pair
+
+Access tokens: 7-day expiry · Refresh tokens: 30-day expiry · Signed with `NEXTAUTH_SECRET`
+
+Mobile API calls pass `Authorization: Bearer <accessToken>`. Use `verifyBearerToken()` from `lib/mobile-jwt.ts` to protect mobile-specific routes.
+
 ### Other
 - `GET /api/settings` — App settings
 - `POST /api/settings` — Update settings (admin)
