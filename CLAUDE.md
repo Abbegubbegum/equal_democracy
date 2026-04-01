@@ -18,7 +18,7 @@ A democratic participation platform for Swedish municipalities. Citizens can vot
 equal_democracy/
 ├── apps/
 │   ├── web/          # Main Next.js application (primary app)
-│   └── mobile/       # Expo React Native app (minimal, in progress)
+│   └── mobile/       # Expo React Native app (Expo Router, JWT auth)
 ├── packages/
 │   ├── types/        # Shared TypeScript types (used by both apps)
 │   ├── ui/           # Shared component library (budget components)
@@ -38,7 +38,8 @@ equal_democracy/
 ```bash
 # From repo root
 pnpm install          # Install all dependencies
-pnpm dev              # Start all apps in dev mode
+pnpm dev              # Start web + mobile together
+pnpm dev:web          # Start web only (no mobile)
 pnpm build            # Build all apps
 pnpm lint             # Lint all
 pnpm check-types      # Type check all
@@ -51,6 +52,48 @@ npm run backup            # Backup to MongoDB
 ```
 
 Web runs on `http://localhost:3000` (Next.js with Turbopack)
+
+---
+
+## apps/mobile — React Native App
+
+Built with Expo 54 + Expo Router v6 (file-based routing, same mental model as Next.js Pages Router).
+
+### Directory Layout
+
+```
+apps/mobile/
+├── app/
+│   ├── _layout.tsx          # Root layout: GestureHandler + SafeAreaProvider + AuthProvider
+│   ├── (auth)/
+│   │   ├── _layout.tsx      # Redirects to (app)/ if already logged in
+│   │   └── login.tsx        # Two-step email → OTP login screen
+│   └── (app)/
+│       ├── _layout.tsx      # Redirects to (auth)/login if not logged in
+│       └── index.tsx        # Home screen placeholder
+├── lib/
+│   ├── api.ts               # apiClient() — Bearer token injection + silent 401 refresh
+│   ├── auth-context.tsx     # AuthProvider + useAuth() hook
+│   └── storage.ts           # Cross-platform storage: SecureStore (native) / localStorage (web)
+├── metro.config.js          # Monorepo-aware Metro config — required for pnpm workspace resolution
+└── .env                     # EXPO_PUBLIC_API_URL (default: http://localhost:3000)
+```
+
+### Key Patterns
+
+**Auth:** Uses JWT tokens (not NextAuth cookies). Tokens stored via `lib/storage.ts` (SecureStore on native, localStorage on web). `useAuth()` exposes `user`, `isLoading`, `requestCode(email)`, `login(email, code)`, `logout()`.
+
+**API calls:** Use `apiClient<T>(path, options)` from `lib/api.ts`. It reads the access token from storage, attaches `Authorization: Bearer`, and silently refreshes on 401 before retrying once.
+
+**Storage:** Always use `lib/storage.ts` (`getItem`/`setItem`/`deleteItem`) instead of `expo-secure-store` directly — it handles the web fallback to localStorage automatically.
+
+**Navigation guards:** `(auth)/_layout.tsx` redirects logged-in users to the app. `(app)/_layout.tsx` redirects unauthenticated users to login. Both check `useAuth()`.
+
+**Monorepo + Metro:** `metro.config.js` is required — without it, pnpm's symlinked `node_modules` causes Metro module resolution failures. Always keep it in sync if the monorepo structure changes.
+
+**CORS (web emulator only):** `apps/web/middleware.ts` adds CORS headers for `localhost:8081` and `localhost:19006`. Native builds are unaffected. Add production origins via `ALLOWED_ORIGINS` env var (comma-separated) in `apps/web/.env.local`.
+
+**Environment:** Set `EXPO_PUBLIC_API_URL` in `apps/mobile/.env`. Use `http://10.0.2.2:3000` for Android emulator, your LAN IP for physical devices.
 
 ---
 
