@@ -314,6 +314,8 @@ export const sv = {
 		verifying: "Verifierar...",
 		login: "Logga in",
 		loginError: "Fel vid inloggning",
+		resendCode: "Skicka koden igen",
+		resendIn: "Skicka igen om {seconds}s",
 		changeEmail: "Byt e-postadress",
 		newHere: "Ny här?",
 		createAccount: "Skapa konto",

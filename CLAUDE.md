@@ -204,7 +204,8 @@ Session types: `"standard"` · `"survey"` · `"municipal"`
 ## API Routes (70+)
 
 ### Auth
-- `POST /api/auth/request-code` — Send OTP
+- `POST /api/auth/request-code` — Request OTP; if a valid code already exists for the email, returns `{ ok: true, alreadySent: true }` without resending (lets user proceed to code input). Creates and sends a new code only if none is active.
+- `POST /api/auth/resend-code` — Invalidates the existing code and sends a fresh one. Enforces a 60-second server-side cooldown (returns `429` with `retryAfter` if called too soon).
 - `/api/auth/[...nextauth]` — NextAuth handlers
 
 ### Sessions

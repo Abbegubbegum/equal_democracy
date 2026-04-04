@@ -310,6 +310,8 @@ export const sr = {
 		verifying: "Verifikacija...",
 		login: "Prijavi se",
 		loginError: "Greška pri prijavljivanju",
+		resendCode: "Pošalji kod ponovo",
+		resendIn: "Ponovo u {seconds}s",
 		changeEmail: "Promeni email adresu",
 		newHere: "Novi ste ovde?",
 		createAccount: "Kreiraj nalog",

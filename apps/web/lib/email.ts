@@ -4,7 +4,7 @@ import dbConnect from "./mongodb";
 import { User } from "./models";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM_ADDRESS = "Vallentuna Framåt <no-reply@votes.abbegubbegum.dev>";
+const FROM_ADDRESS = "Vallentuna Framåt <no-reply@demokrati.vallentuna.app>";
 
 async function isOptedOut(email: string): Promise<boolean> {
 	try {
@@ -20,7 +20,7 @@ async function isOptedOut(email: string): Promise<boolean> {
 }
 
 function getBaseUrl(): string {
-	return process.env.NEXTAUTH_URL || "https://votes.abbegubbegum.dev";
+	return process.env.NEXTAUTH_URL || "https://vallentuna.app";
 }
 
 function unsubscribeFooterHtml(email: string, language = "sv"): string {
@@ -73,6 +73,7 @@ export async function sendLoginCode(email: string, code: string, language = "sv"
       <p>${t(language, "email.loginCode.ignoreIfNotRequested")}</p>
     </div>
   `;
+  console.log("SEND!")
 	await resend.emails.send({
 		to: email,
 		from: FROM_ADDRESS,

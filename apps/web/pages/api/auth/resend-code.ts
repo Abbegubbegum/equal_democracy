@@ -4,12 +4,11 @@ import connectDB from "../../../lib/mongodb";
 import { LoginCode, Settings } from "../../../lib/models";
 import { sendLoginCode } from "../../../lib/email";
 import { createLogger } from "../../../lib/logger";
+import { random6 } from "./request-code";
 
 const log = createLogger("Auth");
 
-export function random6() {
-	return Math.floor(100000 + Math.random() * 900000).toString();
-}
+const RESEND_COOLDOWN_SECONDS = 60;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
 	if (req.method !== "POST")
@@ -20,19 +19,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
 	await connectDB();
 
-	// Delete any stale (expired) codes
+	// Delete stale codes
 	await LoginCode.deleteMany({
 		email: email.toLowerCase(),
 		expiresAt: { $lte: new Date() },
 	});
 
-	// If a valid code already exists, just let the user proceed — don't resend
+	// Enforce cooldown: reject if a code was created less than 60s ago
 	const existingActive = await LoginCode.findOne({
 		email: email.toLowerCase(),
 		expiresAt: { $gt: new Date() },
 	});
 	if (existingActive) {
-		return res.status(200).json({ ok: true, alreadySent: true });
+		const secondsSinceCreated = (Date.now() - new Date(existingActive.createdAt).getTime()) / 1000;
+		if (secondsSinceCreated < RESEND_COOLDOWN_SECONDS) {
+			const retryAfter = Math.ceil(RESEND_COOLDOWN_SECONDS - secondsSinceCreated);
+			return res.status(429).json({
+				message: `Please wait ${retryAfter} seconds before resending`,
+				retryAfter,
+			});
+		}
+		// Cooldown passed — invalidate the old code
+		await LoginCode.deleteMany({ email: email.toLowerCase() });
 	}
 
 	const settings = await Settings.findOne();
@@ -55,9 +63,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 			email: email.toLowerCase(),
 			expiresAt: { $gt: new Date() },
 		});
-		log.error("Failed to send login code", { error: e.message });
+		log.error("Failed to resend login code", { error: e.message });
 		return res.status(500).json({ message: "Could not send code" });
 	}
 
-	return res.status(200).json({ ok: true, alreadySent: false });
+	return res.status(200).json({ ok: true });
 }

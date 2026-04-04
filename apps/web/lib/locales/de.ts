@@ -316,6 +316,8 @@ export const de = {
 		verifying: "Verifizieren...",
 		login: "Anmelden",
 		loginError: "Anmeldefehler",
+		resendCode: "Code erneut senden",
+		resendIn: "Erneut senden in {seconds}s",
 		changeEmail: "E-Mail-Adresse ändern",
 		newHere: "Neu hier?",
 		createAccount: "Konto erstellen",

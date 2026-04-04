@@ -310,6 +310,8 @@ export const en = {
 		verifying: "Verifying...",
 		login: "Log in",
 		loginError: "Login error",
+		resendCode: "Resend code",
+		resendIn: "Resend in {seconds}s",
 		changeEmail: "Change email address",
 		newHere: "New here?",
 		createAccount: "Create account",

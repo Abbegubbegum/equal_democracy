@@ -1,10 +1,12 @@
-import { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { ChevronsRight, Info } from "lucide-react";
 import { useTranslation } from "../lib/hooks/useTranslation";
 import { useConfig } from "../lib/contexts/ConfigContext";
+
+const RESEND_COOLDOWN = 60;
 
 export default function LoginPage() {
 	const router = useRouter();
@@ -16,8 +18,31 @@ export default function LoginPage() {
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [info, setInfo] = useState("");
+	const [resendCooldown, setResendCooldown] = useState(0);
+	const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-	async function requestCode(e) {
+	function startCooldown(seconds = RESEND_COOLDOWN) {
+		if (cooldownRef.current) clearInterval(cooldownRef.current);
+		setResendCooldown(seconds);
+		cooldownRef.current = setInterval(() => {
+			setResendCooldown((prev) => {
+				if (prev <= 1) {
+					clearInterval(cooldownRef.current!);
+					cooldownRef.current = null;
+					return 0;
+				}
+				return prev - 1;
+			});
+		}, 1000);
+	}
+
+	useEffect(() => {
+		return () => {
+			if (cooldownRef.current) clearInterval(cooldownRef.current);
+		};
+	}, []);
+
+	async function requestCode(e: React.FormEvent) {
 		e.preventDefault();
 		setError("");
 		setInfo("");
@@ -32,7 +57,30 @@ export default function LoginPage() {
 			if (!res.ok)
 				throw new Error(data.message || t("login.couldNotSendCode"));
 			setInfo(t("login.codeSent"));
+			if (!data.alreadySent) startCooldown();
 			setStep("code");
+		} catch (err) {
+			setError(err.message);
+		} finally {
+			setLoading(false);
+		}
+	}
+
+	async function resendCode() {
+		setError("");
+		setInfo("");
+		setLoading(true);
+		try {
+			const res = await fetch("/api/auth/resend-code", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ email }),
+			});
+			const data = await res.json();
+			if (!res.ok)
+				throw new Error(data.message || t("login.couldNotSendCode"));
+			setInfo(t("login.codeSent"));
+			startCooldown();
 		} catch (err) {
 			setError(err.message);
 		} finally {
@@ -152,6 +200,17 @@ export default function LoginPage() {
 							className="w-full disabled:bg-gray-300 text-white font-semibold py-4 rounded-xl transition-colors text-lg shadow-lg" style={{ backgroundColor: "#002d75" }} onMouseEnter={e=>e.currentTarget.style.backgroundColor="#001c55"} onMouseLeave={e=>e.currentTarget.style.backgroundColor="#002d75"}
 						>
 							{loading ? t("login.verifying") : t("login.login")}
+						</button>
+
+						<button
+							type="button"
+							onClick={resendCode}
+							disabled={loading || resendCooldown > 0}
+							className="w-full font-medium disabled:text-gray-400" style={resendCooldown > 0 ? {} : { color: "#002d75" }}
+						>
+							{resendCooldown > 0
+								? t("login.resendIn").replace("{seconds}", String(resendCooldown))
+								: t("login.resendCode")}
 						</button>
 
 						<button

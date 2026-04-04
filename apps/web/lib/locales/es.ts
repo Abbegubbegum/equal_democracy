@@ -309,6 +309,8 @@ export const es = {
 		verifying: "Verificando...",
 		login: "Iniciar sesión",
 		loginError: "Error de inicio de sesión",
+		resendCode: "Reenviar código",
+		resendIn: "Reenviar en {seconds}s",
 		changeEmail: "Cambiar dirección de correo",
 		newHere: "¿Nuevo aquí?",
 		createAccount: "Crear cuenta",
