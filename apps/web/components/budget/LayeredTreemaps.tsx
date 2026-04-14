@@ -11,7 +11,7 @@ import SimpleTreemap from "./SimpleTreemap";
  * - Click on parenthesis text in header to toggle
  * - The offset remains the same, only Z-position changes
  */
-export default function LayeredTreemaps({ expenseCategories, incomeCategories, onExpenseChange, onIncomeChange, taxBaseInfo, onViewModeChange, onCategoryClick }) {
+export default function LayeredTreemaps({ expenseCategories, incomeCategories, onExpenseChange: _onExpenseChange, onIncomeChange: _onIncomeChange, taxBaseInfo, onViewModeChange, onCategoryClick }) {
 	const containerRef = useRef(null);
 	const touchStartX = useRef(0);
 	const touchStartY = useRef(0);

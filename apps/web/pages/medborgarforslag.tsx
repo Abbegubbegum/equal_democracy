@@ -168,7 +168,6 @@ export default function MedborgarforslagPage() {
 		}
 	};
 
-	const primaryColor = theme?.colors?.primary[600] || "#002d75";
 	const accentColor = theme?.colors?.accent[400] || "#f8b60e";
 	const primaryDark = theme?.colors?.primary[800] || "#001c55";
 

@@ -1,5 +1,4 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 // Origins allowed to call the API.
 // In production, add your deployed mobile web URL to ALLOWED_ORIGINS (comma-separated).

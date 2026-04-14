@@ -3,23 +3,20 @@ import { useSession } from "next-auth/react";
 import type Pusher from "pusher-js";
 import type { Channel, PresenceChannel } from "pusher-js";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyData = any;
-
 export interface SSEHandlers {
-	onConnected?: (data: { message: string }) => void;
-	onError?: (error: unknown) => void;
-	onNewProposal?: (data: AnyData) => void;
-	onNewComment?: (data: AnyData) => void;
-	onVoteUpdate?: (data: AnyData) => void;
-	onRatingUpdate?: (data: AnyData) => void;
-	onCommentRatingUpdate?: (data: AnyData) => void;
-	onPhaseChange?: (data: AnyData) => void;
-	onTransitionScheduled?: (data: AnyData) => void;
-	onTerminationScheduled?: (data: AnyData) => void;
-	onTiebreakerStarted?: (data: AnyData) => void;
-	onNewSession?: (data: AnyData) => void;
-	onSessionArchived?: (data: AnyData) => void;
+	onConnected?: (_data: { message: string }) => void;
+	onError?: (_error: unknown) => void;
+	onNewProposal?: (_data: unknown) => void;
+	onNewComment?: (_data: unknown) => void;
+	onVoteUpdate?: (_data: unknown) => void;
+	onRatingUpdate?: (_data: unknown) => void;
+	onCommentRatingUpdate?: (_data: unknown) => void;
+	onPhaseChange?: (_data: unknown) => void;
+	onTransitionScheduled?: (_data: unknown) => void;
+	onTerminationScheduled?: (_data: unknown) => void;
+	onTiebreakerStarted?: (_data: unknown) => void;
+	onNewSession?: (_data: unknown) => void;
+	onSessionArchived?: (_data: unknown) => void;
 }
 
 export default function useSSE(handlers: SSEHandlers = {}) {

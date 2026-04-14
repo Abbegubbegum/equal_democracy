@@ -23,6 +23,7 @@ async function getCsrfToken(forceRefresh = false): Promise<string | null> {
 	}
 }
 
+// eslint-disable-next-line no-undef
 export async function fetchWithCsrf(url: string, options: RequestInit = {}): Promise<Response> {
 	const method = options.method ?? "GET";
 

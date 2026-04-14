@@ -4,7 +4,7 @@ import { createLogger } from "./logger";
 const log = createLogger("Pusher");
 
 declare global {
-	// eslint-disable-next-line no-var
+	// eslint-disable-next-line no-unused-vars
 	var pusherBroadcaster: PusherBroadcaster | undefined;
 }
 
