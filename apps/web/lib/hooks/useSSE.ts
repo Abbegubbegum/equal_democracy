@@ -3,20 +3,22 @@ import { useSession } from "next-auth/react";
 import type Pusher from "pusher-js";
 import type { Channel, PresenceChannel } from "pusher-js";
 
+type AnyData = any;
+
 export interface SSEHandlers {
 	onConnected?: (_data: { message: string }) => void;
 	onError?: (_error: unknown) => void;
-	onNewProposal?: (_data: unknown) => void;
-	onNewComment?: (_data: unknown) => void;
-	onVoteUpdate?: (_data: unknown) => void;
-	onRatingUpdate?: (_data: unknown) => void;
-	onCommentRatingUpdate?: (_data: unknown) => void;
-	onPhaseChange?: (_data: unknown) => void;
-	onTransitionScheduled?: (_data: unknown) => void;
-	onTerminationScheduled?: (_data: unknown) => void;
-	onTiebreakerStarted?: (_data: unknown) => void;
-	onNewSession?: (_data: unknown) => void;
-	onSessionArchived?: (_data: unknown) => void;
+	onNewProposal?: (_data: AnyData) => void;
+	onNewComment?: (_data: AnyData) => void;
+	onVoteUpdate?: (_data: AnyData) => void;
+	onRatingUpdate?: (_data: AnyData) => void;
+	onCommentRatingUpdate?: (_data: AnyData) => void;
+	onPhaseChange?: (_data: AnyData) => void;
+	onTransitionScheduled?: (_data: AnyData) => void;
+	onTerminationScheduled?: (_data: AnyData) => void;
+	onTiebreakerStarted?: (_data: AnyData) => void;
+	onNewSession?: (_data: AnyData) => void;
+	onSessionArchived?: (_data: AnyData) => void;
 }
 
 export default function useSSE(handlers: SSEHandlers = {}) {
