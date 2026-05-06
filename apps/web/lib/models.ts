@@ -90,6 +90,10 @@ const UserSchema = new mongoose.Schema(
 				message: "Maximum 3 categories allowed",
 			},
 		},
+		expoPushToken: {
+			type: String,
+			// Expo push token for mobile push notifications
+		},
 		// Notification preferences
 		notificationPreference: {
 			type: String,
@@ -377,10 +381,11 @@ const SessionSchema = new mongoose.Schema(
 			required: true,
 			maxlength: [100, "Place name cannot be more than 100 characters"],
 		},
-		// Session type: "standard" (2-phase democracy), "survey" (phase1-only with time limit)
+		// Session type: "standard" (2-phase democracy), "survey" (phase1-only with time limit),
+		// "voting" (single question with Ja/Nej/Avstår, displayed on mobile Rösta tab)
 		sessionType: {
 			type: String,
-			enum: ["standard", "survey", "municipal"],
+			enum: ["standard", "survey", "municipal", "voting"],
 			default: "standard",
 			index: true,
 		},
@@ -471,6 +476,11 @@ const SessionSchema = new mongoose.Schema(
 		// Admin-adjustable top proposal count during phase transition
 		customTopCount: {
 			type: Number,
+			default: null,
+		},
+		// Cover image URL for mobile app display
+		imageUrl: {
+			type: String,
 			default: null,
 		},
 		createdAt: {
@@ -693,6 +703,10 @@ const CitizenProposalSchema = new mongoose.Schema(
 			default: 0,
 			min: 0,
 			max: 5,
+		},
+		imageUrl: {
+			type: String,
+			default: null,
 		},
 		// If selected for municipal session
 		selectedForMunicipalSession: {
@@ -1258,15 +1272,17 @@ export const BudgetResult = safeModel("BudgetResult", BudgetResultSchema);
 export const Survey = safeModel("Survey", SurveySchema);
 export const SurveyVote = safeModel("SurveyVote", SurveyVoteSchema);
 export const MunicipalSession = safeModel("MunicipalSession", MunicipalSessionSchema);
-export const CitizenProposal = safeModel("CitizenProposal", CitizenProposalSchema);
 export const CitizenProposalRating = safeModel("CitizenProposalRating", CitizenProposalRatingSchema);
 
-// Force-refresh Settings and Session so schema updates always apply in dev (HMR)
+// Force-refresh Settings, Session, and CitizenProposal so schema updates always apply in dev (HMR)
 if (mongoose.models["Settings"]) delete mongoose.models["Settings"];
 export const Settings: AnyModel = mongoose.model("Settings", SettingsSchema);
 
 if (mongoose.models["Session"]) delete mongoose.models["Session"];
 export const Session: AnyModel = mongoose.model("Session", SessionSchema);
+
+if (mongoose.models["CitizenProposal"]) delete mongoose.models["CitizenProposal"];
+export const CitizenProposal: AnyModel = mongoose.model("CitizenProposal", CitizenProposalSchema);
 
 // BudgetArgument - structured debate arguments tied to budget categories
 const BudgetArgumentSchema = new mongoose.Schema(
@@ -1291,3 +1307,13 @@ BudgetArgumentSchema.index(
 );
 
 export const BudgetArgument = safeModel("BudgetArgument", BudgetArgumentSchema);
+
+// QuickVote - Ja / Nej / Avstår votes on "voting"-type sessions (mobile Rösta tab)
+const QuickVoteSchema = new mongoose.Schema({
+	sessionId: { type: mongoose.Schema.Types.ObjectId, ref: "Session", required: true, index: true },
+	userId: { type: String, required: true },
+	choice: { type: String, enum: ["ja", "nej", "abstar"], required: true },
+	createdAt: { type: Date, default: Date.now },
+});
+QuickVoteSchema.index({ sessionId: 1, userId: 1 }, { unique: true });
+export const QuickVote = safeModel("QuickVote", QuickVoteSchema);

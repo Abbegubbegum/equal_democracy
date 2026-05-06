@@ -61,6 +61,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 			place: activeSession.place,
 			status: activeSession.status,
 			phase: activeSession.phase,
+			imageUrl: activeSession.imageUrl || null,
 			activeUsersCount: activeSession.activeUsers?.length || 0,
 			showUserCount: activeSession.showUserCount !== undefined ? activeSession.showUserCount : false,
 			noMotivation: activeSession.noMotivation !== undefined ? activeSession.noMotivation : false,

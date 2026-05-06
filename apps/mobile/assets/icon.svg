@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="220" ry="220" fill="#002d75"/>
+
+  <!-- Left triangle with rounded corners (r≈50) -->
+  <path
+    d="M 200,306
+       L 200,718
+       Q 200,768 241,739
+       L 519,541
+       Q 560,512 519,483
+       L 241,285
+       Q 200,256 200,306 Z"
+    fill="#f5a623"
+  />
+
+  <!-- Right triangle with rounded corners (r≈50) -->
+  <path
+    d="M 480,306
+       L 480,718
+       Q 480,768 521,739
+       L 799,541
+       Q 840,512 799,483
+       L 521,285
+       Q 480,256 480,306 Z"
+    fill="#f5a623"
+  />
+</svg>

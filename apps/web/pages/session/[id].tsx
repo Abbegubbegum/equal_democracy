@@ -45,6 +45,7 @@ export default function SessionPage() {
 	const [view, setView] = useState("home"); // 'home', 'create', 'vote'
 	const [selectedProposal, setSelectedProposal] = useState(null);
 	const [placeName, setPlaceName] = useState("");
+	const [sessionImageUrl, setSessionImageUrl] = useState<string | null>(null);
 	const [currentPhase, setCurrentPhase] = useState("phase1"); // 'phase1', 'phase2', 'closed'
 	const [expandedRating, setExpandedRating] = useState(null);
 	const [expandedProposal, setExpandedProposal] = useState(null);
@@ -128,6 +129,10 @@ export default function SessionPage() {
 
 			if (data.place) {
 				setPlaceName(data.place);
+			}
+
+			if (data.imageUrl !== undefined) {
+				setSessionImageUrl(data.imageUrl);
 			}
 
 			if (data.showUserCount !== undefined) {
@@ -930,6 +935,16 @@ export default function SessionPage() {
 				</div>
 			</div>
 
+			{sessionImageUrl && (
+				<div className="w-full h-48 sm:h-64 overflow-hidden">
+					<img
+						src={sessionImageUrl}
+						alt={placeName}
+						className="w-full h-full object-cover"
+					/>
+				</div>
+			)}
+
 			<div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
 				{/* Show message when session not found */}
 				{!hasActiveSession && (
@@ -1217,6 +1232,7 @@ function ProposalCard({
 	const [submitting, setSubmitting] = useState(false);
 	const [expandedCommentRating, setExpandedCommentRating] = useState(null);
 	const [commentRatings, setCommentRatings] = useState({});
+	const [modDialog, setModDialog] = useState<{ severity: string; message: string; onConfirm: () => void } | null>(null);
 
 	const isExpanded = expandedRating === proposal._id;
 	const isExpandedForDiscuss = expandedProposal === proposal._id;
@@ -1282,9 +1298,43 @@ function ProposalCard({
 
 	const handleSubmitComment = async (e) => {
 		e.preventDefault();
-		if (commentText.trim()) {
-			setSubmitting(true);
-			await onAddComment(proposal._id, commentText.trim(), commentType);
+		const text = commentText.trim();
+		if (!text) return;
+
+		setSubmitting(true);
+		try {
+			const modRes = await fetch("/api/moderate", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ text }),
+			});
+			const mod = modRes.ok ? await modRes.json() : { status: "ok", message: "" };
+
+			const doPost = async () => {
+				await onAddComment(proposal._id, text, commentType);
+				setCommentText("");
+				setCommentType("neutral");
+				await fetchComments();
+			};
+
+			if (mod.status === "ok") {
+				await doPost();
+				setSubmitting(false);
+			} else {
+				setSubmitting(false);
+				setModDialog({
+					severity: mod.status,
+					message: mod.message,
+					onConfirm: async () => {
+						setModDialog(null);
+						setSubmitting(true);
+						await doPost();
+						setSubmitting(false);
+					},
+				});
+			}
+		} catch {
+			await onAddComment(proposal._id, text, commentType);
 			setCommentText("");
 			setCommentType("neutral");
 			await fetchComments();
@@ -1547,6 +1597,37 @@ function ProposalCard({
 								: t("comments.send")}
 						</button>
 					</form>
+
+					{/* Moderation dialog */}
+					{modDialog && (
+						<div className="rounded-xl border p-4 flex flex-col gap-3"
+							style={{ borderColor: modDialog.severity === "flag" ? "#dc2626" : "#f59e0b", backgroundColor: modDialog.severity === "flag" ? "#fef2f2" : "#fffbeb" }}>
+							<p className="font-semibold text-sm" style={{ color: modDialog.severity === "flag" ? "#991b1b" : "#92400e" }}>
+								{modDialog.severity === "flag" ? "⚠️ Vill du verkligen publicera detta?" : "💡 Vill du verkligen publicera detta?"}
+							</p>
+							{modDialog.message && (
+								<p className="text-xs" style={{ color: modDialog.severity === "flag" ? "#b91c1c" : "#a16207" }}>{modDialog.message}</p>
+							)}
+							{modDialog.severity === "flag" && (
+								<p className="text-xs text-gray-600 italic">Du är ansvarig för dina handlingar, och vi vet vem du är även om vi inte publicerar det.</p>
+							)}
+							<div className="flex gap-2">
+								<button
+									onClick={() => setModDialog(null)}
+									className="flex-1 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+								>
+									Avbryt
+								</button>
+								<button
+									onClick={modDialog.onConfirm}
+									className="flex-1 py-2 rounded-lg text-sm font-medium text-white transition-colors"
+									style={{ backgroundColor: modDialog.severity === "flag" ? "#dc2626" : "#f59e0b" }}
+								>
+									Publicera ändå
+								</button>
+							</div>
+						</div>
+					)}
 
 					{/* Comments list */}
 					{loadingComments ? (

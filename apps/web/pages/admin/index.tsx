@@ -12,6 +12,8 @@ import {
 	Wallet,
 	BarChart3,
 	FileText,
+	Sparkles,
+	Lightbulb,
 } from "lucide-react";
 import { fetchWithCsrf } from "../../lib/fetch-with-csrf";
 import { useTranslation } from "../../lib/hooks/useTranslation";
@@ -124,6 +126,18 @@ export default function AdminPage() {
 						active={tab === "settings"}
 						onClick={() => setTab("settings")}
 					/>
+					<Tab
+						label="Förslag"
+						icon={<Lightbulb className="w-4 h-4" />}
+						active={tab === "citizen-proposals"}
+						onClick={() => setTab("citizen-proposals")}
+					/>
+					<Tab
+						label="Clean"
+						icon={<Sparkles className="w-4 h-4" />}
+						active={tab === "clean"}
+						onClick={() => setTab("clean")}
+					/>
 				</nav>
 
 				{tab === "sessions" && <SessionsPanel t={t} />}
@@ -133,6 +147,8 @@ export default function AdminPage() {
 				{tab === "email" && <EmailPanel />}
 				{tab === "settings" && <SettingsPanel isSuperAdmin={true} />}
 				{tab === "users" && <UsersPanel />}
+				{tab === "citizen-proposals" && <CitizenProposalsPanel />}
+				{tab === "clean" && <CleanPanel />}
 			</main>
 		</div>
 	);
@@ -1355,4 +1371,306 @@ function SessionRequestCard({ request, onApprove, onDeny }) {
 			</div>
 		</div>
 	);
+}
+
+type CleanItem = { type: string; id: string; preview: string; reason: string };
+type CleanResult = { checked: number; removed: number; items: CleanItem[] };
+
+function CleanPanel() {
+	const [status, setStatus] = useState<"idle" | "confirming" | "running" | "done" | "error">("idle");
+	const [result, setResult] = useState<CleanResult | null>(null);
+	const [errorMsg, setErrorMsg] = useState("");
+
+	const runClean = async () => {
+		setStatus("running");
+		setResult(null);
+		setErrorMsg("");
+		try {
+			const res = await fetchWithCsrf("/api/admin/clean-content", { method: "POST" });
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				throw new Error(err.error || `HTTP ${res.status}`);
+			}
+			const data: CleanResult = await res.json();
+			setResult(data);
+			setStatus("done");
+		} catch (e: any) {
+			setErrorMsg(e.message || "Unknown error");
+			setStatus("error");
+		}
+	};
+
+	return (
+		<section className="bg-white rounded-2xl shadow p-6 space-y-6">
+			<div className="flex items-center gap-3">
+				<div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+					<Sparkles className="w-5 h-5 text-purple-700" />
+				</div>
+				<div>
+					<h2 className="text-xl font-bold text-slate-800">Rensa innehåll</h2>
+					<p className="text-sm text-slate-500">XAI granskar alla kommentarer och förslag och raderar olämpligt innehåll automatiskt.</p>
+				</div>
+			</div>
+
+			<div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 space-y-1">
+				<p className="font-semibold">⚠️ Irreversibel åtgärd</p>
+				<p>Raderat innehåll kan inte återställas. Endast innehåll som bryter mot lagen (svordomar, obscenitet, hat, hot) raderas — hetsiga politiska argument lämnas kvar.</p>
+			</div>
+
+			{status === "idle" && (
+				<button
+					onClick={() => setStatus("confirming")}
+					className="px-5 py-2.5 bg-purple-700 hover:bg-purple-800 text-white font-semibold rounded-xl transition-colors flex items-center gap-2"
+				>
+					<Sparkles className="w-4 h-4" />
+					Starta rensning
+				</button>
+			)}
+
+			{status === "confirming" && (
+				<div className="rounded-xl border border-red-200 bg-red-50 p-5 space-y-4">
+					<p className="font-semibold text-red-800">Är du säker? XAI kommer att skanna och permanent radera allt olämpligt innehåll.</p>
+					<div className="flex gap-3">
+						<button
+							onClick={runClean}
+							className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors"
+						>
+							Ja, rensa nu
+						</button>
+						<button
+							onClick={() => setStatus("idle")}
+							className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition-colors"
+						>
+							Avbryt
+						</button>
+					</div>
+				</div>
+			)}
+
+			{status === "running" && (
+				<div className="flex items-center gap-3 text-slate-600 py-4">
+					<svg className="animate-spin w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24">
+						<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+						<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+					</svg>
+					<span className="font-medium">XAI granskar allt innehåll… Det kan ta en stund.</span>
+				</div>
+			)}
+
+			{status === "error" && (
+				<div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
+					<p className="text-red-700 font-semibold">Fel: {errorMsg}</p>
+					<button onClick={() => setStatus("idle")} className="px-4 py-2 bg-slate-200 rounded-lg text-sm font-medium hover:bg-slate-300">
+						Försök igen
+					</button>
+				</div>
+			)}
+
+			{status === "done" && result && (
+				<div className="space-y-4">
+					<div className="flex gap-6">
+						<div className="rounded-xl bg-slate-50 border p-4 text-center flex-1">
+							<p className="text-3xl font-bold text-slate-700">{result.checked}</p>
+							<p className="text-sm text-slate-500 mt-1">Granskade</p>
+						</div>
+						<div className={`rounded-xl border p-4 text-center flex-1 ${result.removed > 0 ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"}`}>
+							<p className={`text-3xl font-bold ${result.removed > 0 ? "text-red-700" : "text-green-700"}`}>{result.removed}</p>
+							<p className={`text-sm mt-1 ${result.removed > 0 ? "text-red-500" : "text-green-600"}`}>Raderade</p>
+						</div>
+					</div>
+
+					{result.removed === 0 && (
+						<p className="text-green-700 font-medium">✅ Allt innehåll är rent. Inga regelbrott hittades.</p>
+					)}
+
+					{result.items.length > 0 && (
+						<div className="space-y-2">
+							<p className="font-semibold text-slate-700 text-sm">Raderat innehåll:</p>
+							{result.items.map((item, i) => (
+								<div key={i} className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm">
+									<div className="flex items-center gap-2 mb-1">
+										<span className="px-2 py-0.5 bg-red-200 text-red-800 rounded text-xs font-semibold uppercase">
+											{item.type === "comment" ? "Kommentar" : "Förslag"}
+										</span>
+										<span className="text-red-600 text-xs">{item.reason}</span>
+									</div>
+									<p className="text-slate-600 italic">&ldquo;{item.preview}{item.preview.length >= 120 ? "…" : ""}&rdquo;</p>
+								</div>
+							))}
+						</div>
+					)}
+
+					<button
+						onClick={() => { setStatus("idle"); setResult(null); }}
+						className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-medium transition-colors"
+					>
+						Kör igen
+					</button>
+				</div>
+			)}
+		</section>
+	);
+}
+
+type CPStatus = "active" | "archived" | "selected" | "submitted_as_motion" | "rejected";
+
+interface CitizenProposalItem {
+  _id: string;
+  title: string;
+  description: string;
+  authorName: string;
+  status: CPStatus;
+  averageRating: number;
+  ratingCount: number;
+  imageUrl: string | null;
+  createdAt: string;
+}
+
+const STATUS_LABEL: Record<CPStatus, string> = {
+  active: "Aktiv",
+  archived: "Arkiverad",
+  selected: "Utvald",
+  submitted_as_motion: "Inlämnad",
+  rejected: "Avslagen",
+};
+
+const STATUS_COLOR: Record<CPStatus, string> = {
+  active: "bg-green-100 text-green-800",
+  archived: "bg-gray-100 text-gray-600",
+  selected: "bg-blue-100 text-blue-800",
+  submitted_as_motion: "bg-purple-100 text-purple-800",
+  rejected: "bg-red-100 text-red-700",
+};
+
+function CitizenProposalsPanel() {
+  const [proposals, setProposals] = useState<CitizenProposalItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<CPStatus | "all">("all");
+  const [updating, setUpdating] = useState<string | null>(null);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/citizen-proposals");
+      if (res.ok) setProposals(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function setStatus(id: string, status: CPStatus) {
+    setUpdating(id);
+    try {
+      await fetchWithCsrf("/api/admin/citizen-proposals", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
+      setProposals((prev) => prev.map((p) => p._id === id ? { ...p, status } : p));
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  const visible = filter === "all" ? proposals : proposals.filter((p) => p.status === filter);
+  const counts = proposals.reduce((acc, p) => { acc[p.status] = (acc[p.status] ?? 0) + 1; return acc; }, {} as Record<string, number>);
+
+  return (
+    <section className="bg-white rounded-2xl shadow p-6 space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+            <Lightbulb className="w-5 h-5 text-yellow-600" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Medborgarförslag</h2>
+            <p className="text-sm text-slate-500">{proposals.length} förslag totalt</p>
+          </div>
+        </div>
+
+        {/* Filter tabs */}
+        <div className="flex gap-2 flex-wrap">
+          {(["all", "active", "archived", "selected", "submitted_as_motion", "rejected"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                filter === s ? "bg-slate-800 text-white border-slate-800" : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              {s === "all" ? "Alla" : STATUS_LABEL[s]}
+              {s !== "all" && counts[s] ? ` (${counts[s]})` : ""}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-center text-slate-500 py-8">Laddar…</div>
+      ) : visible.length === 0 ? (
+        <div className="text-center text-slate-400 py-8">Inga förslag i denna kategori.</div>
+      ) : (
+        <div className="space-y-3">
+          {visible.map((p) => (
+            <div key={p._id} className="border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row gap-4">
+              {p.imageUrl && (
+                <img
+                  src={p.imageUrl.startsWith("http") ? p.imageUrl : p.imageUrl}
+                  alt=""
+                  className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
+                />
+              )}
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-start gap-2 flex-wrap">
+                  <span className={`px-2 py-0.5 rounded text-xs font-semibold ${STATUS_COLOR[p.status]}`}>
+                    {STATUS_LABEL[p.status]}
+                  </span>
+                  <span className="text-xs text-slate-400">{new Date(p.createdAt).toLocaleDateString("sv-SE")}</span>
+                  <span className="text-xs text-slate-400">av {p.authorName}</span>
+                  {p.ratingCount > 0 && (
+                    <span className="text-xs text-amber-600">★ {p.averageRating.toFixed(1)} ({p.ratingCount})</span>
+                  )}
+                </div>
+                <p className="font-semibold text-slate-800 text-sm">{p.title}</p>
+                <p className="text-slate-500 text-xs line-clamp-2">{p.description}</p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-col gap-2 flex-shrink-0">
+                {p.status !== "active" && (
+                  <button
+                    onClick={() => setStatus(p._id, "active")}
+                    disabled={updating === p._id}
+                    className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
+                  >
+                    Återställ
+                  </button>
+                )}
+                {p.status === "active" && (
+                  <>
+                    <button
+                      onClick={() => setStatus(p._id, "archived")}
+                      disabled={updating === p._id}
+                      className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold disabled:opacity-50 transition-colors"
+                    >
+                      Arkivera
+                    </button>
+                    <button
+                      onClick={() => setStatus(p._id, "selected")}
+                      disabled={updating === p._id}
+                      className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
+                    >
+                      Utvald
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }

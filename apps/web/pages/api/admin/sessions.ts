@@ -11,6 +11,7 @@ import {
 	checkAdminSessionLimit,
 } from "@/lib/admin-helper";
 import { createLogger } from "@/lib/logger";
+import { notifyNewVotingQuestion } from "@/lib/push-notifications";
 
 const log = createLogger("AdminSessions");
 
@@ -104,7 +105,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 				singleResult,
 				onlyYesVotes,
 				sessionType,
-				surveyDurationDays
+				surveyDurationDays,
 			} = req.body;
 
 			if (!place) {
@@ -127,6 +128,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 			const startDate = new Date();
 			let archiveDate = null;
 			const isSurvey = sessionType === "survey";
+			const isVoting = sessionType === "voting";
 			const durationDays = surveyDurationDays || 6;
 
 			if (isSurvey) {
@@ -134,22 +136,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 				archiveDate.setDate(archiveDate.getDate() + durationDays);
 			}
 
+			// Voting sessions go straight to phase2 so the mobile Rösta tab shows them
+			const resolvedSessionType = isSurvey ? "survey" : isVoting ? "voting" : "standard";
+
 			// Create new session
 			const newSession = await Session.create({
 				place: place.trim(),
 				status: "active",
 				startDate: startDate,
 				createdBy: session.user.id,
-				sessionType: isSurvey ? "survey" : "standard",
+				sessionType: resolvedSessionType,
+				phase: isVoting ? "phase2" : "phase1",
 				surveyDurationDays: isSurvey ? durationDays : undefined,
 				archiveDate: archiveDate,
 				maxOneProposalPerUser: maxOneProposalPerUser || false,
 				showUserCount: showUserCount !== undefined ? showUserCount : false,
-				// Survey sessions always have noMotivation enabled (responses are just titles)
 				noMotivation: isSurvey ? true : (noMotivation !== undefined ? noMotivation : false),
 				singleResult: singleResult !== undefined ? singleResult : false,
 				onlyYesVotes: onlyYesVotes || false,
 			});
+
+			// Send push notification to all mobile users when a voting question is created
+			if (isVoting) {
+				const usersWithTokens = await User.find(
+					{ expoPushToken: { $exists: true, $ne: null } },
+					"expoPushToken"
+				).lean();
+				const tokens = usersWithTokens.map((u: any) => u.expoPushToken).filter(Boolean);
+				notifyNewVotingQuestion(place.trim(), tokens).catch(() => {});
+			}
 
 			// Decrement remainingSessions for regular admins (not superadmins)
 			const user = await User.findById(session.user.id);
@@ -188,7 +203,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 					.status(400)
 					.json({ error: "A session with this name already exists" });
 			}
-			return res.status(500).json({ error: "Failed to create session" });
+			// Return the real validation message in dev so schema issues are visible
+			const isDev = process.env.NODE_ENV !== "production";
+			return res.status(500).json({
+				error: isDev ? error.message : "Failed to create session",
+			});
 		}
 	}
 

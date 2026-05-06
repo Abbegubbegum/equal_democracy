@@ -88,11 +88,13 @@ function SessionsPanel() {
 	const [noMotivation, setNoMotivation] = useState(false);
 	const [singleResult, setSingleResult] = useState(false);
 	const [onlyYesVotes, setOnlyYesVotes] = useState(false);
-	const [sessionType, setSessionType] = useState("standard"); // "standard" or "survey"
+	const [sessionType, setSessionType] = useState("standard"); // "standard", "survey", or "voting"
 	const [surveyDurationDays, setSurveyDurationDays] = useState("6");
 	const [message, setMessage] = useState("");
 	const [remainingSessions, setRemainingSessions] = useState(null);
 	const [requestedSessions, setRequestedSessions] = useState("10");
+	const [imageUploading, setImageUploading] = useState<Record<string, boolean>>({});
+	const [sessionImages, setSessionImages] = useState<Record<string, string>>({});
 	const [language, setLanguage] = useState("sv");
 	const [themeValue, setThemeValue] = useState("default");
 	const [, setSettingsLoaded] = useState(false);
@@ -320,6 +322,29 @@ function SessionsPanel() {
 		}
 	};
 
+	const uploadImage = async (sessionId: string, file: File) => {
+		setImageUploading((prev) => ({ ...prev, [sessionId]: true }));
+		try {
+			const formData = new FormData();
+			formData.append("image", file);
+			formData.append("sessionId", sessionId);
+			const res = await fetch("/api/admin/session-image", {
+				method: "POST",
+				body: formData,
+			});
+			if (res.ok) {
+				const { imageUrl } = await res.json();
+				setSessionImages((prev) => ({ ...prev, [sessionId]: imageUrl }));
+			} else {
+				alert("Kunde inte ladda upp bilden");
+			}
+		} catch {
+			alert("Uppladdning misslyckades");
+		} finally {
+			setImageUploading((prev) => ({ ...prev, [sessionId]: false }));
+		}
+	};
+
 	const closeSession = async (sessionId) => {
 		if (
 			!confirm(
@@ -418,15 +443,28 @@ function SessionsPanel() {
 					<div className="space-y-5">
 						<div>
 							<label className="block text-sm font-semibold text-slate-700 mb-2">
-								What do you want to ask?
+								{sessionType === "voting"
+									? "Question (max 20 words)"
+									: "What do you want to ask?"}
 							</label>
-							<input
-								type="text"
-								value={newPlace}
-								onChange={(e) => setNewPlace(e.target.value)}
-								className="w-full border-2 border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent transition-all"
-								placeholder="e.g. 'City Name' or 'Topic'"
-							/>
+							{sessionType === "voting" ? (
+								<textarea
+									value={newPlace}
+									onChange={(e) => setNewPlace(e.target.value)}
+									rows={3}
+									maxLength={200}
+									className="w-full border-2 border-green-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all resize-none"
+									placeholder="e.g. 'Should Vallentuna build more cycle lanes?'"
+								/>
+							) : (
+								<input
+									type="text"
+									value={newPlace}
+									onChange={(e) => setNewPlace(e.target.value)}
+									className="w-full border-2 border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent transition-all"
+									placeholder="e.g. 'City Name' or 'Topic'"
+								/>
+							)}
 						</div>
 
 						<div>
@@ -466,6 +504,22 @@ function SessionsPanel() {
 									<span className="text-xs text-slate-500 mt-1 block">
 										Time-limited responses with live
 										rankings, then archived
+									</span>
+								</button>
+								<button
+									type="button"
+									onClick={() => setSessionType("voting")}
+									className={`flex-1 p-4 rounded-xl border-2 transition-all text-left ${
+										sessionType === "voting"
+											? "border-green-500 bg-green-50"
+											: "border-slate-300 hover:border-slate-400"
+									}`}
+								>
+									<span className="block font-semibold text-slate-800">
+										Voting (Yes/No/Abstain)
+									</span>
+									<span className="text-xs text-slate-500 mt-1 block">
+										Single question with three choices — shown as "Question of the Day" in the mobile app
 									</span>
 								</button>
 							</div>
@@ -846,6 +900,34 @@ function SessionsPanel() {
 													</>
 												)}
 											</p>
+
+											{/* Cover image upload */}
+											<div className="mt-3 pt-3 border-t border-green-200">
+												<p className="text-xs font-semibold text-slate-600 mb-2">
+													Omslagsbild (visas i mobilappen)
+												</p>
+												{(sessionImages[activeSession._id] || activeSession.imageUrl) && (
+													<img
+														src={sessionImages[activeSession._id] || activeSession.imageUrl}
+														alt="Omslagsbild"
+														className="w-full max-w-xs h-24 object-cover rounded-lg mb-2"
+													/>
+												)}
+												<label className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-opacity ${imageUploading[activeSession._id] ? "opacity-50 cursor-not-allowed" : "hover:opacity-80"}`} style={{ backgroundColor: accentColor, color: primaryDark }}>
+													{imageUploading[activeSession._id] ? "Laddar upp…" : "Välj bild"}
+													<input
+														type="file"
+														accept="image/*"
+														className="hidden"
+														disabled={!!imageUploading[activeSession._id]}
+														onChange={(e) => {
+															const file = e.target.files?.[0];
+															if (file) uploadImage(activeSession._id, file);
+														}}
+													/>
+												</label>
+											</div>
+
 											{session?.user?.isSuperAdmin &&
 												activeSession.createdBy &&
 												activeSession.createdBy !==

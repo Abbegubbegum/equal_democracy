@@ -40,6 +40,7 @@ equal_democracy/
 pnpm install          # Install all dependencies
 pnpm dev              # Start web + mobile together
 pnpm dev:web          # Start web only (no mobile)
+pnpm dev:mobile       # Start mobile only (no web)
 pnpm build            # Build all apps
 pnpm lint             # Lint all
 pnpm check-types      # Type check all
@@ -69,14 +70,23 @@ apps/mobile/
 │   │   ├── _layout.tsx      # Redirects to (app)/ if already logged in
 │   │   └── login.tsx        # Two-step email → OTP login screen
 │   └── (app)/
-│       ├── _layout.tsx      # Redirects to (auth)/login if not logged in
-│       └── index.tsx        # Home screen placeholder
+│       ├── _layout.tsx      # Bottom tab navigator (5 tabs) + auth guard + PanResponder horizontal swipe
+│       ├── index.tsx        # Hem — fixed blue hero with background image + scrollable party info cards
+│       ├── sessions.tsx     # Sessioner — TikTok-style full-screen vertical carousel of active sessions
+│       ├── vote.tsx         # Rösta — "voting"-type sessions: single question with Ja/Nej/Avstår + result bars
+│       ├── proposals.tsx    # Förslag — full-screen paginated citizen proposals with image backgrounds
+│       ├── archive.tsx      # Arkiv — closed sessions with yes/no vote bars
+│       └── membership.tsx   # Bli medlem — dummy membership/payment page (BankID + Swish integration pending)
 ├── lib/
 │   ├── api.ts               # apiClient() — Bearer token injection + silent 401 refresh
 │   ├── auth-context.tsx     # AuthProvider + useAuth() hook
-│   └── storage.ts           # Cross-platform storage: SecureStore (native) / localStorage (web)
+│   ├── storage.ts           # Cross-platform storage: SecureStore (native) / localStorage (web)
+│   ├── stars.ts             # Local star counter (SecureStore) + one-time celebration flags
+│   ├── XAIModal.tsx         # XAI chat sheet — sparkles button opens Claude-backed assistant
+│   ├── CelebrationModal.tsx # Spring-animated star reward overlay (reused across all 4 trigger screens)
+│   └── ChevronsRight.tsx    # Custom >> logo icon built from pure View/rotated rectangles (no SVG dep)
 ├── metro.config.js          # Monorepo-aware Metro config — required for pnpm workspace resolution
-└── .env                     # EXPO_PUBLIC_API_URL (default: http://localhost:3000)
+└── .env                     # EXPO_PUBLIC_API_URL — must be LAN IP for physical devices
 ```
 
 ### Key Patterns
@@ -87,13 +97,43 @@ apps/mobile/
 
 **Storage:** Always use `lib/storage.ts` (`getItem`/`setItem`/`deleteItem`) instead of `expo-secure-store` directly — it handles the web fallback to localStorage automatically.
 
+**Navigation:** `(app)/_layout.tsx` uses Expo Router `<Tabs>` with five bottom tabs: Hem, Sessioner, Rösta, Förslag, Arkiv. Headers are hidden (`headerShown: false`); each screen manages its own safe-area top padding via `useSafeAreaInsets()`.
+
+**Horizontal swipe between tabs:** Implemented via `PanResponder` in `(app)/_layout.tsx` using `onMoveShouldSetPanResponderCapture` (capture phase, top-down) so it intercepts horizontal gestures before child scroll views. Drag right → previous tab, drag left → next tab. Wraps around. Uses `pathnameRef` / `routerRef` to avoid stale closures, and `router.navigate` (not `push`) to avoid stacking history.
+
 **Navigation guards:** `(auth)/_layout.tsx` redirects logged-in users to the app. `(app)/_layout.tsx` redirects unauthenticated users to login. Both check `useAuth()`.
+
+**Sessions screen background transitions:** `sessions.tsx` uses a double-buffer approach — two `Animated.Image` layers are always mounted (never unmounted). One is "current" (translateY=0), the other is "standby" (parked off-screen). On transition: standby's source is updated while off-screen, `onLoad` fires after decode, standby slides in to 0, then the old current snaps off-screen while hidden behind the new front. If the standby already holds the needed URI (e.g. on loop-back), `onLayerLoad` is called directly without waiting for `onLoad` (which won't re-fire for an unchanged source). `Image.prefetch()` warms the cache for all session images on load. Never use the old single-base + conditional-incoming pattern — it caused a source-reload flash on the base layer.
+
+**Rösta screen (vote.tsx):** TikTok-style full-screen vertical carousel of voting sessions with infinite loop (triple-array pattern, same as `sessions.tsx` and `proposals.tsx`). Each page owns its background image (plain `<Image>` as `absoluteFill` inside the page View — NOT a shared double-buffer). Sessions without an image show a solid dark blue (`#002d75`) base. Uses `containerH` from `onLayout` (not `Dimensions`) so `pagingEnabled` snaps correctly after the tab bar. Active session ("Dagens fråga") shows a compact semi-transparent card; results are hidden before voting to prevent bandwagon effect and appear immediately after voting. Past sessions always show read-only results. Three radio alternatives (Ja/Nej/Avstår). Share button uses React Native `Share.share()`. Yellow "Föreslå en fråga" button pinned to bottom opens a bottom-sheet modal that POSTs to `/api/mobile/suggest-question`. Fetches from `/api/mobile/sessions/voting` (active first, then closed/archived newest-first).
+
+**XAI assistant (XAIModal.tsx):** A dark-blue circle with a sparkles icon floats at the top-left corner of every tab (rendered in `(app)/_layout.tsx` as an absolute overlay, z-index 100). Tapping it opens a bottom-sheet chat with the Claude API via `/api/mobile/xai`. Shows context-aware quick-action chips based on the current tab (different prompts for Hem, Sessioner, Rösta, Förslag, Arkiv) plus two common actions (write a comment, submit a proposal). Has a "Anmäl XAI" flag button (top-right of the sheet) that users can tap to report bad AI output. Uses `claude-haiku-4-5-20251001` with a 300-token limit for quick, concise replies. The button hides itself while the modal is open to avoid double-tap confusion.
+
+**Membership screen (membership.tsx):** Pushed from the Hem tab ("Klicka här" button). Shows member fee (250 kr/år) and four benefits. Swish pay button is disabled. Pending: BankID verification (must confirm user is folkbokförd in Vallentuna, postal code 186xx via Signicat) + actual payment integration. BankID will be optional/voluntary — soft prompt earning bonus stars, hard-required one month before election.
+
+**Content moderation (web):** `POST /api/moderate` checks comment text via Claude Haiku before posting in `apps/web/pages/session/[id].tsx`. Returns `{ status: "ok"|"warn"|"flag", message }`. If warn/flag, shows an inline confirmation dialog with the AI's message; "flag" also shows legal notice. Fails open on error so Claude outages never block posting.
+
+**Star/gamification system (mobile):** Local-only star counter stored via `lib/stars.ts` (SecureStore key `"user_stars"`). Awards: first app open +1, set interests +2, rate a session proposal +3, vote on Rösta question +1, submit citizen proposal +5. One-time actions guarded by storage flags (`celebrated_first_visit`, `celebrated_interests_set`). Star count shown as a badge in the Hem hero (top-left). `lib/CelebrationModal.tsx` is a reusable spring-animated overlay used by all four trigger screens.
+
+**Admin button (mobile):** In the settings modal (gear icon on Hem), an "Admin" button is shown only when `user.isAdmin`. Opens `BASE_URL/admin` (super admin) or `BASE_URL/manage-sessions` (regular admin) in the device browser via `Linking.openURL`.
+
+**Infinite vertical loop (Sessioner, Rösta, Förslag):** All three screens use the triple-array pattern: `loopedItems = [...items, ...items, ...items]`, start scrolled to the middle copy (`items.length * pageH`), and silently jump back to the middle copy when `onMomentumScrollEnd` detects the user has reached the outer thirds. Uses `containerH` from `onLayout` (never `Dimensions.get("window").height`) for the page size so `pagingEnabled` snaps correctly. Key refs: `scrollRef`, `currentIdxRef`, `initialScrollDone`. Never use `SCREEN_H` for page heights in these screens.
+
+**"Förslag:" label:** In `proposals.tsx`, a small uppercase label "FÖRSLAG:" appears above each proposal title so the card context is clear at a glance.
+
+**Citizen proposals image upload:** `proposals.tsx` picks images via `expo-image-picker`, compresses to max 1200 px / 75% JPEG quality via `expo-image-manipulator`, then uploads with raw `fetch` + `FormData` (NOT `apiClient`) so React Native can set the correct `multipart/form-data; boundary=…` header automatically. `apiClient` would override Content-Type with `application/json` and break the upload.
 
 **Monorepo + Metro:** `metro.config.js` is required — without it, pnpm's symlinked `node_modules` causes Metro module resolution failures. Always keep it in sync if the monorepo structure changes.
 
 **CORS (web emulator only):** `apps/web/middleware.ts` adds CORS headers for `localhost:8081` and `localhost:19006`. Native builds are unaffected. Add production origins via `ALLOWED_ORIGINS` env var (comma-separated) in `apps/web/.env.local`.
 
-**Environment:** Set `EXPO_PUBLIC_API_URL` in `apps/mobile/.env`. Use `http://10.0.2.2:3000` for Android emulator, your LAN IP for physical devices.
+**Environment:** Set `EXPO_PUBLIC_API_URL` in `apps/mobile/.env`. Use `http://10.0.2.2:3000` for Android emulator, your LAN IP for physical devices. `localhost` does NOT work on physical devices.
+
+**Push notifications (pending EAS build):** The server-side infrastructure is complete — `apps/web/lib/push-notifications.ts` sends to the Expo Push API, `POST /api/mobile/push-token` stores tokens, `User.expoPushToken` field exists, and `POST /api/admin/sessions` fires a push when a voting session is created. The mobile side (`expo-notifications`) is **not wired up in Expo Go** — `expo-notifications` cannot be installed reliably under OneDrive due to EPERM errors, and push tokens require a real EAS build anyway. Re-add the import and registration code in `(app)/_layout.tsx` and the badge-clear in `vote.tsx` when doing the first production build.
+
+**OneDrive + pnpm symlinks:** Installing new packages under `apps/mobile/` can fail with `EPERM rename` because OneDrive locks files during sync. Pause OneDrive sync before running `pnpm add`. If a package still fails to resolve after install, run `pnpm install` from the repo root to repair the lockfile. Avoid packages requiring heavy native linking — `expo-image-picker` and `expo-image-manipulator` are fine (bundled in Expo Go).
+
+**Testing with Expo Go:** Scan the QR code shown in the Metro terminal after running `pnpm dev:mobile`. Shake the device to get the reload menu. Press `r` in the Metro terminal to force reload.
 
 ---
 
@@ -122,7 +162,9 @@ apps/web/
 ├── components/
 │   └── budget/                 # Budget visualization components
 ├── lib/                        # All utility/helper code
-├── public/                     # Static assets
+├── public/
+│   ├── session-images/         # Session background images (admin upload via /api/admin/session-image)
+│   └── citizen-proposal-images/ # Citizen proposal images (mobile upload via /api/mobile/citizen-proposals)
 ├── styles/                     # Global CSS (Tailwind v4)
 ├── types/                      # Local TypeScript types
 └── scripts/                    # DB migration + utility scripts
@@ -132,12 +174,12 @@ apps/web/
 
 | File | Purpose |
 |------|---------|
-| `models.ts` (1294 lines) | All Mongoose schema definitions — single source of truth for DB models |
+| `models.ts` | All Mongoose schema definitions — single source of truth for DB models |
 | `mongodb.ts` | `connectDB()` — connection pooling with caching |
 | `config.ts` | `THEMES`, `AVAILABLE_LANGUAGES`, theme color helpers |
 | `admin.ts` | `requireAdmin()` — admin auth middleware |
 | `admin-helper.ts` | Admin utility functions |
-| `session-helper.ts` | `getActiveSession()`, `getAllActiveSessions()`, `registerActiveUser()` |
+| `session-helper.ts` | `getActiveSession()`, `getAllActiveSessions()`, `registerActiveUser()` — all exclude `sessionType: "voting"` |
 | `csrf.ts` | `generateCsrfToken()`, `validateCsrfToken()`, `csrfProtection()` — dual-cookie CSRF |
 | `email.ts` | `sendEmail()`, `sendLoginCode()` via Resend |
 | `sms.ts` | SMS sending via Twilio |
@@ -146,6 +188,7 @@ apps/web/
 | `validation.ts` | Form validation helpers |
 | `sse-broadcaster.ts` | Server-sent events broadcasting |
 | `session-close.ts` | Session termination logic |
+| `push-notifications.ts` | `sendPushNotifications()` + `notifyNewVotingQuestion()` — sends to Expo Push API in batches of 100 |
 | `budget/ai-extractor.ts` | `extractBudgetFromPDF()` — Claude API extracts budget data from PDFs |
 | `budget/median-calculator.ts` | Median calculation for budget votes |
 | `municipal/agenda-extractor.ts` | `extractAgendaFromPDF()` — Claude API parses meeting agendas |
@@ -173,7 +216,7 @@ All models defined in `apps/web/lib/models.ts`.
 
 | Collection | Purpose | Key Fields |
 |-----------|---------|-----------|
-| `User` | App users | email, isAdmin, isSuperAdmin, adminStatus, sessionLimit, userType, bankIdVerified |
+| `User` | App users | email, isAdmin, isSuperAdmin, adminStatus, sessionLimit, userType, bankIdVerified, expoPushToken |
 | `Session` | Voting sessions | place, sessionType, status, phase, activeUsers, phase1/2 schedules |
 | `Proposal` | Session proposals | sessionId, title, problem, solution, authorId, thumbsUpCount, averageRating |
 | `ThumbsUp` | 1-5 star ratings on proposals | sessionId, proposalId, userId, rating — unique per (proposal, user) |
@@ -186,8 +229,9 @@ All models defined in `apps/web/lib/models.ts`.
 | `BudgetVote` | Individual budget allocations | sessionId, userId, allocations, incomeAllocations — unique per (session, user) |
 | `BudgetResult` | Computed median budget | sessionId, medianAllocations, totalMedianExpenses, voterCount |
 | `BudgetArgument` | Budget category debate | sessionId, userId, categoryId, direction (up/down), text, helpfulVotes |
-| `CitizenProposal` | Medborgarförslag | title, description, categories, status, totalStars, averageRating |
+| `CitizenProposal` | Medborgarförslag | title, description, categories, status, imageUrl, totalStars, averageRating |
 | `CitizenProposalRating` | Ratings on citizen proposals | proposalId, userId, rating — unique per (proposal, user) |
+| `QuickVote` | Ja/Nej/Avstår votes on "voting"-type sessions | sessionId, userId, choice — unique per (session, user) |
 | `MunicipalSession` | Council meeting sessions | municipality, meetingDate, meetingType, items[], status |
 | `SessionRequest` | Admin session quota requests | userId, requestedSessions, status |
 | `Settings` | Global app settings | language, theme, sessionLimitHours |
@@ -197,7 +241,9 @@ All models defined in `apps/web/lib/models.ts`.
 ### Session Phases
 Sessions go through: `phase1` (proposal submission + thumbs up) → `phase2` (final yes/no votes) → `closed` → `archived`
 
-Session types: `"standard"` · `"survey"` · `"municipal"`
+Session types: `"standard"` · `"survey"` · `"municipal"` · `"voting"`
+
+**`"voting"` type:** Single yes/no/abstain question for the mobile Rösta tab. Created via manage-sessions "Voting (Yes/No/Abstain)" option. Starts directly in `phase2`. The `place` field stores the question text (max 200 chars). Votes stored in `QuickVote` (not `FinalVote`). Excluded from all ordinary session queries (`getActiveSession`, `/api/sessions/active`, all mobile tabs except Rösta) — only surfaces via `/api/mobile/sessions/voting`.
 
 ---
 
@@ -264,6 +310,8 @@ Session types: `"standard"` · `"survey"` · `"municipal"`
 - `GET /api/admin/live-panel`
 - `GET/POST /api/admin/survey`
 - `GET/POST /api/admin/session-limit`
+- `POST /api/admin/clean-content` — Super-admin only: scans all comments, proposals, AND citizen proposals with Claude Haiku, deletes flagged items, returns `{ checked, removed, items }`
+- `GET/PATCH /api/admin/citizen-proposals` — List all citizen proposals / update status (active/archived/selected/submitted_as_motion/rejected)
 
 ### Mobile Auth (JWT)
 Mobile apps cannot use NextAuth cookies. These endpoints implement the same OTP flow but return JWT tokens instead.
@@ -275,12 +323,26 @@ Access tokens: 7-day expiry · Refresh tokens: 30-day expiry · Signed with `NEX
 
 Mobile API calls pass `Authorization: Bearer <accessToken>`. Use `verifyBearerToken()` from `lib/mobile-jwt.ts` to protect mobile-specific routes.
 
+### Mobile Data (all require Bearer token)
+- `GET /api/mobile/sessions/active` — Active sessions list with proposals per session (excludes "voting" type)
+- `GET /api/mobile/sessions/phase2` — Sessions in voting phase, proposals with yes/no counts + user's vote (excludes "voting" type)
+- `GET /api/mobile/sessions/archived` — Closed/archived sessions with TopProposals and vote counts (excludes "voting" type)
+- `GET /api/mobile/sessions/[id]/proposals` — Proposals for a specific session
+- `GET /api/mobile/sessions/voting` — All voting-type sessions as an array: active first (isActive: true), then closed/archived newest-first (isActive: false). Each entry has `{ id, question, imageUrl, isActive, startDate, voteCounts, userVote }`. Returns `[]` if none exist.
+- `GET/POST /api/mobile/citizen-proposals` — List active citizen proposals / create new one (multipart, supports image upload; `bodyParser: false` + formidable; 600 KB server-side limit; saves to `public/citizen-proposal-images/`)
+- `POST /api/mobile/citizen-proposals/rate` — Upsert star rating (1-5), recalculates averageRating
+- `POST /api/mobile/votes` — Cast or update yes/no vote on a phase2 proposal
+- `POST /api/mobile/quick-vote` — Cast or update Ja/Nej/Avstår vote on a "voting"-type session; returns updated vote counts
+- `POST /api/mobile/push-token` — Store Expo push token on the user record (`ExponentPushToken[…]` prefix validated)
+- `POST /api/mobile/suggest-question` — Send a question suggestion as email to admin via Resend
+- `POST /api/mobile/xai` — XAI chat: `{ message, context }` → `{ reply }`. Calls `claude-haiku-4-5-20251001` with a democratic-assistant system prompt. Max 300 tokens. Context is the current tab label (passed for relevance).
+
 ### Other
 - `GET /api/settings` — App settings
 - `POST /api/settings` — Update settings (admin)
 - `GET /api/user/activity`
 - `POST /api/apply-admin`
-- `GET /api/recent`
+- `GET /api/recent` — includes "voting"-type sessions with icon 📱 and subtitle "Röstning · svara i appen"; link is `"#"` (no dedicated web page yet)
 - `GET /api/events` — SSE stream
 - `POST /api/csrf-token`
 - `POST /api/check-session-timeout`
@@ -374,6 +436,14 @@ Dual-cookie pattern: readable cookie + httpOnly cookie. Hash-validated on all PO
 ### Database Connection
 `connectDB()` in `lib/mongodb.ts` uses module-level caching to reuse connections across hot reloads and serverless invocations.
 
+### Mongoose Model Cache (dev HMR gotcha)
+`safeModel(name, schema)` returns the already-registered model if one exists — it never replaces it. This means schema changes are silently ignored during hot-module reloading, and Mongoose's strict mode will drop any new fields from documents. Models whose schemas change frequently must use the force-refresh pattern instead:
+```ts
+if (mongoose.models["ModelName"]) delete mongoose.models["ModelName"];
+export const ModelName: AnyModel = mongoose.model("ModelName", ModelNameSchema);
+```
+`Settings`, `Session`, and `CitizenProposal` already use this pattern. Apply it to any model when adding or removing fields.
+
 ### Budget Median Algorithm
 Collects all user allocations per category → computes median → balances total to match target budget. Nested support for subcategories.
 
@@ -421,7 +491,7 @@ Claude API receives base64-encoded PDF. Budget extraction (`lib/budget/ai-extrac
 | File upload | Formidable |
 | PDF parsing | pdf-parse |
 | Analytics | Vercel Analytics |
-| Mobile | Expo 54 + React Native 0.81.5 |
+| Mobile | Expo 54 + React Native 0.81.5 + expo-image-picker ~16 + expo-image-manipulator ~13 |
 | Monorepo | Turborepo 2.8.20 |
 | Package manager | pnpm 10.33.0 |
 

@@ -24,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 		await connectDB();
 
 		const [sessions, ideas, budgets, municipals, winners, debateArgs] = await Promise.all([
-			Session.find({ status: "active" })
+			Session.find({ status: "active", sessionType: { $nin: ["municipal"] } })
 				.sort({ createdAt: -1 })
 				.limit(6)
 				.select("place sessionType createdAt _id")
@@ -67,11 +67,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 			})),
 			...sessions.map((s) => ({
 				type: "session",
-				icon: "🗳️",
+				icon: s.sessionType === "voting" ? "📱" : "🗳️",
 				title: s.place,
-				subtitle: s.sessionType === "survey" ? "Enkät" : "Omröstning",
+				subtitle:
+					s.sessionType === "voting"
+						? "Röstning · svara i appen"
+						: s.sessionType === "survey"
+						? "Enkät"
+						: "Omröstning",
 				date: s.createdAt,
-				link: `/session/${s._id}`,
+				link: s.sessionType === "voting" ? "#" : `/session/${s._id}`,
 			})),
 			...ideas.map((i) => ({
 				type: "idea",

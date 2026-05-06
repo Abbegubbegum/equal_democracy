@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
 	try {
 		// Get all active sessions
-		const activeSessions = await Session.find({ status: "active" })
+		const activeSessions = await Session.find({ status: "active", sessionType: { $ne: "voting" } })
 			.select("_id place phase startDate showUserCount noMotivation singleResult activeUsers sessionType archiveDate surveyDurationDays")
 			.sort({ startDate: -1 })
 			.lean();

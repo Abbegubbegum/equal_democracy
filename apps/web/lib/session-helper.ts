@@ -1,17 +1,19 @@
 import mongoose from "mongoose";
 import { Session } from "./models";
 
+const NOT_VOTING = { sessionType: { $ne: "voting" } };
+
 export async function getActiveSession(sessionId: string | null = null) {
 	if (sessionId) {
-		const session = await Session.findOne({ _id: sessionId, status: "active" });
+		const session = await Session.findOne({ _id: sessionId, status: "active", ...NOT_VOTING });
 		return session;
 	}
-	const activeSession = await Session.findOne({ status: "active" });
+	const activeSession = await Session.findOne({ status: "active", ...NOT_VOTING });
 	return activeSession;
 }
 
 export async function getAllActiveSessions() {
-	const activeSessions = await Session.find({ status: "active" }).sort({ startDate: -1 });
+	const activeSessions = await Session.find({ status: "active", ...NOT_VOTING }).sort({ startDate: -1 });
 	return activeSessions;
 }
 
