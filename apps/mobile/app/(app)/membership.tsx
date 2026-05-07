@@ -38,6 +38,15 @@ export default function MembershipScreen() {
         <View style={styles.priceCard}>
           <Text style={styles.priceLabel}>Medlemsavgift</Text>
           <Text style={styles.price}>250 kr <Text style={styles.pricePer}>/år</Text></Text>
+          <Text style={styles.priceYears}>Täcker 2026 och 2027</Text>
+        </View>
+
+        <View style={styles.founderBanner}>
+          <Ionicons name="gift-outline" size={20} color={YELLOW} />
+          <Text style={styles.founderText}>
+            <Text style={styles.founderBold}>Grundarmedlem — </Text>
+            vi har inga mandat ännu, men vi bygger partiet tillsammans. Som tack täcker din avgift även 2027. Du betalar en gång, du är med i två år.
+          </Text>
         </View>
 
         <View style={styles.section}>
@@ -133,4 +142,19 @@ const styles = StyleSheet.create({
   },
   payBtnText: { color: BLUE, fontSize: 16, fontWeight: "800" },
   comingSoon: { color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", marginTop: -8 },
+
+  priceYears: { color: BLUE, fontSize: 13, fontWeight: "700", opacity: 0.7, marginTop: 2 },
+
+  founderBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "rgba(245,166,35,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(245,166,35,0.4)",
+    borderRadius: 14,
+    padding: 16,
+  },
+  founderText: { color: "rgba(255,255,255,0.85)", fontSize: 13, lineHeight: 20, flex: 1 },
+  founderBold: { fontWeight: "800", color: "#fff" },
 });

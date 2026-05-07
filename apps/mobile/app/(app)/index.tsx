@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import ChevronsRight from "../../lib/ChevronsRight";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../lib/auth-context";
 import { getItem, setItem } from "../../lib/storage";
@@ -30,8 +29,8 @@ const YELLOW = "#f5a623";
 const VALUES = [
   {
     icon: "people-outline" as const,
-    title: "Medborgardialog",
-    text: "Vallentuna framåt ser invånare som delägare av vår kommun. Du ska självklart ha samma rätt i din kommun som en aktieägare.\n\nVi vill göra oss av med självtillräckliga, mobbare och skapa en smartare demokrati där alla samarbetar. Rösta på Vallentuna framåt för att vara med och bestämma i dina frågor.",
+    title: "Medborgarinflytande",
+    text: "Vallentuna framåt ser invånare som delägare av vår kommun — med samma rätt att bestämma som en aktieägare.\n\nVi vill skapa en smartare demokrati där alla samarbetar och ingen sitter på för mycket makt. Rösta på Vallentuna framåt för att vara med och bestämma i dina frågor.",
   },
   {
     icon: "leaf-outline" as const,
@@ -41,12 +40,12 @@ const VALUES = [
   {
     icon: "sunny-outline" as const,
     title: "Öppenhet och anonymitet",
-    text: "Vallentuna framåt bygger på öppenhet och anonymitet. Öppenheten gör korruption och annat mygel omöjlig. Arkivet samlar alla beslut, argument, värderingar och röstsiffror.\n\nMen debatt och omröstning är anonym. Anonymiteten skyddar mot röstköp och åsiktsregistrering.",
+    text: "Vallentuna framåt bygger på öppenhet och anonymitet. Det gör korruption och maktmissbruk i princip omöjligt.\n\nDebatt och omröstning är anonym. Anonymiteten skyddar mot röstköp och åsiktsregistrering.",
   },
   {
     icon: "sparkles" as const,
     title: "XAI",
-    text: "XAI är AI som alltid förklarar vad den gör. Den är som en tjänare i bakgrunden som hjälper dig att hitta intressanta frågor eller fysiska träffar med andra som gillar samma sak. Vår lokala XAI kan också sammanfatta information och hjälpa dig skriva bra förslag och inlägg.\n\nDet gör Vallentuna till pionjärer inom AI och politik. Om du tycker att XAI skriver något konstigt så finns det en knapp för att anmäla. Då kan andra se och bedöma om den måste bytas ut. XAI ska förbättra och förenkla demokratin, inte försämra.\n\nVarje år lämnar vår XAI en demokratirapport som mäter maktkoncentrationen i Vallentuna framåt. Vi vill inte ha någon mäktig ledare.",
+    text: "XAI är AI som alltid förklarar vad den gör. Den hjälper dig hitta intressanta frågor, träffa andra med samma intressen samt sammanfatta information och skriva bra förslag.\n\nDet gör Vallentuna till pionjärer inom AI och politik. Skriver XAI något konstigt finns det en anmälningsknapp — då kan andra bedöma om den måste bytas ut. XAI ska förbättra demokratin, inte försämra den.\n\nVarje år lämnar XAI en demokratirapport som mäter maktkoncentrationen i Vallentuna framåt. Vi vill inte ha någon mäktig ledare.",
   },
 ];
 
@@ -129,7 +128,7 @@ export default function HomeScreen() {
               Välkommen, {user.email.split("@")[0]}!
             </Text>
             <Text style={styles.welcomeSub}>
-              Använd flikarna nedan för att delta i demokratin.
+              Swipa och scrolla för att delta i demokratin.
             </Text>
           </View>
         )}
@@ -190,8 +189,13 @@ export default function HomeScreen() {
           <Text style={styles.starBadgeText}>{starCount}</Text>
         </View>
 
-        <View style={styles.logoCircle}>
-          <ChevronsRight size={44} color={BLUE} />
+        <View style={styles.logoIcon}>
+          <View style={styles.logoArrowWrap}>
+            <View style={styles.logoArrowSquare} />
+          </View>
+          <View style={[styles.logoArrowWrap, { marginLeft: -7 }]}>
+            <View style={styles.logoArrowSquare} />
+          </View>
         </View>
         <Text style={styles.partyName}>VALLENTUNA</Text>
         <Text style={styles.partySlogan}>Framåt</Text>
@@ -378,14 +382,30 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   starBadgeText: { color: "#fff", fontSize: 13, fontWeight: "700" },
-  logoCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: YELLOW,
+  logoIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 16,
+    backgroundColor: BLUE,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
+  },
+  logoArrowWrap: {
+    width: 21,
+    height: 40,
+    overflow: "hidden",
+  },
+  logoArrowSquare: {
+    width: 28,
+    height: 28,
+    backgroundColor: YELLOW,
+    borderRadius: 5,
+    position: "absolute",
+    left: -14,
+    top: 6,
+    transform: [{ rotate: "45deg" }],
   },
   partyName: { color: "#fff", fontSize: 26, fontWeight: "900", letterSpacing: 4 },
   partySlogan: { color: YELLOW, fontSize: 24, fontWeight: "600", marginTop: -2, marginBottom: 12 },

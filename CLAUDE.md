@@ -71,7 +71,7 @@ apps/mobile/
 │   │   └── login.tsx        # Two-step email → OTP login screen
 │   └── (app)/
 │       ├── _layout.tsx      # Bottom tab navigator (5 tabs) + auth guard + PanResponder horizontal swipe
-│       ├── index.tsx        # Hem — fixed blue hero with background image + scrollable party info cards
+│       ├── index.tsx        # Hem — fixed blue hero with inline logo (clipped-rotated-square >> symbol) + scrollable party info cards
 │       ├── sessions.tsx     # Sessioner — TikTok-style full-screen vertical carousel of active sessions
 │       ├── vote.tsx         # Rösta — "voting"-type sessions: single question with Ja/Nej/Avstår + result bars
 │       ├── proposals.tsx    # Förslag — full-screen paginated citizen proposals with image backgrounds
@@ -84,7 +84,7 @@ apps/mobile/
 │   ├── stars.ts             # Local star counter (SecureStore) + one-time celebration flags
 │   ├── XAIModal.tsx         # XAI chat sheet — sparkles button opens Claude-backed assistant
 │   ├── CelebrationModal.tsx # Spring-animated star reward overlay (reused across all 4 trigger screens)
-│   └── ChevronsRight.tsx    # Custom >> logo icon built from pure View/rotated rectangles (no SVG dep)
+│   └── ChevronsRight.tsx    # Custom >> logo component (no longer used — logo now rendered inline in index.tsx)
 ├── metro.config.js          # Monorepo-aware Metro config — required for pnpm workspace resolution
 └── .env                     # EXPO_PUBLIC_API_URL — must be LAN IP for physical devices
 ```
@@ -109,7 +109,7 @@ apps/mobile/
 
 **XAI assistant (XAIModal.tsx):** A dark-blue circle with a sparkles icon floats at the top-left corner of every tab (rendered in `(app)/_layout.tsx` as an absolute overlay, z-index 100). Tapping it opens a bottom-sheet chat with the Claude API via `/api/mobile/xai`. Shows context-aware quick-action chips based on the current tab (different prompts for Hem, Sessioner, Rösta, Förslag, Arkiv) plus two common actions (write a comment, submit a proposal). Has a "Anmäl XAI" flag button (top-right of the sheet) that users can tap to report bad AI output. Uses `claude-haiku-4-5-20251001` with a 300-token limit for quick, concise replies. The button hides itself while the modal is open to avoid double-tap confusion.
 
-**Membership screen (membership.tsx):** Pushed from the Hem tab ("Klicka här" button). Shows member fee (250 kr/år) and four benefits. Swish pay button is disabled. Pending: BankID verification (must confirm user is folkbokförd in Vallentuna, postal code 186xx via Signicat) + actual payment integration. BankID will be optional/voluntary — soft prompt earning bonus stars, hard-required one month before election.
+**Membership screen (membership.tsx):** Pushed from the Hem tab ("Klicka här" button). Shows member fee (250 kr/år covering both 2026 and 2027 — founding-member benefit) with a highlighted founding-member banner explaining the two-year deal. Lists four member benefits. Swish pay button is disabled. Pending: BankID verification (must confirm user is folkbokförd in Vallentuna, postal code 186xx via Signicat) + actual payment integration. BankID will be optional/voluntary — soft prompt earning bonus stars, hard-required one month before election.
 
 **Content moderation (web):** `POST /api/moderate` checks comment text via Claude Haiku before posting in `apps/web/pages/session/[id].tsx`. Returns `{ status: "ok"|"warn"|"flag", message }`. If warn/flag, shows an inline confirmation dialog with the AI's message; "flag" also shows legal notice. Fails open on error so Claude outages never block posting.
 
