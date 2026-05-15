@@ -10,61 +10,67 @@ import { createLogger } from "@/lib/logger";
 
 const log = createLogger("AdminCloseSession");
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-	await dbConnect();
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  await dbConnect();
 
-	// CSRF protection for state-changing methods
-	if (!csrfProtection(req, res)) {
-		return;
-	}
+  // CSRF protection for state-changing methods
+  if (!csrfProtection(req, res)) {
+    return;
+  }
 
-	// Check if user has admin access
-	const session = await getServerSession(req, res, authOptions);
-	if (!session || !hasAdminAccess(session.user)) {
-		return res.status(403).json({ error: "Unauthorized" });
-	}
+  // Check if user has admin access
+  const session = await getServerSession(req, res, authOptions);
+  if (!session || !hasAdminAccess(session.user)) {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
 
-	if (req.method !== "POST") {
-		return res.status(405).json({ error: "Method not allowed" });
-	}
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-	try {
-		const { sessionId } = req.body;
+  try {
+    const { sessionId } = req.body;
 
-		if (!sessionId) {
-			return res.status(400).json({ error: "Session ID is required" });
-		}
+    if (!sessionId) {
+      return res.status(400).json({ error: "Session ID is required" });
+    }
 
-		// Get the session
-		const sessionToClose = await Session.findById(sessionId);
-		if (!sessionToClose) {
-			return res.status(404).json({ error: "Session not found" });
-		}
+    // Get the session
+    const sessionToClose = await Session.findById(sessionId);
+    if (!sessionToClose) {
+      return res.status(404).json({ error: "Session not found" });
+    }
 
-		if (sessionToClose.status === "closed") {
-			return res.status(400).json({ error: "Session is already closed" });
-		}
+    if (sessionToClose.status === "closed") {
+      return res.status(400).json({ error: "Session is already closed" });
+    }
 
-		// Check if user is authorized to close this session
-		// Only the creator or a superadmin can close a session
-		if (
-			!isSuperAdmin(session.user) &&
-			sessionToClose.createdBy?.toString() !== session.user.id
-		) {
-			return res.status(403).json({
-				error: "You can only close sessions that you created",
-			});
-		}
+    // Check if user is authorized to close this session
+    // Only the creator or a superadmin can close a session
+    if (
+      !isSuperAdmin(session.user) &&
+      sessionToClose.createdBy?.toString() !== session.user.id
+    ) {
+      return res.status(403).json({
+        error: "You can only close sessions that you created",
+      });
+    }
 
-		const result = await closeSession(sessionToClose) as any;
+    const result = (await closeSession(sessionToClose)) as any;
 
-		return res.status(200).json({
-			message: "Session closed successfully",
-			session: sessionToClose,
-			topProposals: result.topProposals || [],
-		});
-	} catch (error) {
-		log.error("Failed to close session", { sessionId: req.body?.sessionId, error: error.message });
-		return res.status(500).json({ error: "Failed to close session" });
-	}
+    return res.status(200).json({
+      message: "Session closed successfully",
+      session: sessionToClose,
+      topProposals: result.topProposals || [],
+    });
+  } catch (error) {
+    log.error("Failed to close session", {
+      sessionId: req.body?.sessionId,
+      error: error.message,
+    });
+    return res.status(500).json({ error: "Failed to close session" });
+  }
 }

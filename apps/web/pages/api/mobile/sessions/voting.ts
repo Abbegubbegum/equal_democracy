@@ -6,8 +6,12 @@ import { createLogger } from "../../../../lib/logger";
 
 const log = createLogger("MobileVotingSession");
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "GET") return res.status(405).json({ message: "Method not allowed" });
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "GET")
+    return res.status(405).json({ message: "Method not allowed" });
 
   let user;
   try {
@@ -24,7 +28,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .select("_id place imageUrl startDate createdAt status")
         .sort({ createdAt: -1 })
         .lean(),
-      Session.find({ status: { $in: ["closed", "archived"] }, sessionType: "voting" })
+      Session.find({
+        status: { $in: ["closed", "archived"] },
+        sessionType: "voting",
+      })
         .select("_id place imageUrl startDate createdAt status")
         .sort({ createdAt: -1 })
         .lean(),
@@ -36,11 +43,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const sessionIds = allSessions.map((s) => s._id);
     const [allVotes, userVotes] = await Promise.all([
       QuickVote.find({ sessionId: { $in: sessionIds } }).lean(),
-      QuickVote.find({ sessionId: { $in: sessionIds }, userId: user.id }).lean(),
+      QuickVote.find({
+        sessionId: { $in: sessionIds },
+        userId: user.id,
+      }).lean(),
     ]);
 
     const userVoteMap = Object.fromEntries(
-      userVotes.map((v) => [v.sessionId.toString(), v.choice])
+      userVotes.map((v) => [v.sessionId.toString(), v.choice]),
     );
 
     const result = allSessions.map((s) => {

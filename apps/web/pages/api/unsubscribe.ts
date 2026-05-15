@@ -2,46 +2,51 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { User } from "@/lib/models";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-	const { email: emailParam } = req.query;
-	const email = String(emailParam || "");
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  const { email: emailParam } = req.query;
+  const email = String(emailParam || "");
 
-	if (!emailParam) {
-		return res.status(400).send(htmlPage("Missing email parameter", false));
-	}
+  if (!emailParam) {
+    return res.status(400).send(htmlPage("Missing email parameter", false));
+  }
 
-	await dbConnect();
+  await dbConnect();
 
-	if (req.method === "GET") {
-		// Show confirmation page
-		return res.status(200).send(htmlPage(email, false));
-	}
+  if (req.method === "GET") {
+    // Show confirmation page
+    return res.status(200).send(htmlPage(email, false));
+  }
 
-	if (req.method === "POST") {
-		try {
-			const user = await User.findOneAndUpdate(
-				{ email: email.toLowerCase() },
-				{ emailOptOut: true },
-				{ new: true }
-			);
+  if (req.method === "POST") {
+    try {
+      const user = await User.findOneAndUpdate(
+        { email: email.toLowerCase() },
+        { emailOptOut: true },
+        { new: true },
+      );
 
-			if (!user) {
-				return res.status(404).send(htmlPage(email, false, "User not found"));
-			}
+      if (!user) {
+        return res.status(404).send(htmlPage(email, false, "User not found"));
+      }
 
-			return res.status(200).send(htmlPage(email, true));
-		} catch {
-			return res
-				.status(500)
-				.send(htmlPage(email, false, "Something went wrong. Please try again."));
-		}
-	}
+      return res.status(200).send(htmlPage(email, true));
+    } catch {
+      return res
+        .status(500)
+        .send(
+          htmlPage(email, false, "Something went wrong. Please try again."),
+        );
+    }
+  }
 
-	return res.status(405).send("Method not allowed");
+  return res.status(405).send("Method not allowed");
 }
 
 function htmlPage(email, success, error = null) {
-	return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -61,19 +66,19 @@ function htmlPage(email, success, error = null) {
 <body>
   <div class="card">
     ${
-		success
-			? `<h1 class="success">Unsubscribed</h1>
+      success
+        ? `<h1 class="success">Unsubscribed</h1>
          <p>You have been unsubscribed from Equal Democracy emails. You will no longer receive non-essential emails.</p>
          <p style="font-size:13px;margin-top:24px">Login codes will still be sent when you sign in.</p>`
-			: error
-			? `<h1 class="error">Error</h1><p>${error}</p>`
-			: `<h1>Unsubscribe</h1>
+        : error
+          ? `<h1 class="error">Error</h1><p>${error}</p>`
+          : `<h1>Unsubscribe</h1>
          <p>Are you sure you want to unsubscribe <strong>${email}</strong> from Equal Democracy emails?</p>
          <p style="font-size:13px">You will still receive login codes when signing in.</p>
          <form method="POST" action="/api/unsubscribe?email=${encodeURIComponent(email)}">
            <button type="submit" class="btn">Unsubscribe</button>
          </form>`
-	}
+    }
   </div>
 </body>
 </html>`;

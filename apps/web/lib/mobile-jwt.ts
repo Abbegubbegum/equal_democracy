@@ -14,19 +14,26 @@ export interface MobileTokenPayload {
   type: "access" | "refresh";
 }
 
-export function signAccessToken(payload: Omit<MobileTokenPayload, "type">): string {
+export function signAccessToken(
+  payload: Omit<MobileTokenPayload, "type">,
+): string {
   return jwt.sign({ ...payload, type: "access" }, SECRET, {
     expiresIn: ACCESS_TOKEN_TTL,
   });
 }
 
-export function signRefreshToken(payload: Omit<MobileTokenPayload, "type">): string {
+export function signRefreshToken(
+  payload: Omit<MobileTokenPayload, "type">,
+): string {
   return jwt.sign({ ...payload, type: "refresh" }, SECRET, {
     expiresIn: REFRESH_TOKEN_TTL,
   });
 }
 
-export function verifyMobileToken(token: string, type: "access" | "refresh"): MobileTokenPayload {
+export function verifyMobileToken(
+  token: string,
+  type: "access" | "refresh",
+): MobileTokenPayload {
   const payload = jwt.verify(token, SECRET) as MobileTokenPayload;
   if (payload.type !== type) {
     throw new Error(`Expected ${type} token`);
@@ -35,7 +42,9 @@ export function verifyMobileToken(token: string, type: "access" | "refresh"): Mo
 }
 
 /** Extract and verify the Bearer token from an Authorization header. */
-export function verifyBearerToken(authHeader: string | undefined): MobileTokenPayload {
+export function verifyBearerToken(
+  authHeader: string | undefined,
+): MobileTokenPayload {
   if (!authHeader?.startsWith("Bearer ")) {
     throw new Error("Missing or malformed Authorization header");
   }

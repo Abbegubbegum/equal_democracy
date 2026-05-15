@@ -3,14 +3,25 @@ import { verifyBearerToken } from "@/lib/mobile-jwt";
 import connectDB from "@/lib/mongodb";
 import { User } from "@/lib/models";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const user = await verifyBearerToken(req);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  let user: ReturnType<typeof verifyBearerToken>;
+  try {
+    user = verifyBearerToken(req.headers.authorization);
+  } catch {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
   const { token } = req.body;
-  if (!token || typeof token !== "string" || !token.startsWith("ExponentPushToken[")) {
+  if (
+    !token ||
+    typeof token !== "string" ||
+    !token.startsWith("ExponentPushToken[")
+  ) {
     return res.status(400).json({ error: "Invalid push token" });
   }
 

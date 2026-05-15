@@ -11,10 +11,16 @@ const LOG_LEVELS: Record<string, number> = {
 };
 
 // Set via LOG_LEVEL env var, defaults to 'info' in production, 'debug' in development
-const currentLevel = LOG_LEVELS[process.env.LOG_LEVEL ?? ""] ??
+const currentLevel =
+  LOG_LEVELS[process.env.LOG_LEVEL ?? ""] ??
   (process.env.NODE_ENV === "production" ? LOG_LEVELS.info : LOG_LEVELS.debug);
 
-function formatLog(level: string, context: string, message: string, data: Record<string, unknown> = {}): string {
+function formatLog(
+  level: string,
+  context: string,
+  message: string,
+  data: Record<string, unknown> = {},
+): string {
   const entry = {
     timestamp: new Date().toISOString(),
     level,

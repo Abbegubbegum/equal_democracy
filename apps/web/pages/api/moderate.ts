@@ -23,7 +23,10 @@ Regler:
 • Flagga INTE normala hetsiga argument — bara faktiska överträdelser
 • Vid tvekan, välj "warn" framför "flag"`;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   if (req.method !== "POST") return res.status(405).end();
 
   const session = await getServerSession(req, res, authOptions);
@@ -39,7 +42,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       model: "claude-haiku-4-5-20251001",
       max_tokens: 150,
       system: SYSTEM,
-      messages: [{ role: "user", content: `Inlägg:\n\n${text.trim().slice(0, 1000)}` }],
+      messages: [
+        { role: "user", content: `Inlägg:\n\n${text.trim().slice(0, 1000)}` },
+      ],
     });
 
     const raw = ((response.content[0] as any).text ?? "").trim();
@@ -47,9 +52,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!jsonMatch) return res.status(200).json({ status: "ok", message: "" });
 
     let parsed: { status?: string; message?: string };
-    try { parsed = JSON.parse(jsonMatch[0]); } catch { parsed = {}; }
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      parsed = {};
+    }
 
-    const status = ["ok", "warn", "flag"].includes(parsed.status ?? "") ? parsed.status : "ok";
+    const status = ["ok", "warn", "flag"].includes(parsed.status ?? "")
+      ? parsed.status
+      : "ok";
     return res.status(200).json({ status, message: parsed.message ?? "" });
   } catch (error) {
     log.error("Moderation check failed", { error: error.message });

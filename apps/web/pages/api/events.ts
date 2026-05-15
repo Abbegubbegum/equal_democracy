@@ -8,17 +8,19 @@ import type { NextApiRequest, NextApiResponse } from "next";
  * directly in the client code. This endpoint provides a way to dynamically
  * fetch the config if needed.
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-	// Only allow GET requests
-	if (req.method !== "GET") {
-		return res.status(405).json({ error: "Method not allowed" });
-	}
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  // Only allow GET requests
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-	// Return Pusher public configuration
-	res.status(200).json({
-		key: process.env.NEXT_PUBLIC_PUSHER_KEY || process.env.PUSHER_KEY,
-		cluster:
-			process.env.NEXT_PUBLIC_PUSHER_CLUSTER ||
-			process.env.PUSHER_CLUSTER,
-	});
+  // Return Pusher public configuration
+  res.status(200).json({
+    key: process.env.NEXT_PUBLIC_PUSHER_KEY || process.env.PUSHER_KEY,
+    cluster:
+      process.env.NEXT_PUBLIC_PUSHER_CLUSTER || process.env.PUSHER_CLUSTER,
+  });
 }

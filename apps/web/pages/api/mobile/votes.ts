@@ -6,8 +6,12 @@ import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("MobileVote");
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ message: "Method not allowed" });
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "POST")
+    return res.status(405).json({ message: "Method not allowed" });
 
   let user;
   try {
@@ -17,8 +21,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const { proposalId, sessionId, choice } = req.body;
-  if (!proposalId || !sessionId) return res.status(400).json({ message: "Missing fields" });
-  if (!["yes", "no"].includes(choice)) return res.status(400).json({ message: "Choice must be yes or no" });
+  if (!proposalId || !sessionId)
+    return res.status(400).json({ message: "Missing fields" });
+  if (!["yes", "no"].includes(choice))
+    return res.status(400).json({ message: "Choice must be yes or no" });
 
   try {
     await connectDB();
@@ -28,7 +34,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       existing.choice = choice;
       await existing.save();
     } else {
-      await FinalVote.create({ sessionId, proposalId, userId: user.id, choice });
+      await FinalVote.create({
+        sessionId,
+        proposalId,
+        userId: user.id,
+        choice,
+      });
     }
 
     const allVotes = await FinalVote.find({ proposalId });

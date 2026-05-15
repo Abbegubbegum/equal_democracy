@@ -31,6 +31,7 @@ Expo behöver PNG-filer i rätt storlekar.
 ```
 
 Kontrollera att `apps/mobile/app.json` pekar rätt:
+
 ```json
 {
   "expo": {
@@ -56,6 +57,7 @@ pnpm add expo-notifications --filter=mobile
 ```
 
 Lägg sedan till pluginen i `apps/mobile/app.json`:
+
 ```json
 {
   "expo": {
@@ -81,6 +83,7 @@ Två filer behöver uppdateras (koden är förberedd men kommenterades bort p.g.
 ### `apps/mobile/app/(app)/_layout.tsx`
 
 Lägg tillbaka längst upp i filen:
+
 ```ts
 import * as Notifications from "expo-notifications";
 import { apiClient } from "../../lib/api";
@@ -88,6 +91,7 @@ import { Platform } from "react-native";
 ```
 
 Lägg tillbaka `setNotificationHandler` utanför komponenten:
+
 ```ts
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -99,6 +103,7 @@ Notifications.setNotificationHandler({
 ```
 
 Lägg tillbaka `useEffect` i `AppLayout`:
+
 ```ts
 useEffect(() => {
   if (!user) return;
@@ -114,7 +119,7 @@ useEffect(() => {
         });
       }
       const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: "<ditt-eas-project-id>",  // ← fyll i efter steg 5
+        projectId: "<ditt-eas-project-id>", // ← fyll i efter steg 5
       });
       await apiClient("/api/mobile/push-token", {
         method: "POST",
@@ -123,13 +128,15 @@ useEffect(() => {
     } catch {}
   })();
 
-  const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-    const screen = response.notification.request.content.data?.screen;
-    if (screen === "vote") {
-      router.navigate("/(app)/vote");
-      Notifications.setBadgeCountAsync(0);
-    }
-  });
+  const sub = Notifications.addNotificationResponseReceivedListener(
+    (response) => {
+      const screen = response.notification.request.content.data?.screen;
+      if (screen === "vote") {
+        router.navigate("/(app)/vote");
+        Notifications.setBadgeCountAsync(0);
+      }
+    },
+  );
   return () => sub.remove();
 }, [user]);
 ```
@@ -137,6 +144,7 @@ useEffect(() => {
 ### `apps/mobile/app/(app)/vote.tsx`
 
 Lägg tillbaka i `useEffect`:
+
 ```ts
 import * as Notifications from "expo-notifications";
 // ...
@@ -160,6 +168,7 @@ eas init           # kopplar projektet, genererar project-id
 Kopiera **project-id** från `app.json` och klistra in i notis-koden ovan.
 
 Skapa `apps/mobile/eas.json`:
+
 ```json
 {
   "cli": { "version": ">= 5.0.0" },
@@ -183,12 +192,14 @@ Skapa `apps/mobile/eas.json`:
 ## 6. Push-notifikationer — servercertifikat
 
 ### Android (FCM)
+
 1. Gå till [Firebase Console](https://console.firebase.google.com)
 2. Skapa projekt → Android-app → ladda ner `google-services.json`
 3. Lägg `google-services.json` i `apps/mobile/`
 4. Kör: `eas credentials` och följ guiden för Android
 
 ### iOS (APNs)
+
 1. Kräver **Apple Developer-konto** (1 500 kr/år på [developer.apple.com](https://developer.apple.com))
 2. Skapa ett APNs-nyckel (p8-fil) i Apple Developer Portal
 3. Kör: `eas credentials` och följ guiden för iOS
@@ -221,12 +232,14 @@ eas build --profile production --platform ios
 ## 9. Publicering
 
 ### Google Play Store
+
 1. Skapa konto på [play.google.com/console](https://play.google.com/console) (~250 kr engångsavgift)
 2. Skapa ny app → fyll i beskrivning, skärmdumpar, sekretesspolicy
 3. Ladda upp `.aab`-filen från steg 8
 4. Skicka in för granskning (tar 1–3 dagar)
 
 ### Apple App Store
+
 1. Kräver Apple Developer-konto (se steg 6)
 2. Skapa app på [appstoreconnect.apple.com](https://appstoreconnect.apple.com)
 3. Fyll i metadata, skärmdumpar (kräver iPhone-storlekar)

@@ -9,6 +9,7 @@ The migration script handles the following changes:
 ### Schema Changes
 
 #### User Collection
+
 - ✅ Add `isSuperAdmin` field (default: false, **or true if user is currently an admin**)
 - ✅ Add `adminStatus` field (default: "none", or "approved" if isAdmin=true)
 - ✅ Add `sessionLimit` field (default: 10)
@@ -17,20 +18,26 @@ The migration script handles the following changes:
 - 🌟 **Existing admins (isAdmin=true) are automatically promoted to superAdmin**
 
 #### Proposal Collection
+
 - ✅ No changes needed (already matches new schema)
 
 #### TopProposal Collection
+
 - ✅ No changes needed (already matches new schema)
 
 #### Settings Collection
+
 - ✅ Rename `phase2DurationHours` → `sessionLimitHours`
 - ✅ Add "blue" to theme enum
 
 #### Session Collection
+
 - ✅ Add `createdBy` field (set to null for existing sessions)
 
 #### New Collections
+
 The following collections will be automatically created when first used:
+
 - `SessionRequest`
 - `BudgetSession`
 - `BudgetVote`
@@ -39,6 +46,7 @@ The following collections will be automatically created when first used:
 ## Prerequisites
 
 1. **Environment Variable**: Add production database URI to your `.env.local` or `.env` file
+
    ```env
    MONGODB_URI=mongodb+srv://...../development  # Your dev database
    MONGODB_URI_PRODUCTION=mongodb+srv://...../production  # For migrations
@@ -49,6 +57,7 @@ The following collections will be automatically created when first used:
    The script will automatically check `.env.local` first, then fall back to `.env`.
 
    Alternatively, set it as an environment variable:
+
    ```bash
    export MONGODB_URI_PRODUCTION="your-production-mongodb-connection-string"
    ```
@@ -68,6 +77,7 @@ node scripts/migrate-database.js --dry-run
 ```
 
 This will:
+
 - Connect to the database
 - Show what changes would be made
 - **NOT create a backup** (no changes are made)
@@ -82,6 +92,7 @@ node scripts/migrate-database.js --backup-only
 ```
 
 This will:
+
 - Connect to the database
 - Create a timestamped backup in `backups/` directory
 - Exit without making any changes
@@ -95,6 +106,7 @@ node scripts/migrate-database.js --migrate
 ```
 
 This will:
+
 1. ✅ Connect to the production database
 2. ✅ Create a complete backup to `backups/database-backup-[timestamp].json`
 3. ✅ Migrate all collections according to the new schema
@@ -104,18 +116,22 @@ This will:
 ## Safety Features
 
 ### Automatic Backup
+
 - Every migration (except dry-run) creates a timestamped backup
 - Backups are stored in `backups/` directory
 - Each backup includes all collections and documents
 
 ### Validation
+
 After migration, the script validates:
+
 - ✅ All users have required new fields
 - ✅ No proposals have removed fields
 - ✅ Settings have been properly renamed
 - ✅ All migrations completed successfully
 
 ### Dry Run Mode
+
 - Test migrations without making changes
 - See exactly what will be modified
 - No backup created (since no changes are made)
@@ -123,6 +139,7 @@ After migration, the script validates:
 ## Example Output
 
 ### Dry Run
+
 ```
 🚀 Starting database migration...
 Mode: DRY RUN (no changes will be made)
@@ -151,6 +168,7 @@ Mode: DRY RUN (no changes will be made)
 ```
 
 ### Live Migration
+
 ```
 🚀 Starting database migration...
 Mode: LIVE MIGRATION
@@ -193,6 +211,7 @@ If something goes wrong, you can restore from the backup:
 ### Option 1: Using mongorestore (Recommended)
 
 If you have `mongodump` backups:
+
 ```bash
 mongorestore --uri="your-mongodb-uri" --drop /path/to/backup
 ```
@@ -204,10 +223,12 @@ mongorestore --uri="your-mongodb-uri" --drop /path/to/backup
 3. Or write a script to restore from the JSON backup:
 
 ```javascript
-import mongoose from 'mongoose';
-import fs from 'fs/promises';
+import mongoose from "mongoose";
+import fs from "fs/promises";
 
-const backup = JSON.parse(await fs.readFile('backups/database-backup-[timestamp].json', 'utf-8'));
+const backup = JSON.parse(
+  await fs.readFile("backups/database-backup-[timestamp].json", "utf-8"),
+);
 
 // Restore each collection
 for (const [collectionName, documents] of Object.entries(backup.collections)) {
@@ -220,29 +241,36 @@ for (const [collectionName, documents] of Object.entries(backup.collections)) {
 ## Troubleshooting
 
 ### "MONGODB_URI not found"
+
 Ensure your `.env.local` or `.env` file contains:
+
 ```env
 MONGODB_URI_PRODUCTION=mongodb+srv://username:password@cluster.mongodb.net/production
 ```
 
 Or at minimum:
+
 ```env
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/dbname
 ```
 
 Or set it as an environment variable:
+
 ```bash
 export MONGODB_URI_PRODUCTION="mongodb+srv://username:password@cluster.mongodb.net/production"
 ```
 
 ### "Failed to connect to MongoDB"
+
 Check:
+
 - Network connectivity
 - MongoDB URI is correct
 - Firewall rules allow connection
 - MongoDB server is running
 
 ### Migration fails mid-way
+
 - Check the backup file in `backups/` directory
 - Review the error message
 - Consider restoring from backup and trying again
@@ -262,6 +290,7 @@ After successful migration:
 ## Support
 
 If you encounter issues:
+
 1. Check the backup file was created
 2. Review the error messages carefully
 3. Test with `--dry-run` first
@@ -280,6 +309,7 @@ mongorestore --uri="your-mongodb-uri" --drop ./mongodb-backup-[timestamp]
 ```
 
 Binary backups are:
+
 - Faster to restore
 - More reliable for large databases
 - Better for production use

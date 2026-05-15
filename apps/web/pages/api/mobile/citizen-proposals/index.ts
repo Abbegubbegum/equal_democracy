@@ -11,9 +11,16 @@ import { createLogger } from "../../../../lib/logger";
 export const config = { api: { bodyParser: false } };
 
 const log = createLogger("MobileCitizenProposals");
-const UPLOAD_DIR = path.join(process.cwd(), "public", "citizen-proposal-images");
+const UPLOAD_DIR = path.join(
+  process.cwd(),
+  "public",
+  "citizen-proposal-images",
+);
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   let user;
   try {
     user = verifyBearerToken(req.headers.authorization);
@@ -24,7 +31,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   await connectDB();
 
   if (req.method === "POST") {
-    if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    if (!fs.existsSync(UPLOAD_DIR))
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
     const form = formidable({
       uploadDir: UPLOAD_DIR,
@@ -38,21 +46,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       [fields, files] = await form.parse(req);
     } catch {
-      return res.status(400).json({ message: "Bilden är för stor (max 600 KB)" });
+      return res
+        .status(400)
+        .json({ message: "Bilden är för stor (max 600 KB)" });
     }
 
     const title = Array.isArray(fields.title) ? fields.title[0] : fields.title;
-    const description = Array.isArray(fields.description) ? fields.description[0] : fields.description;
+    const description = Array.isArray(fields.description)
+      ? fields.description[0]
+      : fields.description;
 
     if (!title?.trim()) return res.status(400).json({ message: "Titel krävs" });
-    if (!description?.trim()) return res.status(400).json({ message: "Beskrivning krävs" });
+    if (!description?.trim())
+      return res.status(400).json({ message: "Beskrivning krävs" });
 
     const file = Array.isArray(files.image) ? files.image[0] : files.image;
     const id = new mongoose.Types.ObjectId();
 
     let imageUrl: string | null = null;
     if (file) {
-      const ext = path.extname(file.originalFilename ?? "").toLowerCase() || ".jpg";
+      const ext =
+        path.extname(file.originalFilename ?? "").toLowerCase() || ".jpg";
       const filename = `${id}${ext}`;
       const dest = path.join(UPLOAD_DIR, filename);
       fs.renameSync(file.filepath, dest);
@@ -81,17 +95,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         userRating: 0,
       });
     } catch (error) {
-      if (imageUrl) fs.unlink(path.join(process.cwd(), "public", imageUrl), () => {});
+      if (imageUrl)
+        fs.unlink(path.join(process.cwd(), "public", imageUrl), () => {});
       log.error("Failed to create citizen proposal", { error: error.message });
       return res.status(500).json({ message: "Failed to create proposal" });
     }
   }
 
-  if (req.method !== "GET") return res.status(405).json({ message: "Method not allowed" });
+  if (req.method !== "GET")
+    return res.status(405).json({ message: "Method not allowed" });
 
   try {
     const proposals = await CitizenProposal.find({ status: "active" })
-      .select("_id title description authorName imageUrl averageRating ratingCount createdAt")
+      .select(
+        "_id title description authorName imageUrl averageRating ratingCount createdAt",
+      )
       .sort({ averageRating: -1, ratingCount: -1, createdAt: -1 })
       .lean();
 
@@ -101,7 +119,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       userId: user.id,
     }).lean();
     const ratingMap = Object.fromEntries(
-      userRatings.map((r) => [r.proposalId.toString(), r.rating])
+      userRatings.map((r) => [r.proposalId.toString(), r.rating]),
     );
 
     return res.status(200).json(
@@ -113,7 +131,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         averageRating: p.averageRating || 0,
         ratingCount: p.ratingCount || 0,
         userRating: ratingMap[p._id.toString()] || 0,
-      }))
+      })),
     );
   } catch (error) {
     log.error("Failed to fetch citizen proposals", { error: error.message });

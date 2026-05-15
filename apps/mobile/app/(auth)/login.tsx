@@ -133,7 +133,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     gap: 16,
   },
-  title: { fontSize: 28, fontWeight: "700", textAlign: "center", color: "#1a1a2e" },
+  title: {
+    fontSize: 28,
+    fontWeight: "700",
+    textAlign: "center",
+    color: "#1a1a2e",
+  },
   subtitle: { fontSize: 15, color: "#555", textAlign: "center" },
   input: {
     borderWidth: 1,

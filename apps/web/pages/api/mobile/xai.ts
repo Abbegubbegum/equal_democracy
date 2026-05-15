@@ -19,8 +19,12 @@ Partiets kärnvärden: Medborgardialog (invånare som delägare), Hållbar utvec
 
 Du är kortfattad (max 3 meningar per svar), saklig och hjälpsam. Svara alltid på svenska. Du är transparent med att du är en AI-assistent, inte en människa. Om du är osäker, säg det öppet.`;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ message: "Method not allowed" });
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "POST")
+    return res.status(405).json({ message: "Method not allowed" });
 
   try {
     verifyBearerToken(req.headers.authorization);
@@ -52,6 +56,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ reply });
   } catch (error) {
     log.error("XAI call failed", { error: error.message });
-    return res.status(500).json({ message: "XAI är tillfälligt otillgänglig. Försök igen om en stund." });
+    return res.status(500).json({
+      message: "XAI är tillfälligt otillgänglig. Försök igen om en stund.",
+    });
   }
 }

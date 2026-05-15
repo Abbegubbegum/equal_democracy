@@ -14,16 +14,19 @@ const log = createLogger("AgendaExtractor");
  * @param {string} meetingType - e.g. "Kommunfullmäktige", "Kommunstyrelsen"
  * @returns {Promise<Object>} - Extracted agenda items
  */
-export async function extractAgendaFromPDF(pdfBuffer, meetingType = "Kommunfullmäktige") {
-	// Initialize Anthropic client
-	const anthropic = new Anthropic({
-		apiKey: process.env.ANTHROPIC_API_KEY,
-	});
+export async function extractAgendaFromPDF(
+  pdfBuffer,
+  meetingType = "Kommunfullmäktige",
+) {
+  // Initialize Anthropic client
+  const anthropic = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  });
 
-	// Convert buffer to base64 for Claude API
-	const pdfBase64 = pdfBuffer.toString("base64");
+  // Convert buffer to base64 for Claude API
+  const pdfBase64 = pdfBuffer.toString("base64");
 
-	const prompt = `Du är en expert på svenska kommunala handlingar. Analysera denna kallelse för ${meetingType} och extrahera ENDAST de beslutspunkter som medborgare bör kunna rösta om.
+  const prompt = `Du är en expert på svenska kommunala handlingar. Analysera denna kallelse för ${meetingType} och extrahera ENDAST de beslutspunkter som medborgare bör kunna rösta om.
 
 EXTRAHERA MÖTETS STARTTID: Leta efter mötets starttid på första sidan (t.ex. "kl. 18:30" eller "19:00"). Om du inte hittar den, använd "18:00" som default.
 
@@ -104,87 +107,101 @@ VALIDERING:
 - Kategorier är nummer 1-7
 - initialArguments kan vara tom array om inga argument finns`;
 
-	try {
-		const message = await anthropic.messages.create({
-			model: "claude-sonnet-4-5",
-			max_tokens: 8192,
-			messages: [
-				{
-					role: "user",
-					content: [
-						{
-							type: "document",
-							source: {
-								type: "base64",
-								media_type: "application/pdf",
-								data: pdfBase64,
-							},
-						},
-						{
-							type: "text",
-							text: prompt,
-						},
-					],
-				},
-			],
-		});
+  try {
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 8192,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "document",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: pdfBase64,
+              },
+            },
+            {
+              type: "text",
+              text: prompt,
+            },
+          ],
+        },
+      ],
+    });
 
-		// Extract JSON from response
-		const firstBlock = message.content[0];
-		const responseText = firstBlock.type === "text" ? firstBlock.text : "";
+    // Extract JSON from response
+    const firstBlock = message.content[0];
+    const responseText = firstBlock.type === "text" ? firstBlock.text : "";
 
-		log.debug("Claude response preview", { preview: responseText.substring(0, 300) });
+    log.debug("Claude response preview", {
+      preview: responseText.substring(0, 300),
+    });
 
-		// Try to find JSON in the response
-		let jsonMatch = responseText.match(/```json\s*(\{[\s\S]*?\})\s*```/);
-		if (!jsonMatch) {
-			jsonMatch = responseText.match(/\{[\s\S]*\}/);
-		}
+    // Try to find JSON in the response
+    let jsonMatch = responseText.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+    if (!jsonMatch) {
+      jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    }
 
-		if (!jsonMatch) {
-			log.error("No JSON found in AI response", { fullResponse: responseText });
-			throw new Error("No JSON found in AI response. Check the logs.");
-		}
+    if (!jsonMatch) {
+      log.error("No JSON found in AI response", { fullResponse: responseText });
+      throw new Error("No JSON found in AI response. Check the logs.");
+    }
 
-		const jsonString = jsonMatch[1] || jsonMatch[0];
-		const extractedData = JSON.parse(jsonString);
+    const jsonString = jsonMatch[1] || jsonMatch[0];
+    const extractedData = JSON.parse(jsonString);
 
-		// Validate the extracted data
-		if (!extractedData.items || extractedData.items.length < 1) {
-			throw new Error(`No items extracted. Expected at least 1 decision item.`);
-		}
+    // Validate the extracted data
+    if (!extractedData.items || extractedData.items.length < 1) {
+      throw new Error(`No items extracted. Expected at least 1 decision item.`);
+    }
 
-		// Validate each item
-		for (const item of extractedData.items) {
-			if (!item.title || !item.description) {
-				throw new Error(`Missing title or description in item: ${JSON.stringify(item)}`);
-			}
-			if (!item.categories || item.categories.length < 1 || item.categories.length > 3) {
-				throw new Error(`Invalid categories in item "${item.title}". Must have 1-3 categories.`);
-			}
-			// Ensure categories are numbers 1-7
-			for (const cat of item.categories) {
-				if (cat < 1 || cat > 7) {
-					throw new Error(`Invalid category ${cat} in item "${item.title}". Must be 1-7.`);
-				}
-			}
-			// Ensure initialArguments exists
-			if (!item.initialArguments) {
-				item.initialArguments = [];
-			}
-		}
+    // Validate each item
+    for (const item of extractedData.items) {
+      if (!item.title || !item.description) {
+        throw new Error(
+          `Missing title or description in item: ${JSON.stringify(item)}`,
+        );
+      }
+      if (
+        !item.categories ||
+        item.categories.length < 1 ||
+        item.categories.length > 3
+      ) {
+        throw new Error(
+          `Invalid categories in item "${item.title}". Must have 1-3 categories.`,
+        );
+      }
+      // Ensure categories are numbers 1-7
+      for (const cat of item.categories) {
+        if (cat < 1 || cat > 7) {
+          throw new Error(
+            `Invalid category ${cat} in item "${item.title}". Must be 1-7.`,
+          );
+        }
+      }
+      // Ensure initialArguments exists
+      if (!item.initialArguments) {
+        item.initialArguments = [];
+      }
+    }
 
-		log.info("Agenda data extracted", {
-			meetingName: extractedData.meetingName,
-			meetingDate: extractedData.meetingDate,
-			itemCount: extractedData.items.length,
-		});
+    log.info("Agenda data extracted", {
+      meetingName: extractedData.meetingName,
+      meetingDate: extractedData.meetingDate,
+      itemCount: extractedData.items.length,
+    });
 
-		return extractedData;
-	} catch (error) {
-		log.error("Failed to extract agenda data using AI", { error: error.message });
-		throw new Error(`Failed to extract agenda data: ${error.message}`);
-	}
+    return extractedData;
+  } catch (error) {
+    log.error("Failed to extract agenda data using AI", {
+      error: error.message,
+    });
+    throw new Error(`Failed to extract agenda data: ${error.message}`);
+  }
 }
 
 /**
@@ -193,39 +210,47 @@ VALIDERING:
  * @param {string} meetingType - e.g. "Kommunfullmäktige"
  * @returns {Promise<Object>} - Extracted agenda items
  */
-export async function extractAgendaFromURL(url, meetingType = "Kommunfullmäktige") {
-	try {
-		log.debug("Fetching PDF from URL", { url });
+export async function extractAgendaFromURL(
+  url,
+  meetingType = "Kommunfullmäktige",
+) {
+  try {
+    log.debug("Fetching PDF from URL", { url });
 
-		const response = await fetch(url);
+    const response = await fetch(url);
 
-		if (!response.ok) {
-			throw new Error(`Failed to fetch PDF: ${response.status} ${response.statusText}`);
-		}
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch PDF: ${response.status} ${response.statusText}`,
+      );
+    }
 
-		const arrayBuffer = await response.arrayBuffer();
-		const pdfBuffer = Buffer.from(arrayBuffer);
+    const arrayBuffer = await response.arrayBuffer();
+    const pdfBuffer = Buffer.from(arrayBuffer);
 
-		log.debug("PDF downloaded", { size: pdfBuffer.length });
+    log.debug("PDF downloaded", { size: pdfBuffer.length });
 
-		return await extractAgendaFromPDF(pdfBuffer, meetingType);
-	} catch (error) {
-		log.error("Failed to extract agenda from URL", { url, error: error.message });
-		throw new Error(`Failed to extract agenda from URL: ${error.message}`);
-	}
+    return await extractAgendaFromPDF(pdfBuffer, meetingType);
+  } catch (error) {
+    log.error("Failed to extract agenda from URL", {
+      url,
+      error: error.message,
+    });
+    throw new Error(`Failed to extract agenda from URL: ${error.message}`);
+  }
 }
 
 /**
  * Category names in Swedish
  */
 export const CATEGORY_NAMES = {
-	1: "Bygga, bo och miljö",
-	2: "Fritid och kultur",
-	3: "Förskola och skola",
-	4: "Ändring av styrdokument",
-	5: "Näringsliv och arbete",
-	6: "Omsorg och hjälp",
-	7: "Övrigt kommun och politik",
+  1: "Bygga, bo och miljö",
+  2: "Fritid och kultur",
+  3: "Förskola och skola",
+  4: "Ändring av styrdokument",
+  5: "Näringsliv och arbete",
+  6: "Omsorg och hjälp",
+  7: "Övrigt kommun och politik",
 };
 
 /**
@@ -234,5 +259,5 @@ export const CATEGORY_NAMES = {
  * @returns {string} - Category name in Swedish
  */
 export function getCategoryName(categoryNum) {
-	return CATEGORY_NAMES[categoryNum] || "Okänd kategori";
+  return CATEGORY_NAMES[categoryNum] || "Okänd kategori";
 }

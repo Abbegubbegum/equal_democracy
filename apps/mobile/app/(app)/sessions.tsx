@@ -23,19 +23,7 @@ import { apiClient } from "../../lib/api";
 import CelebrationModal from "../../lib/CelebrationModal";
 import { addStars } from "../../lib/stars";
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
-
-const PHASE_LABEL: Record<string, string> = {
-  phase1: "Diskussion & prioritering",
-  phase2: "Omröstning pågår",
-  closed: "Avslutad",
-};
-
-const PHASE_COLOR: Record<string, string> = {
-  phase1: "#16a34a",
-  phase2: "#2563eb",
-  closed: "#6b7280",
-};
+const { height: SCREEN_H } = Dimensions.get("window");
 
 interface ActiveSession {
   id: string;
@@ -60,7 +48,8 @@ interface Proposal {
   userRating: number;
 }
 
-const PLACEHOLDER_IMAGE = "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80";
+const PLACEHOLDER_IMAGE =
+  "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80";
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 
 function resolveImage(session: ActiveSession): string {
@@ -77,7 +66,12 @@ function ProposalCard({
 }: {
   proposal: Proposal;
   sessionId: string;
-  onRated: (id: string, userRating: number, averageRating: number, thumbsUpCount: number) => void;
+  onRated: (
+    id: string,
+    userRating: number,
+    averageRating: number,
+    thumbsUpCount: number,
+  ) => void;
   onCelebrate: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -93,10 +87,18 @@ function ProposalCard({
     const prev = localUserRating;
     setLocalUserRating(stars);
     try {
-      const result = await apiClient<{ averageRating: number; thumbsUpCount: number; userRating: number }>(
-        "/api/mobile/proposals/rate",
-        { method: "POST", body: JSON.stringify({ proposalId: proposal.id, rating: stars, sessionId }) }
-      );
+      const result = await apiClient<{
+        averageRating: number;
+        thumbsUpCount: number;
+        userRating: number;
+      }>("/api/mobile/proposals/rate", {
+        method: "POST",
+        body: JSON.stringify({
+          proposalId: proposal.id,
+          rating: stars,
+          sessionId,
+        }),
+      });
       setLocalAvg(result.averageRating);
       setLocalCount(result.thumbsUpCount);
       onRated(proposal.id, stars, result.averageRating, result.thumbsUpCount);
@@ -135,7 +137,9 @@ function ProposalCard({
           </TouchableOpacity>
         ))}
         <Text style={styles.proposalVotes}>
-          {localCount > 0 ? `${localCount} röster · snitt ${localAvg.toFixed(1)}` : "Ingen röstat än"}
+          {localCount > 0
+            ? `${localCount} röster · snitt ${localAvg.toFixed(1)}`
+            : "Ingen röstat än"}
         </Text>
       </View>
 
@@ -184,7 +188,7 @@ function SubmitModal({
     try {
       const proposal = await apiClient<Proposal>(
         `/api/mobile/sessions/${session.id}/proposals`,
-        { method: "POST", body: JSON.stringify({ title, problem, solution }) }
+        { method: "POST", body: JSON.stringify({ title, problem, solution }) },
       );
       onSuccess(proposal);
     } catch (e: any) {
@@ -203,7 +207,12 @@ function SubmitModal({
             style={styles.modalKAV}
           >
             <TouchableWithoutFeedback>
-              <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+              <View
+                style={[
+                  styles.modalSheet,
+                  { paddingBottom: insets.bottom + 16 },
+                ]}
+              >
                 <View style={styles.modalHandle} />
 
                 <View style={styles.modalHeader}>
@@ -269,7 +278,9 @@ function SubmitModal({
                   ) : (
                     <>
                       <Ionicons name="send" size={16} color="#002d75" />
-                      <Text style={styles.submitBtnText}>Skicka in förslag</Text>
+                      <Text style={styles.submitBtnText}>
+                        Skicka in förslag
+                      </Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -305,7 +316,6 @@ function SessionBlock({
 
   return (
     <View onLayout={(e) => onLayout(e.nativeEvent.layout.y)}>
-
       {/* Hero area */}
       <View style={[styles.heroContent, { height: heroHeight }]}>
         <Text style={styles.sessionTitle}>{session.place}</Text>
@@ -320,8 +330,14 @@ function SessionBlock({
 
         {session.showUserCount && (
           <View style={styles.participantRow}>
-            <Ionicons name="people-outline" size={15} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.participantText}>{session.activeUsersCount} deltagare</Text>
+            <Ionicons
+              name="people-outline"
+              size={15}
+              color="rgba(255,255,255,0.8)"
+            />
+            <Text style={styles.participantText}>
+              {session.activeUsersCount} deltagare
+            </Text>
           </View>
         )}
 
@@ -337,7 +353,11 @@ function SessionBlock({
         )}
 
         <View style={styles.scrollHint}>
-          <Ionicons name="chevron-down" size={18} color="rgba(255,255,255,0.5)" />
+          <Ionicons
+            name="chevron-down"
+            size={18}
+            color="rgba(255,255,255,0.5)"
+          />
           <Text style={styles.scrollHintText}>Scrolla för att se förslag</Text>
         </View>
       </View>
@@ -349,9 +369,15 @@ function SessionBlock({
         </Text>
         {proposals.length === 0 ? (
           <View style={styles.emptyProposals}>
-            <Ionicons name="document-outline" size={40} color="rgba(255,255,255,0.4)" />
+            <Ionicons
+              name="document-outline"
+              size={40}
+              color="rgba(255,255,255,0.4)"
+            />
             <Text style={styles.emptyProposalsText}>
-              {canSubmit ? "Inga förslag ännu — var den första!" : "Inga förslag"}
+              {canSubmit
+                ? "Inga förslag ännu — var den första!"
+                : "Inga förslag"}
             </Text>
           </View>
         ) : (
@@ -362,7 +388,11 @@ function SessionBlock({
                 proposal={p}
                 sessionId={session.id}
                 onRated={(id, userRating, averageRating, thumbsUpCount) =>
-                  onProposalUpdated(id, { userRating, averageRating, thumbsUpCount })
+                  onProposalUpdated(id, {
+                    userRating,
+                    averageRating,
+                    thumbsUpCount,
+                  })
                 }
                 onCelebrate={onCelebrate}
               />
@@ -388,7 +418,9 @@ function SessionBlock({
 export default function SessionsScreen() {
   const insets = useSafeAreaInsets();
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
-  const [proposalsMap, setProposalsMap] = useState<Record<string, Proposal[]>>({});
+  const [proposalsMap, setProposalsMap] = useState<Record<string, Proposal[]>>(
+    {},
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [celebration, setCelebration] = useState(false);
@@ -399,15 +431,19 @@ export default function SessionsScreen() {
   // Refs track what URI each layer currently holds so we can detect no-op setUriA/B calls.
   // When the standby layer already has the right URI, onLoad won't re-fire, so we
   // trigger the animation directly instead of waiting for a callback that never comes.
-  const uriARef         = useRef(PLACEHOLDER_IMAGE);
-  const uriBRef         = useRef(PLACEHOLDER_IMAGE);
-  const translateA      = useRef(new Animated.Value(0)).current;
-  const translateB      = useRef(new Animated.Value(SCREEN_H)).current;
-  const currentLayer    = useRef<"a" | "b">("a"); // which layer is currently at translateY=0
+  const uriARef = useRef(PLACEHOLDER_IMAGE);
+  const uriBRef = useRef(PLACEHOLDER_IMAGE);
+  const translateA = useRef(new Animated.Value(0)).current;
+  const translateB = useRef(new Animated.Value(SCREEN_H)).current;
+  const currentLayer = useRef<"a" | "b">("a"); // which layer is currently at translateY=0
   const displayBgIdxRef = useRef(0);
-  const isAnimatingBg   = useRef(false);
-  const prevScrollY     = useRef(0);
-  const pendingBgRef    = useRef<{ newIdx: number; scrolledDown: boolean; standby: "a" | "b" } | null>(null);
+  const isAnimatingBg = useRef(false);
+  const prevScrollY = useRef(0);
+  const pendingBgRef = useRef<{
+    newIdx: number;
+    scrolledDown: boolean;
+    standby: "a" | "b";
+  } | null>(null);
 
   const scrollRef = useRef<ScrollView>(null);
   const allOffsets = useRef<number[]>([]);
@@ -431,7 +467,7 @@ export default function SessionsScreen() {
     displayBgIdxRef.current = 0;
     translateA.setValue(0);
     translateB.setValue(SCREEN_H);
-  }, [sessions]);
+  }, [sessions, translateA, translateB]);
 
   async function load() {
     allOffsets.current = [];
@@ -439,20 +475,22 @@ export default function SessionsScreen() {
     setError(null);
     setLoading(true);
     try {
-      const data = await apiClient<ActiveSession[]>("/api/mobile/sessions/active");
+      const data = await apiClient<ActiveSession[]>(
+        "/api/mobile/sessions/active",
+      );
       setSessions(data);
       // Fetch proposals for all sessions in parallel
       const entries = await Promise.all(
         data.map(async (s) => {
           try {
             const proposals = await apiClient<Proposal[]>(
-              `/api/mobile/sessions/${s.id}/proposals`
+              `/api/mobile/sessions/${s.id}/proposals`,
             );
             return [s.id, proposals] as const;
           } catch {
             return [s.id, []] as const;
           }
-        })
+        }),
       );
       setProposalsMap(Object.fromEntries(entries));
     } catch (e: any) {
@@ -486,7 +524,8 @@ export default function SessionsScreen() {
     // onLoad fires once the image is decoded; only then do we slide it in.
     const slideFrom = scrolledDown ? SCREEN_H : -SCREEN_H;
     const newUri = resolveImage(sessions[newIdx]);
-    const standbyCurrentUri = standby === "b" ? uriBRef.current : uriARef.current;
+    const standbyCurrentUri =
+      standby === "b" ? uriBRef.current : uriARef.current;
 
     if (standby === "b") {
       translateB.setValue(slideFrom);
@@ -514,18 +553,21 @@ export default function SessionsScreen() {
     const incomingTranslate = layer === "a" ? translateA : translateB;
     const outgoingTranslate = layer === "a" ? translateB : translateA;
 
-    Animated.timing(incomingTranslate, { toValue: 0, duration: 300, useNativeDriver: true })
-      .start(({ finished }) => {
-        if (finished) {
-          // Outgoing is now completely hidden behind incoming (both at translateY=0).
-          // Reset outgoing off-screen — no visible change because it's covered.
-          outgoingTranslate.setValue(pending.scrolledDown ? -SCREEN_H : SCREEN_H);
-          currentLayer.current = layer;
-          displayBgIdxRef.current = pending.newIdx;
-        }
-        isAnimatingBg.current = false;
-        pendingBgRef.current = null;
-      });
+    Animated.timing(incomingTranslate, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        // Outgoing is now completely hidden behind incoming (both at translateY=0).
+        // Reset outgoing off-screen — no visible change because it's covered.
+        outgoingTranslate.setValue(pending.scrolledDown ? -SCREEN_H : SCREEN_H);
+        currentLayer.current = layer;
+        displayBgIdxRef.current = pending.newIdx;
+      }
+      isAnimatingBg.current = false;
+      pendingBgRef.current = null;
+    });
   }
 
   function handleScroll(e: any) {
@@ -537,7 +579,11 @@ export default function SessionsScreen() {
     // Determine which session block is in view and trigger bg transition
     let bgi = 0;
     for (let i = 0; i < allOffsets.current.length; i++) {
-      if (allOffsets.current[i] != null && y >= allOffsets.current[i] - heroHeight * 0.4) bgi = i;
+      if (
+        allOffsets.current[i] != null &&
+        y >= allOffsets.current[i] - heroHeight * 0.4
+      )
+        bgi = i;
     }
     const newModulo = n > 0 ? bgi % n : 0;
     if (!isJumping.current) triggerBgTransition(newModulo, scrolledDown);
@@ -552,11 +598,15 @@ export default function SessionsScreen() {
     if (y < midStart) {
       isJumping.current = true;
       scrollRef.current?.scrollTo({ y: y + totalOneCopy, animated: false });
-      setTimeout(() => { isJumping.current = false; }, 50);
+      setTimeout(() => {
+        isJumping.current = false;
+      }, 50);
     } else if (y >= thirdStart) {
       isJumping.current = true;
       scrollRef.current?.scrollTo({ y: y - totalOneCopy, animated: false });
-      setTimeout(() => { isJumping.current = false; }, 50);
+      setTimeout(() => {
+        isJumping.current = false;
+      }, 50);
     }
   }
 
@@ -567,11 +617,15 @@ export default function SessionsScreen() {
     }));
   }
 
-  function handleProposalUpdated(sessionId: string, proposalId: string, patch: Partial<Proposal>) {
+  function handleProposalUpdated(
+    sessionId: string,
+    proposalId: string,
+    patch: Partial<Proposal>,
+  ) {
     setProposalsMap((prev) => ({
       ...prev,
       [sessionId]: (prev[sessionId] || []).map((p) =>
-        p.id === proposalId ? { ...p, ...patch } : p
+        p.id === proposalId ? { ...p, ...patch } : p,
       ),
     }));
   }
@@ -606,23 +660,28 @@ export default function SessionsScreen() {
     );
   }
 
-  const loopedSessions = sessions.length > 1
-    ? [...sessions, ...sessions, ...sessions]
-    : sessions;
+  const loopedSessions =
+    sessions.length > 1 ? [...sessions, ...sessions, ...sessions] : sessions;
 
   return (
     <View style={styles.screenContainer}>
       {/* Two always-mounted layers — no unmounting means no decode-flash */}
       <Animated.Image
         source={{ uri: uriA }}
-        style={[StyleSheet.absoluteFill, { transform: [{ translateY: translateA }] }]}
+        style={[
+          StyleSheet.absoluteFill,
+          { transform: [{ translateY: translateA }] },
+        ]}
         resizeMode="cover"
         onLoad={() => onLayerLoad("a")}
         onError={() => onLayerLoad("a")}
       />
       <Animated.Image
         source={{ uri: uriB }}
-        style={[StyleSheet.absoluteFill, { transform: [{ translateY: translateB }] }]}
+        style={[
+          StyleSheet.absoluteFill,
+          { transform: [{ translateY: translateB }] },
+        ]}
         resizeMode="cover"
         onLoad={() => onLayerLoad("b")}
         onError={() => onLayerLoad("b")}
@@ -644,7 +703,9 @@ export default function SessionsScreen() {
             proposals={proposalsMap[session.id] ?? []}
             heroHeight={heroHeight}
             onSubmitSuccess={(p) => handleNewProposal(session.id, p)}
-            onProposalUpdated={(id, patch) => handleProposalUpdated(session.id, id, patch)}
+            onProposalUpdated={(id, patch) =>
+              handleProposalUpdated(session.id, id, patch)
+            }
             onLayout={(y) => handleBlockLayout(index, y)}
             onCelebrate={() => setCelebration(true)}
           />
@@ -683,7 +744,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   phaseText: { color: "#fff", fontSize: 12, fontWeight: "700" },
-  sessionTitle: { color: "#fff", fontSize: 26, fontWeight: "900", lineHeight: 32 },
+  sessionTitle: {
+    color: "#fff",
+    fontSize: 26,
+    fontWeight: "900",
+    lineHeight: 32,
+  },
   sessionDate: { color: "rgba(255,255,255,0.7)", fontSize: 14 },
   participantRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   participantText: { color: "rgba(255,255,255,0.8)", fontSize: 13 },
@@ -726,7 +792,12 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 7,
   },
-  proposalTitle: { fontSize: 15, fontWeight: "700", color: "#111", lineHeight: 21 },
+  proposalTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111",
+    lineHeight: 21,
+  },
   starsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -743,7 +814,11 @@ const styles = StyleSheet.create({
     paddingVertical: 28,
     gap: 10,
   },
-  emptyProposalsText: { fontSize: 14, color: "rgba(255,255,255,0.75)", textAlign: "center" },
+  emptyProposalsText: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.75)",
+    textAlign: "center",
+  },
 
   // Submit modal
   modalBackdrop: {
@@ -805,10 +880,26 @@ const styles = StyleSheet.create({
   submitBtnText: { color: "#002d75", fontSize: 15, fontWeight: "800" },
 
   // Shared
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, backgroundColor: "#f4f6fb" },
-  errorText: { color: "#dc2626", fontSize: 14, textAlign: "center", paddingHorizontal: 32 },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    backgroundColor: "#f4f6fb",
+  },
+  errorText: {
+    color: "#dc2626",
+    fontSize: 14,
+    textAlign: "center",
+    paddingHorizontal: 32,
+  },
   emptyTitle: { fontSize: 18, fontWeight: "700", color: "#555" },
   emptyText: { fontSize: 14, color: "#aaa" },
-  retryBtn: { backgroundColor: "#002d75", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
+  retryBtn: {
+    backgroundColor: "#002d75",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
   retryText: { color: "#fff", fontWeight: "700" },
 });

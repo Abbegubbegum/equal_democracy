@@ -17,74 +17,75 @@ const log = createLogger("Notifications");
  * @returns {Promise<Object>} - Notification results
  */
 export async function sendMunicipalSessionNotifications(municipalSession) {
-	try {
-		// Collect all unique categories from all items
-		const allCategories = new Set();
-		for (const item of municipalSession.items) {
-			for (const cat of item.categories || []) {
-				allCategories.add(cat);
-			}
-		}
+  try {
+    // Collect all unique categories from all items
+    const allCategories = new Set();
+    for (const item of municipalSession.items) {
+      for (const cat of item.categories || []) {
+        allCategories.add(cat);
+      }
+    }
 
-		const categoriesArray = Array.from(allCategories);
+    const categoriesArray = Array.from(allCategories);
 
-		log.info("Sending notifications", {
-			sessionName: municipalSession.name,
-			categories: categoriesArray
-		});
+    log.info("Sending notifications", {
+      sessionName: municipalSession.name,
+      categories: categoriesArray,
+    });
 
-		// Find all users interested in these categories
-		const interestedUsers = await User.find({
-			interestedCategories: { $in: categoriesArray },
-			userType: { $in: ["member", "citizen"] }, // Only notify registered users
-			notificationPreference: { $ne: "none" }, // Skip users who disabled notifications
-		});
+    // Find all users interested in these categories
+    const interestedUsers = await User.find({
+      interestedCategories: { $in: categoriesArray },
+      userType: { $in: ["member", "citizen"] }, // Only notify registered users
+      notificationPreference: { $ne: "none" }, // Skip users who disabled notifications
+    });
 
-		log.debug("Found interested users", { count: interestedUsers.length });
+    log.debug("Found interested users", { count: interestedUsers.length });
 
-		const results = {
-			totalUsers: interestedUsers.length,
-			emailsSent: 0,
-			smsSent: 0,
-			errors: [],
-		};
+    const results = {
+      totalUsers: interestedUsers.length,
+      emailsSent: 0,
+      smsSent: 0,
+      errors: [],
+    };
 
-		// Send notifications to each user
-		for (const user of interestedUsers) {
-			// Find which items match this user's interests
-			const relevantItems = municipalSession.items.filter((item) =>
-				item.categories.some((cat) => user.interestedCategories.includes(cat))
-			);
+    // Send notifications to each user
+    for (const user of interestedUsers) {
+      // Find which items match this user's interests
+      const relevantItems = municipalSession.items.filter((item) =>
+        item.categories.some((cat) => user.interestedCategories.includes(cat)),
+      );
 
-			if (relevantItems.length === 0) continue;
+      if (relevantItems.length === 0) continue;
 
-			// Create notification message
-			const meetingDate = new Date(municipalSession.meetingDate).toLocaleDateString(
-				"sv-SE",
-				{
-					weekday: "long",
-					year: "numeric",
-					month: "long",
-					day: "numeric",
-				}
-			);
+      // Create notification message
+      const meetingDate = new Date(
+        municipalSession.meetingDate,
+      ).toLocaleDateString("sv-SE", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
 
-			const itemsList = relevantItems
-				.map((item) => `• ${item.title}`)
-				.slice(0, 5)
-				.join("\n");
+      const itemsList = relevantItems
+        .map((item) => `• ${item.title}`)
+        .slice(0, 5)
+        .join("\n");
 
-			const moreText =
-				relevantItems.length > 5 ? `\n...och ${relevantItems.length - 5} till` : "";
+      const moreText =
+        relevantItems.length > 5
+          ? `\n...och ${relevantItems.length - 5} till`
+          : "";
 
-			// Email notification
-			if (
-				user.notificationPreference === "email" ||
-				user.notificationPreference === "both"
-			) {
-				const emailSubject = `${municipalSession.meetingType} ${meetingDate} - Frågor i dina intresseområden`;
+      // Email notification
+      if (
+        user.notificationPreference === "email" ||
+        user.notificationPreference === "both"
+      ) {
+        const emailSubject = `${municipalSession.meetingType} ${meetingDate} - Frågor i dina intresseområden`;
 
-				const emailBody = `
+        const emailBody = `
 Hej ${user.name}!
 
 ${municipalSession.meetingType} ska hålla möte ${meetingDate}.
@@ -103,77 +104,83 @@ Med vänliga hälsningar,
 Vallentuna Framåt Vallentuna
 				`.trim();
 
-				try {
-					await sendEmail(user.email, emailSubject, emailBody, emailBody);
-					results.emailsSent++;
-				} catch (error) {
-					log.error("Failed to send email", { email: user.email, error: error.message });
-					results.errors.push({
-						userId: user._id,
-						type: "email",
-						error: error.message,
-					});
-				}
-			}
+        try {
+          await sendEmail(user.email, emailSubject, emailBody, emailBody);
+          results.emailsSent++;
+        } catch (error) {
+          log.error("Failed to send email", {
+            email: user.email,
+            error: error.message,
+          });
+          results.errors.push({
+            userId: user._id,
+            type: "email",
+            error: error.message,
+          });
+        }
+      }
 
-			// SMS notification
-			if (
-				user.notificationPreference === "sms" ||
-				user.notificationPreference === "both"
-			) {
-				if (!user.phoneNumber) {
-					continue;
-				}
+      // SMS notification
+      if (
+        user.notificationPreference === "sms" ||
+        user.notificationPreference === "both"
+      ) {
+        if (!user.phoneNumber) {
+          continue;
+        }
 
-				const smsBody = `${municipalSession.meetingType} ${new Date(municipalSession.meetingDate).toLocaleDateString("sv-SE")}: ${relevantItems.length} frågor i dina intresseområden. Rösta på vallentuna.app`;
+        const smsBody = `${municipalSession.meetingType} ${new Date(municipalSession.meetingDate).toLocaleDateString("sv-SE")}: ${relevantItems.length} frågor i dina intresseområden. Rösta på vallentuna.app`;
 
-				const formattedPhone = formatPhoneNumber(user.phoneNumber);
+        const formattedPhone = formatPhoneNumber(user.phoneNumber);
 
-				if (!formattedPhone) {
-					results.errors.push({
-						userId: user._id,
-						type: "sms",
-						error: "Invalid phone number",
-					});
-					continue;
-				}
+        if (!formattedPhone) {
+          results.errors.push({
+            userId: user._id,
+            type: "sms",
+            error: "Invalid phone number",
+          });
+          continue;
+        }
 
-				try {
-					const smsResult = await sendSMS(formattedPhone, smsBody);
-					if (smsResult.success) {
-						results.smsSent++;
-					} else {
-						results.errors.push({
-							userId: user._id,
-							type: "sms",
-							error: smsResult.error,
-						});
-					}
-				} catch (error) {
-					log.error("Failed to send SMS", { phone: formattedPhone, error: error.message });
-					results.errors.push({
-						userId: user._id,
-						type: "sms",
-						error: error.message,
-					});
-				}
-			}
+        try {
+          const smsResult = await sendSMS(formattedPhone, smsBody);
+          if (smsResult.success) {
+            results.smsSent++;
+          } else {
+            results.errors.push({
+              userId: user._id,
+              type: "sms",
+              error: smsResult.error,
+            });
+          }
+        } catch (error) {
+          log.error("Failed to send SMS", {
+            phone: formattedPhone,
+            error: error.message,
+          });
+          results.errors.push({
+            userId: user._id,
+            type: "sms",
+            error: error.message,
+          });
+        }
+      }
 
-			// Small delay between users to avoid rate limiting
-			await new Promise((resolve) => setTimeout(resolve, 100));
-		}
+      // Small delay between users to avoid rate limiting
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
 
-		log.info("Notifications completed", {
-			emails: results.emailsSent,
-			sms: results.smsSent,
-			errors: results.errors.length
-		});
+    log.info("Notifications completed", {
+      emails: results.emailsSent,
+      sms: results.smsSent,
+      errors: results.errors.length,
+    });
 
-		return results;
-	} catch (error) {
-		log.error("Failed to send notifications", { error: error.message });
-		throw error;
-	}
+    return results;
+  } catch (error) {
+    log.error("Failed to send notifications", { error: error.message });
+    throw error;
+  }
 }
 
 /**
@@ -183,35 +190,35 @@ Vallentuna Framåt Vallentuna
  * @returns {Promise<Object>} - Result
  */
 export async function sendTestNotification(userId, type = "email") {
-	const user = await User.findById(userId);
+  const user = await User.findById(userId);
 
-	if (!user) {
-		throw new Error("User not found");
-	}
+  if (!user) {
+    throw new Error("User not found");
+  }
 
-	const testMessage = `Detta är ett testmeddelande från Vallentuna Framåt. Dina intresseområden: ${user.interestedCategories.map((c) => getCategoryName(c)).join(", ")}`;
+  const testMessage = `Detta är ett testmeddelande från Vallentuna Framåt. Dina intresseområden: ${user.interestedCategories.map((c) => getCategoryName(c)).join(", ")}`;
 
-	if (type === "email") {
-		await sendEmail(
-			user.email,
-			"Testnotifikation från Vallentuna Framåt",
-			testMessage,
-			testMessage
-		);
-		return { success: true, type: "email", to: user.email };
-	} else if (type === "sms") {
-		if (!user.phoneNumber) {
-			throw new Error("User has no phone number");
-		}
+  if (type === "email") {
+    await sendEmail(
+      user.email,
+      "Testnotifikation från Vallentuna Framåt",
+      testMessage,
+      testMessage,
+    );
+    return { success: true, type: "email", to: user.email };
+  } else if (type === "sms") {
+    if (!user.phoneNumber) {
+      throw new Error("User has no phone number");
+    }
 
-		const formattedPhone = formatPhoneNumber(user.phoneNumber);
-		if (!formattedPhone) {
-			throw new Error("Invalid phone number format");
-		}
+    const formattedPhone = formatPhoneNumber(user.phoneNumber);
+    if (!formattedPhone) {
+      throw new Error("Invalid phone number format");
+    }
 
-		const result = await sendSMS(formattedPhone, testMessage);
-		return { ...result, type: "sms", to: formattedPhone };
-	} else {
-		throw new Error("Invalid notification type");
-	}
+    const result = await sendSMS(formattedPhone, testMessage);
+    return { ...result, type: "sms", to: formattedPhone };
+  } else {
+    throw new Error("Invalid notification type");
+  }
 }

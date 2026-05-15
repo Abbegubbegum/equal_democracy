@@ -42,7 +42,7 @@ export function calculateMedianBudget(votes, session) {
     const amounts = votes
       .map((vote) => {
         const allocation = vote.incomeAllocations.find(
-          (a) => a.categoryId === incomeCategory.id
+          (a) => a.categoryId === incomeCategory.id,
         );
         return allocation ? allocation.amount : 0;
       })
@@ -56,7 +56,7 @@ export function calculateMedianBudget(votes, session) {
       const taxRates = votes
         .map((vote) => {
           const allocation = vote.incomeAllocations.find(
-            (a) => a.categoryId === incomeCategory.id
+            (a) => a.categoryId === incomeCategory.id,
           );
           return allocation ? allocation.taxRatePercent : null;
         })
@@ -82,7 +82,7 @@ export function calculateMedianBudget(votes, session) {
     const amounts = votes
       .map((vote) => {
         const allocation = vote.allocations.find(
-          (a) => a.categoryId === category.id
+          (a) => a.categoryId === category.id,
         );
         return allocation ? allocation.amount : 0;
       })
@@ -97,12 +97,12 @@ export function calculateMedianBudget(votes, session) {
       const subAmounts = votes
         .map((vote) => {
           const allocation = vote.allocations.find(
-            (a) => a.categoryId === category.id
+            (a) => a.categoryId === category.id,
           );
           if (!allocation) return 0;
 
           const subAllocation = allocation.subcategories.find(
-            (s) => s.subcategoryId === subcategory.id
+            (s) => s.subcategoryId === subcategory.id,
           );
           return subAllocation ? subAllocation.amount : 0;
         })
@@ -166,7 +166,7 @@ export function validateBudgetVote(vote, session) {
   // Check expense allocations
   for (const allocation of vote.allocations) {
     const category = session.categories.find(
-      (c) => c.id === allocation.categoryId
+      (c) => c.id === allocation.categoryId,
     );
 
     if (!category) {
@@ -192,7 +192,7 @@ export function validateBudgetVote(vote, session) {
     // Check subcategories
     for (const subAllocation of allocation.subcategories || []) {
       const subcategory = category.subcategories.find(
-        (s) => s.id === subAllocation.subcategoryId
+        (s) => s.id === subAllocation.subcategoryId,
       );
 
       if (!subcategory) {

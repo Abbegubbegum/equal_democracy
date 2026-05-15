@@ -1,4 +1,10 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -28,7 +34,10 @@ export default function MembershipScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.heroCard}>
           <Ionicons name="people" size={40} color={YELLOW} />
           <Text style={styles.heroTitle}>Vallentuna Framåt</Text>
@@ -37,7 +46,9 @@ export default function MembershipScreen() {
 
         <View style={styles.priceCard}>
           <Text style={styles.priceLabel}>Medlemsavgift</Text>
-          <Text style={styles.price}>250 kr <Text style={styles.pricePer}>/år</Text></Text>
+          <Text style={styles.price}>
+            250 kr <Text style={styles.pricePer}>/år</Text>
+          </Text>
           <Text style={styles.priceYears}>Täcker 2026 och 2027</Text>
         </View>
 
@@ -45,7 +56,8 @@ export default function MembershipScreen() {
           <Ionicons name="gift-outline" size={20} color={YELLOW} />
           <Text style={styles.founderText}>
             <Text style={styles.founderBold}>Grundarmedlem — </Text>
-            vi har inga mandat ännu, men vi bygger partiet tillsammans. Som tack täcker din avgift även 2027. Du betalar en gång, du är med i två år.
+            vi har inga mandat ännu, men vi bygger partiet tillsammans. Som tack
+            täcker din avgift även 2027. Du betalar en gång, du är med i två år.
           </Text>
         </View>
 
@@ -62,7 +74,8 @@ export default function MembershipScreen() {
         <View style={styles.bankidNotice}>
           <Ionicons name="shield-checkmark-outline" size={20} color={BLUE} />
           <Text style={styles.bankidText}>
-            Medlemskap kräver att du är folkbokförd i Vallentuna. Verifiering med BankID kommer snart.
+            Medlemskap kräver att du är folkbokförd i Vallentuna. Verifiering
+            med BankID kommer snart.
           </Text>
         </View>
 
@@ -96,7 +109,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  heroTitle: { color: "#fff", fontSize: 22, fontWeight: "900", letterSpacing: 1 },
+  heroTitle: {
+    color: "#fff",
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
   heroSub: { color: "rgba(255,255,255,0.7)", fontSize: 14 },
 
   priceCard: {
@@ -116,7 +134,12 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
   },
-  sectionTitle: { fontSize: 15, fontWeight: "700", color: "#222", marginBottom: 4 },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#222",
+    marginBottom: 4,
+  },
   benefitRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   benefitText: { fontSize: 14, color: "#333", lineHeight: 20, flex: 1 },
 
@@ -128,7 +151,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
   },
-  bankidText: { color: "rgba(255,255,255,0.8)", fontSize: 13, lineHeight: 19, flex: 1 },
+  bankidText: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    lineHeight: 19,
+    flex: 1,
+  },
 
   payBtn: {
     flexDirection: "row",
@@ -141,9 +169,20 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   payBtnText: { color: BLUE, fontSize: 16, fontWeight: "800" },
-  comingSoon: { color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", marginTop: -8 },
+  comingSoon: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: -8,
+  },
 
-  priceYears: { color: BLUE, fontSize: 13, fontWeight: "700", opacity: 0.7, marginTop: 2 },
+  priceYears: {
+    color: BLUE,
+    fontSize: 13,
+    fontWeight: "700",
+    opacity: 0.7,
+    marginTop: 2,
+  },
 
   founderBanner: {
     flexDirection: "row",
@@ -155,6 +194,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
   },
-  founderText: { color: "rgba(255,255,255,0.85)", fontSize: 13, lineHeight: 20, flex: 1 },
+  founderText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 13,
+    lineHeight: 20,
+    flex: 1,
+  },
   founderBold: { fontWeight: "800", color: "#fff" },
 });

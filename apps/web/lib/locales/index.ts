@@ -10,11 +10,11 @@ import { de } from "./de";
 
 // Available translations
 const translations = {
-	sv,
-	en,
-	sr,
-	es,
-	de,
+  sv,
+  en,
+  sr,
+  es,
+  de,
 };
 
 /**
@@ -25,25 +25,25 @@ const translations = {
  * @returns {string} - Translated string
  */
 export function t(language, key, params = {}) {
-	const keys = key.split(".");
-	let value = translations[language] || translations.sv;
+  const keys = key.split(".");
+  let value = translations[language] || translations.sv;
 
-	// Navigate through nested object
-	for (const k of keys) {
-		value = value?.[k];
-		if (value === undefined) {
-			return key; // Return key if translation missing
-		}
-	}
+  // Navigate through nested object
+  for (const k of keys) {
+    value = value?.[k];
+    if (value === undefined) {
+      return key; // Return key if translation missing
+    }
+  }
 
-	// Handle string interpolation
-	if (typeof value === "string" && Object.keys(params).length > 0) {
-		return value.replace(/\{(\w+)\}/g, (match, paramKey) => {
-			return params[paramKey] !== undefined ? params[paramKey] : match;
-		});
-	}
+  // Handle string interpolation
+  if (typeof value === "string" && Object.keys(params).length > 0) {
+    return value.replace(/\{(\w+)\}/g, (match, paramKey) => {
+      return params[paramKey] !== undefined ? params[paramKey] : match;
+    });
+  }
 
-	return value;
+  return value;
 }
 
 /**
@@ -52,7 +52,7 @@ export function t(language, key, params = {}) {
  * @returns {object} - Translation object
  */
 export function getTranslations(language) {
-	return translations[language] || translations.sv;
+  return translations[language] || translations.sv;
 }
 
 /**
@@ -61,5 +61,5 @@ export function getTranslations(language) {
  * @returns {boolean}
  */
 export function isLanguageAvailable(language) {
-	return translations[language] !== undefined;
+  return translations[language] !== undefined;
 }

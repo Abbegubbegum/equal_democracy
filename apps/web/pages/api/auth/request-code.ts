@@ -8,56 +8,59 @@ import { createLogger } from "../../../lib/logger";
 const log = createLogger("Auth");
 
 export function random6() {
-	return Math.floor(100000 + Math.random() * 900000).toString();
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-	if (req.method !== "POST")
-		return res.status(405).json({ message: "Method not allowed" });
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "POST")
+    return res.status(405).json({ message: "Method not allowed" });
 
-	const { email } = req.body || {};
-	if (!email) return res.status(400).json({ message: "Email is required" });
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ message: "Email is required" });
 
-	await connectDB();
+  await connectDB();
 
-	// Delete any stale (expired) codes
-	await LoginCode.deleteMany({
-		email: email.toLowerCase(),
-		expiresAt: { $lte: new Date() },
-	});
+  // Delete any stale (expired) codes
+  await LoginCode.deleteMany({
+    email: email.toLowerCase(),
+    expiresAt: { $lte: new Date() },
+  });
 
-	// If a valid code already exists, just let the user proceed — don't resend
-	const existingActive = await LoginCode.findOne({
-		email: email.toLowerCase(),
-		expiresAt: { $gt: new Date() },
-	});
-	if (existingActive) {
-		return res.status(200).json({ ok: true, alreadySent: true });
-	}
+  // If a valid code already exists, just let the user proceed — don't resend
+  const existingActive = await LoginCode.findOne({
+    email: email.toLowerCase(),
+    expiresAt: { $gt: new Date() },
+  });
+  if (existingActive) {
+    return res.status(200).json({ ok: true, alreadySent: true });
+  }
 
-	const settings = await Settings.findOne();
-	const language = settings?.language || "sv";
+  const settings = await Settings.findOne();
+  const language = settings?.language || "sv";
 
-	const code = random6();
-	const codeHash = await bcrypt.hash(code, 10);
-	const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  const code = random6();
+  const codeHash = await bcrypt.hash(code, 10);
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-	await LoginCode.create({
-		email: email.toLowerCase(),
-		codeHash,
-		expiresAt,
-	});
+  await LoginCode.create({
+    email: email.toLowerCase(),
+    codeHash,
+    expiresAt,
+  });
 
-	try {
-		await sendLoginCode(email, code, language);
-	} catch (e) {
-		await LoginCode.deleteMany({
-			email: email.toLowerCase(),
-			expiresAt: { $gt: new Date() },
-		});
-		log.error("Failed to send login code", { error: e.message });
-		return res.status(500).json({ message: "Could not send code" });
-	}
+  try {
+    await sendLoginCode(email, code, language);
+  } catch (e) {
+    await LoginCode.deleteMany({
+      email: email.toLowerCase(),
+      expiresAt: { $gt: new Date() },
+    });
+    log.error("Failed to send login code", { error: e.message });
+    return res.status(500).json({ message: "Could not send code" });
+  }
 
-	return res.status(200).json({ ok: true, alreadySent: false });
+  return res.status(200).json({ ok: true, alreadySent: false });
 }

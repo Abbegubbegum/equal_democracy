@@ -6,8 +6,12 @@ import { createLogger } from "../../../../lib/logger";
 
 const log = createLogger("MobilePhase2");
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "GET") return res.status(405).json({ message: "Method not allowed" });
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "GET")
+    return res.status(405).json({ message: "Method not allowed" });
 
   let user;
   try {
@@ -30,7 +34,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const result = await Promise.all(
       sessions.map(async (session) => {
-        const proposals = await Proposal.find({ sessionId: session._id, status: "active" })
+        const proposals = await Proposal.find({
+          sessionId: session._id,
+          status: "active",
+        })
           .select("_id title")
           .lean();
 
@@ -46,7 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           userId: user.id,
         }).lean();
         const userVoteMap = Object.fromEntries(
-          userVotes.map((v) => [v.proposalId.toString(), v.choice])
+          userVotes.map((v) => [v.proposalId.toString(), v.choice]),
         );
 
         return {
@@ -57,7 +64,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           imageUrl: session.imageUrl || null,
           proposals: proposals.map((p) => {
             const pid = p._id.toString();
-            const votes = allVotes.filter((v) => v.proposalId.toString() === pid);
+            const votes = allVotes.filter(
+              (v) => v.proposalId.toString() === pid,
+            );
             return {
               id: pid,
               title: p.title,
@@ -67,7 +76,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             };
           }),
         };
-      })
+      }),
     );
 
     return res.status(200).json(result);

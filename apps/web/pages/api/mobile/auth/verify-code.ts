@@ -14,7 +14,10 @@ const log = createLogger("MobileAuth");
  *
  * Same OTP flow as the web — request the code via POST /api/auth/request-code first.
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method not allowed" });
   }
@@ -40,7 +43,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (rec.attempts >= 5) {
       await LoginCode.deleteMany({ email });
-      return res.status(401).json({ message: "Too many failed attempts, request a new code" });
+      return res
+        .status(401)
+        .json({ message: "Too many failed attempts, request a new code" });
     }
 
     const ok = await bcrypt.compare(code, rec.codeHash);

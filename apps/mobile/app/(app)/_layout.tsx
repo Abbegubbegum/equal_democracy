@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { View, PanResponder, TouchableOpacity, StyleSheet } from "react-native";
 import { Tabs, usePathname, useRouter, Redirect } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
@@ -11,9 +11,10 @@ type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 const TABS = ["/", "/sessions", "/vote", "/proposals", "/archive"];
 
 function tabIcon(name: IoniconsName) {
-  return ({ color, size }: { color: string; size: number }) => (
-    <Ionicons name={name} size={size} color={color} />
-  );
+  function Icon({ color, size }: { color: string; size: number }) {
+    return <Ionicons name={name} size={size} color={color} />;
+  }
+  return Icon;
 }
 
 function SwipeTabNavigator() {
@@ -46,7 +47,7 @@ function SwipeTabNavigator() {
           routerRef.current.navigate(TABS[next] as any);
         }
       },
-    })
+    }),
   ).current;
 
   // Normalise pathname (strip route-group prefix)
@@ -63,11 +64,32 @@ function SwipeTabNavigator() {
           headerShown: false,
         }}
       >
-        <Tabs.Screen name="index"     options={{ title: "Hem",       tabBarIcon: tabIcon("home-outline") }} />
-        <Tabs.Screen name="sessions"  options={{ title: "Sessioner", tabBarIcon: tabIcon("people-outline") }} />
-        <Tabs.Screen name="vote"      options={{ title: "Rösta",     tabBarIcon: tabIcon("checkmark-circle-outline") }} />
-        <Tabs.Screen name="proposals" options={{ title: "Förslag",   tabBarIcon: tabIcon("bulb-outline") }} />
-        <Tabs.Screen name="archive"   options={{ title: "Arkiv",     tabBarIcon: tabIcon("archive-outline") }} />
+        <Tabs.Screen
+          name="index"
+          options={{ title: "Hem", tabBarIcon: tabIcon("home-outline") }}
+        />
+        <Tabs.Screen
+          name="sessions"
+          options={{
+            title: "Sessioner",
+            tabBarIcon: tabIcon("people-outline"),
+          }}
+        />
+        <Tabs.Screen
+          name="vote"
+          options={{
+            title: "Rösta",
+            tabBarIcon: tabIcon("checkmark-circle-outline"),
+          }}
+        />
+        <Tabs.Screen
+          name="proposals"
+          options={{ title: "Förslag", tabBarIcon: tabIcon("bulb-outline") }}
+        />
+        <Tabs.Screen
+          name="archive"
+          options={{ title: "Arkiv", tabBarIcon: tabIcon("archive-outline") }}
+        />
       </Tabs>
 
       {/* XAI floating button — top-left, always visible on every tab */}

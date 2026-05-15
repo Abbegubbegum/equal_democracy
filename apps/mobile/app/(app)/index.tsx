@@ -17,7 +17,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../lib/auth-context";
 import { getItem, setItem } from "../../lib/storage";
 import { BASE_URL } from "../../lib/api";
-import { getStars, addStars, isFirstVisit, markFirstVisitSeen, isFirstInterestsSave, markInterestsSaved } from "../../lib/stars";
+import {
+  getStars,
+  addStars,
+  isFirstVisit,
+  markFirstVisitSeen,
+  isFirstInterestsSave,
+  markInterestsSaved,
+} from "../../lib/stars";
 import CelebrationModal from "../../lib/CelebrationModal";
 
 const PLACEHOLDER_IMAGE =
@@ -49,18 +56,33 @@ const VALUES = [
   },
 ];
 
-export const INTEREST_AREAS: { key: string; label: string; alwaysOn?: boolean; note?: string; groupLabel?: string }[] = [
-  { key: "budget",         label: "Budgeten",                         alwaysOn: true, note: "Alltid aktiv — balanserar övriga intressen" },
-  { key: "barn",           label: "Barn och utbildning" },
-  { key: "arbete",         label: "Arbete och Näringsliv" },
-  { key: "aldre",          label: "Äldre och social gemenskap" },
-  { key: "politik",        label: "Politik och Organisation" },
-  { key: "infra",          label: "Infrastruktur och Identitet" },
-  { key: "kultur",         label: "Kultur och Fritid" },
-  { key: "geo_central",    label: "Centrala Vallentuna",              groupLabel: "Geografiska intressen" },
+export const INTEREST_AREAS: {
+  key: string;
+  label: string;
+  alwaysOn?: boolean;
+  note?: string;
+  groupLabel?: string;
+}[] = [
+  {
+    key: "budget",
+    label: "Budgeten",
+    alwaysOn: true,
+    note: "Alltid aktiv — balanserar övriga intressen",
+  },
+  { key: "barn", label: "Barn och utbildning" },
+  { key: "arbete", label: "Arbete och Näringsliv" },
+  { key: "aldre", label: "Äldre och social gemenskap" },
+  { key: "politik", label: "Politik och Organisation" },
+  { key: "infra", label: "Infrastruktur och Identitet" },
+  { key: "kultur", label: "Kultur och Fritid" },
+  {
+    key: "geo_central",
+    label: "Centrala Vallentuna",
+    groupLabel: "Geografiska intressen",
+  },
   { key: "geo_lindholmen", label: "Lindholmen och Västra Vallentuna" },
-  { key: "geo_karsta",     label: "Kårsta och norra Vallentuna" },
-  { key: "geo_karby",      label: "Karby, Brottby, Össeby-Garn" },
+  { key: "geo_karsta", label: "Kårsta och norra Vallentuna" },
+  { key: "geo_karby", label: "Karby, Brottby, Össeby-Garn" },
 ];
 
 const STORAGE_INTERESTS = "user_interests";
@@ -75,7 +97,11 @@ export default function HomeScreen() {
   const [interests, setInterests] = useState<string[]>(["budget"]);
   const [interestsOnly, setInterestsOnly] = useState(true);
   const [starCount, setStarCount] = useState(0);
-  const [celebration, setCelebration] = useState<{ title: string; subtitle: string; stars: number } | null>(null);
+  const [celebration, setCelebration] = useState<{
+    title: string;
+    subtitle: string;
+    stars: number;
+  } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -89,7 +115,12 @@ export default function HomeScreen() {
         await markFirstVisitSeen();
         const newTotal = await addStars(1);
         setStarCount(newTotal);
-        setCelebration({ title: "Välkommen till Vallentuna Framåt!", subtitle: "Du är nu en del av en unik demokratirörelse. Bra jobbat — det krävs mod att ta steget!", stars: 1 });
+        setCelebration({
+          title: "Välkommen till Vallentuna Framåt!",
+          subtitle:
+            "Du är nu en del av en unik demokratirörelse. Bra jobbat — det krävs mod att ta steget!",
+          stars: 1,
+        });
       }
     })();
   }, []);
@@ -104,7 +135,12 @@ export default function HomeScreen() {
       await markInterestsSaved();
       const newTotal = await addStars(2);
       setStarCount(newTotal);
-      setCelebration({ title: "Profilen är klar!", subtitle: "Du vet vad du bryr dig om. Nu kan vi visa dig det som spelar roll för dig.", stars: 2 });
+      setCelebration({
+        title: "Profilen är klar!",
+        subtitle:
+          "Du vet vad du bryr dig om. Nu kan vi visa dig det som spelar roll för dig.",
+        stars: 2,
+      });
     }
   }
 
@@ -149,7 +185,10 @@ export default function HomeScreen() {
         <View style={styles.aboutBox}>
           <Text style={styles.aboutTitle}>Om den här appen</Text>
           <Text style={styles.aboutBody}>
-            Rösta, lämna förslag och följ vad som händer i kommunen. Alla medborgare i Vallentuna har rösträtt. Om du röstar in oss den 13 september så framför vi dina åsikter i lokalpolitiken de närmaste fyra åren.
+            Rösta, lämna förslag och följ vad som händer i kommunen. Alla
+            medborgare i Vallentuna har rösträtt. Om du röstar in oss den 13
+            september så framför vi dina åsikter i lokalpolitiken de närmaste
+            fyra åren.
           </Text>
         </View>
 
@@ -180,7 +219,11 @@ export default function HomeScreen() {
           hitSlop={8}
           activeOpacity={0.7}
         >
-          <Ionicons name="settings-outline" size={24} color="rgba(255,255,255,0.85)" />
+          <Ionicons
+            name="settings-outline"
+            size={24}
+            color="rgba(255,255,255,0.85)"
+          />
         </TouchableOpacity>
 
         {/* Star badge — upper left corner */}
@@ -199,9 +242,7 @@ export default function HomeScreen() {
         </View>
         <Text style={styles.partyName}>VALLENTUNA</Text>
         <Text style={styles.partySlogan}>Framåt</Text>
-        <Text style={styles.heroSub}>
-          mot en fri och rättvis demokrati
-        </Text>
+        <Text style={styles.heroSub}>mot en fri och rättvis demokrati</Text>
       </View>
 
       <SettingsModal
@@ -246,17 +287,22 @@ function SettingsModal({
       setLocalInterests(initialInterests);
       setLocalOnly(initialOnly);
     }
-  }, [visible]);
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggle(key: string) {
     if (key === "budget") return;
     setLocalInterests((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
     );
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={st.backdrop}>
           <TouchableWithoutFeedback>
@@ -289,10 +335,17 @@ function SettingsModal({
                       activeOpacity={area.alwaysOn ? 1 : 0.7}
                     >
                       <View style={[st.checkbox, checked && st.checkboxOn]}>
-                        {checked && <Ionicons name="checkmark" size={14} color="#fff" />}
+                        {checked && (
+                          <Ionicons name="checkmark" size={14} color="#fff" />
+                        )}
                       </View>
                       <View style={st.rowText}>
-                        <Text style={[st.rowLabel, area.alwaysOn && st.rowLabelFixed]}>
+                        <Text
+                          style={[
+                            st.rowLabel,
+                            area.alwaysOn && st.rowLabelFixed,
+                          ]}
+                        >
                           {area.label}
                         </Text>
                         {area.note ? (
@@ -309,7 +362,9 @@ function SettingsModal({
               <View style={st.toggleRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={st.toggleLabel}>Visa bara mina intressen</Text>
-                  <Text style={st.toggleHint}>Filtrerar notiser och flödet</Text>
+                  <Text style={st.toggleHint}>
+                    Filtrerar notiser och flödet
+                  </Text>
                 </View>
                 <Switch
                   value={localOnly}
@@ -322,10 +377,18 @@ function SettingsModal({
               {user?.isAdmin && (
                 <TouchableOpacity
                   style={st.adminBtn}
-                  onPress={() => Linking.openURL(`${BASE_URL}${user.isSuperAdmin ? "/admin" : "/manage-sessions"}`)}
+                  onPress={() =>
+                    Linking.openURL(
+                      `${BASE_URL}${user.isSuperAdmin ? "/admin" : "/manage-sessions"}`,
+                    )
+                  }
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="shield-checkmark-outline" size={20} color="#fff" />
+                  <Ionicons
+                    name="shield-checkmark-outline"
+                    size={20}
+                    color="#fff"
+                  />
                   <Text style={st.adminBtnText}>Admin</Text>
                 </TouchableOpacity>
               )}
@@ -335,7 +398,11 @@ function SettingsModal({
                 onPress={() => onSave(localInterests, localOnly)}
                 activeOpacity={0.85}
               >
-                <Ionicons name="checkmark-circle-outline" size={20} color={BLUE} />
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={20}
+                  color={BLUE}
+                />
                 <Text style={st.saveBtnText}>Spara inställningar</Text>
               </TouchableOpacity>
             </View>
@@ -348,7 +415,10 @@ function SettingsModal({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.35)" },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
   scroll: { flex: 1 },
   container: { paddingBottom: 40 },
 
@@ -407,9 +477,25 @@ const styles = StyleSheet.create({
     top: 6,
     transform: [{ rotate: "45deg" }],
   },
-  partyName: { color: "#fff", fontSize: 26, fontWeight: "900", letterSpacing: 4 },
-  partySlogan: { color: YELLOW, fontSize: 24, fontWeight: "600", marginTop: -2, marginBottom: 12 },
-  heroSub: { color: "rgba(255,255,255,0.8)", fontSize: 14, textAlign: "center", lineHeight: 20 },
+  partyName: {
+    color: "#fff",
+    fontSize: 26,
+    fontWeight: "900",
+    letterSpacing: 4,
+  },
+  partySlogan: {
+    color: YELLOW,
+    fontSize: 24,
+    fontWeight: "600",
+    marginTop: -2,
+    marginBottom: 12,
+  },
+  heroSub: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
 
   welcomeBox: {
     margin: 16,
@@ -455,7 +541,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   valueText: { flex: 1 },
-  valueTitle: { fontSize: 14, fontWeight: "700", color: "#222", marginBottom: 3 },
+  valueTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#222",
+    marginBottom: 3,
+  },
   valueBody: { fontSize: 13, color: "#555", lineHeight: 18 },
 
   aboutBox: {
@@ -465,7 +556,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
   },
-  aboutTitle: { color: YELLOW, fontSize: 15, fontWeight: "700", marginBottom: 8 },
+  aboutTitle: {
+    color: YELLOW,
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
   aboutBody: { color: "rgba(255,255,255,0.85)", fontSize: 13, lineHeight: 20 },
 
   memberBox: {
@@ -491,7 +587,11 @@ const styles = StyleSheet.create({
 });
 
 const st = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
   sheet: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 24,
@@ -500,11 +600,30 @@ const st = StyleSheet.create({
     paddingTop: 12,
     gap: 2,
   },
-  handle: { width: 40, height: 4, backgroundColor: "#ddd", borderRadius: 2, alignSelf: "center", marginBottom: 8 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#ddd",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 8,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   title: { fontSize: 18, fontWeight: "800", color: "#111" },
 
-  sectionLabel: { fontSize: 13, fontWeight: "700", color: "#888", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#888",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
   sectionHint: { fontSize: 12, color: "#aaa", marginBottom: 10 },
 
   row: {
@@ -515,7 +634,12 @@ const st = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#f0f0f0",
   },
-  rowFixed: { backgroundColor: "rgba(0,45,117,0.04)", marginHorizontal: -20, paddingHorizontal: 20, borderRadius: 0 },
+  rowFixed: {
+    backgroundColor: "rgba(0,45,117,0.04)",
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
+    borderRadius: 0,
+  },
   checkbox: {
     width: 24,
     height: 24,
@@ -531,11 +655,27 @@ const st = StyleSheet.create({
   rowLabelFixed: { color: BLUE, fontWeight: "700" },
   rowNote: { fontSize: 11, color: "#888", marginTop: 1 },
 
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: "#e5e7eb", marginVertical: 12 },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#e5e7eb",
+    marginVertical: 12,
+  },
   groupHeader: { paddingTop: 4, paddingBottom: 2 },
-  groupLabelText: { fontSize: 13, fontWeight: "700", color: "#888", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 },
+  groupLabelText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#888",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
 
-  toggleRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 4 },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 4,
+  },
   toggleLabel: { fontSize: 15, fontWeight: "600", color: "#222" },
   toggleHint: { fontSize: 12, color: "#aaa", marginTop: 2 },
 
@@ -551,8 +691,13 @@ const st = StyleSheet.create({
   },
   saveBtnText: { color: BLUE, fontSize: 16, fontWeight: "800" },
   adminBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    backgroundColor: BLUE, borderRadius: 14, paddingVertical: 14, gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: BLUE,
+    borderRadius: 14,
+    paddingVertical: 14,
+    gap: 8,
   },
   adminBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
 });

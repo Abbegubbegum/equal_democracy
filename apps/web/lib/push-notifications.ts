@@ -12,7 +12,9 @@ interface PushMessage {
   sound?: "default" | null;
 }
 
-export async function sendPushNotifications(messages: PushMessage[]): Promise<void> {
+export async function sendPushNotifications(
+  messages: PushMessage[],
+): Promise<void> {
   if (messages.length === 0) return;
 
   // Expo push API accepts up to 100 messages per request
@@ -27,7 +29,7 @@ export async function sendPushNotifications(messages: PushMessage[]): Promise<vo
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Accept": "application/json",
+          Accept: "application/json",
           "Accept-Encoding": "gzip, deflate",
         },
         body: JSON.stringify(chunk),
@@ -41,7 +43,10 @@ export async function sendPushNotifications(messages: PushMessage[]): Promise<vo
   }
 }
 
-export async function notifyNewVotingQuestion(question: string, tokens: string[]): Promise<void> {
+export async function notifyNewVotingQuestion(
+  question: string,
+  tokens: string[],
+): Promise<void> {
   const valid = tokens.filter((t) => t?.startsWith("ExponentPushToken["));
   if (valid.length === 0) return;
 

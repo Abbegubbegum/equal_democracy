@@ -1,7 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../../lib/mongodb";
 import { User } from "../../../../lib/models";
-import { verifyMobileToken, signAccessToken, signRefreshToken } from "../../../../lib/mobile-jwt";
+import {
+  verifyMobileToken,
+  signAccessToken,
+  signRefreshToken,
+} from "../../../../lib/mobile-jwt";
 import { createLogger } from "../../../../lib/logger";
 
 const log = createLogger("MobileAuth");
@@ -14,7 +18,10 @@ const log = createLogger("MobileAuth");
  * Verifies the refresh token, re-fetches the user from DB to pick up
  * any role changes, and issues a new token pair.
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method not allowed" });
   }
@@ -48,6 +55,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   } catch (error) {
     log.error("Mobile token refresh failed", { error: error.message });
-    return res.status(401).json({ message: "Invalid or expired refresh token" });
+    return res
+      .status(401)
+      .json({ message: "Invalid or expired refresh token" });
   }
 }

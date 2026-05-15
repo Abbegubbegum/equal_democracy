@@ -26,39 +26,72 @@ interface Message {
 }
 
 const TAB_LABEL: Record<string, string> = {
-  "/":          "Hem",
-  "/sessions":  "Sessioner",
-  "/vote":      "Rösta",
+  "/": "Hem",
+  "/sessions": "Sessioner",
+  "/vote": "Rösta",
   "/proposals": "Förslag",
-  "/archive":   "Arkiv",
+  "/archive": "Arkiv",
 };
 
 const QUICK_ACTIONS: Record<string, { label: string; message: string }[]> = {
   "/": [
-    { label: "Vad är XAI?",      message: "Vad är XAI och hur fungerar det i appen?" },
-    { label: "Förklara appen",   message: "Hur fungerar Vallentuna Framåt-appen?" },
+    {
+      label: "Vad är XAI?",
+      message: "Vad är XAI och hur fungerar det i appen?",
+    },
+    {
+      label: "Förklara appen",
+      message: "Hur fungerar Vallentuna Framåt-appen?",
+    },
   ],
   "/sessions": [
-    { label: "Vad är en session?",  message: "Vad är en session och hur deltar jag?" },
-    { label: "Hur röstar jag?",     message: "Hur röstar jag i en aktiv session?" },
+    {
+      label: "Vad är en session?",
+      message: "Vad är en session och hur deltar jag?",
+    },
+    { label: "Hur röstar jag?", message: "Hur röstar jag i en aktiv session?" },
   ],
   "/vote": [
-    { label: "Förklara frågan",     message: "Kan du förklara vad dagens omröstningsfråga handlar om?" },
-    { label: "Vad är konsekvensen?",message: "Vad händer beroende på utfallet av omröstningen?" },
+    {
+      label: "Förklara frågan",
+      message: "Kan du förklara vad dagens omröstningsfråga handlar om?",
+    },
+    {
+      label: "Vad är konsekvensen?",
+      message: "Vad händer beroende på utfallet av omröstningen?",
+    },
   ],
   "/proposals": [
-    { label: "Hjälp mig skriva",    message: "Hjälp mig formulera ett bra medborgarförslag." },
-    { label: "Vad är ett bra förslag?", message: "Hur skriver man ett effektivt medborgarförslag?" },
+    {
+      label: "Hjälp mig skriva",
+      message: "Hjälp mig formulera ett bra medborgarförslag.",
+    },
+    {
+      label: "Vad är ett bra förslag?",
+      message: "Hur skriver man ett effektivt medborgarförslag?",
+    },
   ],
   "/archive": [
-    { label: "Sammanfatta arkivet", message: "Kan du sammanfatta vad som hänt i tidigare sessioner?" },
-    { label: "Vad är topplistan?",  message: "Hur bestäms vilka förslag som hamnar i topplistan?" },
+    {
+      label: "Sammanfatta arkivet",
+      message: "Kan du sammanfatta vad som hänt i tidigare sessioner?",
+    },
+    {
+      label: "Vad är topplistan?",
+      message: "Hur bestäms vilka förslag som hamnar i topplistan?",
+    },
   ],
 };
 
 const COMMON_ACTIONS = [
-  { label: "Skriv ett inlägg",    message: "Hjälp mig skriva ett övertygande inlägg om min åsikt." },
-  { label: "Lämna ett förslag",   message: "Hjälp mig lämna ett medborgarförslag steg för steg." },
+  {
+    label: "Skriv ett inlägg",
+    message: "Hjälp mig skriva ett övertygande inlägg om min åsikt.",
+  },
+  {
+    label: "Lämna ett förslag",
+    message: "Hjälp mig lämna ett medborgarförslag steg för steg.",
+  },
 ];
 
 const GREETING = "Vad kan jag hjälpa dig med?";
@@ -74,7 +107,9 @@ export default function XAIModal({
 }) {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
-  const [messages, setMessages] = useState<Message[]>([{ role: "xai", text: GREETING }]);
+  const [messages, setMessages] = useState<Message[]>([
+    { role: "xai", text: GREETING },
+  ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [reported, setReported] = useState(false);
@@ -94,15 +129,23 @@ export default function XAIModal({
     if (loading) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(dotAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-          Animated.timing(dotAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
-        ])
+          Animated.timing(dotAnim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dotAnim, {
+            toValue: 0,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ]),
       ).start();
     } else {
       dotAnim.stopAnimation();
       dotAnim.setValue(0);
     }
-  }, [loading]);
+  }, [loading, dotAnim]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -126,7 +169,10 @@ export default function XAIModal({
     } catch {
       setMessages((prev) => [
         ...prev,
-        { role: "xai", text: "Jag är tillfälligt otillgänglig. Försök igen om en stund." },
+        {
+          role: "xai",
+          text: "Jag är tillfälligt otillgänglig. Försök igen om en stund.",
+        },
       ]);
     } finally {
       setLoading(false);
@@ -142,7 +188,12 @@ export default function XAIModal({
   const allActions = [...tabActions, ...COMMON_ACTIONS];
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={s.backdrop}>
           <TouchableWithoutFeedback>
@@ -173,11 +224,17 @@ export default function XAIModal({
                         size={14}
                         color={reported ? "#16a34a" : "#dc2626"}
                       />
-                      <Text style={[s.reportText, reported && s.reportTextSent]}>
+                      <Text
+                        style={[s.reportText, reported && s.reportTextSent]}
+                      >
                         {reportSent ? "Anmält" : "Anmäl XAI"}
                       </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={onClose} hitSlop={12} style={{ marginLeft: 8 }}>
+                    <TouchableOpacity
+                      onPress={onClose}
+                      hitSlop={12}
+                      style={{ marginLeft: 8 }}
+                    >
                       <Ionicons name="close" size={22} color="#666" />
                     </TouchableOpacity>
                   </View>
@@ -191,13 +248,24 @@ export default function XAIModal({
                   showsVerticalScrollIndicator={false}
                 >
                   {messages.map((m, i) => (
-                    <View key={i} style={[s.bubble, m.role === "user" ? s.bubbleUser : s.bubbleXAI]}>
+                    <View
+                      key={i}
+                      style={[
+                        s.bubble,
+                        m.role === "user" ? s.bubbleUser : s.bubbleXAI,
+                      ]}
+                    >
                       {m.role === "xai" && (
                         <View style={s.bubbleIcon}>
                           <Ionicons name="sparkles" size={11} color={YELLOW} />
                         </View>
                       )}
-                      <Text style={[s.bubbleText, m.role === "user" && s.bubbleTextUser]}>
+                      <Text
+                        style={[
+                          s.bubbleText,
+                          m.role === "user" && s.bubbleTextUser,
+                        ]}
+                      >
                         {m.text}
                       </Text>
                     </View>
@@ -207,7 +275,17 @@ export default function XAIModal({
                       <View style={s.bubbleIcon}>
                         <Ionicons name="sparkles" size={11} color={YELLOW} />
                       </View>
-                      <Animated.Text style={[s.bubbleText, { opacity: dotAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }]}>
+                      <Animated.Text
+                        style={[
+                          s.bubbleText,
+                          {
+                            opacity: dotAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0.3, 1],
+                            }),
+                          },
+                        ]}
+                      >
                         ···
                       </Animated.Text>
                     </View>
@@ -250,7 +328,10 @@ export default function XAIModal({
                     blurOnSubmit
                   />
                   <TouchableOpacity
-                    style={[s.sendBtn, (!input.trim() || loading) && s.sendBtnDisabled]}
+                    style={[
+                      s.sendBtn,
+                      (!input.trim() || loading) && s.sendBtnDisabled,
+                    ]}
                     onPress={() => send(input)}
                     disabled={!input.trim() || loading}
                     activeOpacity={0.8}
@@ -272,7 +353,11 @@ export default function XAIModal({
 }
 
 const s = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
   kav: { justifyContent: "flex-end" },
   sheet: {
     backgroundColor: "#fff",
@@ -281,7 +366,14 @@ const s = StyleSheet.create({
     paddingTop: 10,
     maxHeight: "82%",
   },
-  handle: { width: 40, height: 4, backgroundColor: "#ddd", borderRadius: 2, alignSelf: "center", marginBottom: 10 },
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#ddd",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 10,
+  },
 
   header: {
     flexDirection: "row",
@@ -323,9 +415,25 @@ const s = StyleSheet.create({
   messages: { flex: 1, paddingHorizontal: 16 },
   messagesContent: { paddingVertical: 12, gap: 10 },
 
-  bubble: { maxWidth: "85%", borderRadius: 16, padding: 12, flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  bubbleXAI: { backgroundColor: "#f1f5f9", alignSelf: "flex-start", borderBottomLeftRadius: 4 },
-  bubbleUser: { backgroundColor: BLUE, alignSelf: "flex-end", borderBottomRightRadius: 4, flexDirection: "row-reverse" },
+  bubble: {
+    maxWidth: "85%",
+    borderRadius: 16,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+  },
+  bubbleXAI: {
+    backgroundColor: "#f1f5f9",
+    alignSelf: "flex-start",
+    borderBottomLeftRadius: 4,
+  },
+  bubbleUser: {
+    backgroundColor: BLUE,
+    alignSelf: "flex-end",
+    borderBottomRightRadius: 4,
+    flexDirection: "row-reverse",
+  },
   bubbleIcon: {
     width: 20,
     height: 20,

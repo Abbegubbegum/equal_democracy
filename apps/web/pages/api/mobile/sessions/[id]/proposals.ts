@@ -6,7 +6,10 @@ import { createLogger } from "../../../../../lib/logger";
 
 const log = createLogger("MobileProposals");
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   let user;
   try {
     user = verifyBearerToken(req.headers.authorization);
@@ -21,7 +24,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === "GET") {
     try {
       const proposals = await Proposal.find({ sessionId, status: "active" })
-        .select("_id title problem solution averageRating thumbsUpCount authorName createdAt")
+        .select(
+          "_id title problem solution averageRating thumbsUpCount authorName createdAt",
+        )
         .sort({ averageRating: -1, thumbsUpCount: -1 })
         .lean();
 
@@ -31,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         userId: user.id,
       }).lean();
       const ratingMap = Object.fromEntries(
-        userRatings.map((r) => [r.proposalId.toString(), r.rating])
+        userRatings.map((r) => [r.proposalId.toString(), r.rating]),
       );
 
       return res.status(200).json(
@@ -44,7 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           thumbsUpCount: p.thumbsUpCount || 0,
           authorName: p.authorName,
           userRating: ratingMap[p._id.toString()] || 0,
-        }))
+        })),
       );
     } catch (error) {
       log.error("Failed to fetch mobile proposals", { error: error.message });

@@ -24,20 +24,31 @@ Regler:
 • Sexuellt innehåll som är uppenbart olämpligt för ett demokratiskt forum ska flaggas
 • Flagga INTE normala hetsiga politiska argument`;
 
-async function checkContent(text: string): Promise<{ shouldRemove: boolean; reason: string }> {
+async function checkContent(
+  text: string,
+): Promise<{ shouldRemove: boolean; reason: string }> {
   try {
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 80,
       system: SYSTEM,
-      messages: [{ role: "user", content: `Inlägg:\n\n${text.trim().slice(0, 800)}` }],
+      messages: [
+        { role: "user", content: `Inlägg:\n\n${text.trim().slice(0, 800)}` },
+      ],
     });
     const raw = ((response.content[0] as any).text ?? "").trim();
     const match = raw.match(/\{.*?\}/s);
     if (!match) return { shouldRemove: false, reason: "" };
     let parsed: { status?: string; reason?: string };
-    try { parsed = JSON.parse(match[0]); } catch { return { shouldRemove: false, reason: "" }; }
-    return { shouldRemove: parsed.status === "flag", reason: parsed.reason ?? "" };
+    try {
+      parsed = JSON.parse(match[0]);
+    } catch {
+      return { shouldRemove: false, reason: "" };
+    }
+    return {
+      shouldRemove: parsed.status === "flag",
+      reason: parsed.reason ?? "",
+    };
   } catch {
     return { shouldRemove: false, reason: "" };
   }
@@ -53,11 +64,15 @@ async function runBatched<T>(
   }
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   if (req.method !== "POST") return res.status(405).end();
 
   const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.isSuperAdmin) return res.status(403).json({ error: "Forbidden" });
+  if (!session?.user?.isSuperAdmin)
+    return res.status(403).json({ error: "Forbidden" });
 
   await connectDB();
 
@@ -67,7 +82,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     CitizenProposal.find({}).select("_id title description").lean(),
   ]);
 
-  type RemovedItem = { type: string; id: string; preview: string; reason: string };
+  type RemovedItem = {
+    type: string;
+    id: string;
+    preview: string;
+    reason: string;
+  };
   const removed: RemovedItem[] = [];
 
   await runBatched(comments as any[], async (c) => {
@@ -76,17 +96,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { shouldRemove, reason } = await checkContent(text);
     if (shouldRemove) {
       await Comment.deleteOne({ _id: c._id });
-      removed.push({ type: "comment", id: c._id.toString(), preview: text.slice(0, 120), reason });
+      removed.push({
+        type: "comment",
+        id: c._id.toString(),
+        preview: text.slice(0, 120),
+        reason,
+      });
     }
   });
 
   await runBatched(proposals as any[], async (p) => {
-    const text = [p.title, p.problem, p.solution].filter(Boolean).join(" ").trim();
+    const text = [p.title, p.problem, p.solution]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
     if (!text) return;
     const { shouldRemove, reason } = await checkContent(text);
     if (shouldRemove) {
       await Proposal.deleteOne({ _id: p._id });
-      removed.push({ type: "proposal", id: p._id.toString(), preview: (p.title ?? "").slice(0, 120), reason });
+      removed.push({
+        type: "proposal",
+        id: p._id.toString(),
+        preview: (p.title ?? "").slice(0, 120),
+        reason,
+      });
     }
   });
 
@@ -96,12 +129,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { shouldRemove, reason } = await checkContent(text);
     if (shouldRemove) {
       await CitizenProposal.deleteOne({ _id: cp._id });
-      removed.push({ type: "medborgarförslag", id: cp._id.toString(), preview: (cp.title ?? "").slice(0, 120), reason });
+      removed.push({
+        type: "medborgarförslag",
+        id: cp._id.toString(),
+        preview: (cp.title ?? "").slice(0, 120),
+        reason,
+      });
     }
   });
 
   const checked = comments.length + proposals.length + citizenProposals.length;
   log.info("Content clean complete", { checked, removed: removed.length });
 
-  return res.status(200).json({ checked, removed: removed.length, items: removed });
+  return res
+    .status(200)
+    .json({ checked, removed: removed.length, items: removed });
 }

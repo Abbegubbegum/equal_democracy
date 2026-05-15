@@ -3,8 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 // Origins allowed to call the API.
 // In production, add your deployed mobile web URL to ALLOWED_ORIGINS (comma-separated).
 const ALLOWED_ORIGINS = [
-  "http://localhost:8081",   // Expo web dev server
-  "http://localhost:19006",  // Expo web (older default port)
+  "http://localhost:8081", // Expo web dev server
+  "http://localhost:19006", // Expo web (older default port)
   ...(process.env.ALLOWED_ORIGINS?.split(",").map((o) => o.trim()) ?? []),
 ];
 
@@ -33,7 +33,7 @@ export function middleware(request: NextRequest) {
   if (allowed) {
     response.headers.set("Access-Control-Allow-Origin", origin);
     Object.entries(CORS_HEADERS).forEach(([k, v]) =>
-      response.headers.set(k, v)
+      response.headers.set(k, v),
     );
   }
 

@@ -9,135 +9,144 @@ import { createLogger } from "@/lib/logger";
 
 const log = createLogger("BudgetVote");
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-	await connectDB();
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  await connectDB();
 
-	const session = await getServerSession(req, res, authOptions);
+  const session = await getServerSession(req, res, authOptions);
 
-	if (!session) {
-		return res.status(401).json({ message: "You must be logged in" });
-	}
+  if (!session) {
+    return res.status(401).json({ message: "You must be logged in" });
+  }
 
-	const user = await User.findById(session.user.id);
+  const user = await User.findById(session.user.id);
 
-	if (!user) {
-		return res.status(404).json({ message: "User not found" });
-	}
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
 
-	// GET - Get user's vote for a session
-	if (req.method === "GET") {
-		try {
-			const { sessionId } = req.query;
+  // GET - Get user's vote for a session
+  if (req.method === "GET") {
+    try {
+      const { sessionId } = req.query;
 
-			if (!sessionId) {
-				return res.status(400).json({ message: "Session ID is required" });
-			}
+      if (!sessionId) {
+        return res.status(400).json({ message: "Session ID is required" });
+      }
 
-			const vote = await BudgetVote.findOne({
-				sessionId,
-				userId: user._id,
-			});
+      const vote = await BudgetVote.findOne({
+        sessionId,
+        userId: user._id,
+      });
 
-			if (!vote) {
-				return res.status(404).json({ message: "No vote found" });
-			}
+      if (!vote) {
+        return res.status(404).json({ message: "No vote found" });
+      }
 
-			return res.status(200).json({ vote });
-		} catch (error) {
-			log.error("Failed to fetch budget vote", { sessionId: req.query.sessionId, error: error.message });
-			return res.status(500).json({ message: "An error occurred" });
-		}
-	}
+      return res.status(200).json({ vote });
+    } catch (error) {
+      log.error("Failed to fetch budget vote", {
+        sessionId: req.query.sessionId,
+        error: error.message,
+      });
+      return res.status(500).json({ message: "An error occurred" });
+    }
+  }
 
-	// POST - Submit or update vote
-	if (req.method === "POST") {
-		// CSRF protection
-		if (!csrfProtection(req, res)) {
-			return;
-		}
+  // POST - Submit or update vote
+  if (req.method === "POST") {
+    // CSRF protection
+    if (!csrfProtection(req, res)) {
+      return;
+    }
 
-		try {
-			const {
-				sessionId,
-				allocations,
-				incomeAllocations,
-				totalExpenses,
-				totalIncome,
-			} = req.body;
+    try {
+      const {
+        sessionId,
+        allocations,
+        incomeAllocations,
+        totalExpenses,
+        totalIncome,
+      } = req.body;
 
-			if (!sessionId) {
-				return res.status(400).json({ message: "Session ID is required" });
-			}
+      if (!sessionId) {
+        return res.status(400).json({ message: "Session ID is required" });
+      }
 
-			// Get budget session
-			const budgetSession = await BudgetSession.findOne({ sessionId });
+      // Get budget session
+      const budgetSession = await BudgetSession.findOne({ sessionId });
 
-			if (!budgetSession) {
-				return res.status(404).json({ message: "Budget session not found" });
-			}
+      if (!budgetSession) {
+        return res.status(404).json({ message: "Budget session not found" });
+      }
 
-			// Check if session is active
-			if (budgetSession.status !== "active") {
-				return res.status(400).json({
-					message: "Budget session is not active",
-				});
-			}
+      // Check if session is active
+      if (budgetSession.status !== "active") {
+        return res.status(400).json({
+          message: "Budget session is not active",
+        });
+      }
 
-			// Validate allocations
-			if (!allocations || allocations.length === 0) {
-				return res.status(400).json({
-					message: "At least one allocation is required",
-				});
-			}
+      // Validate allocations
+      if (!allocations || allocations.length === 0) {
+        return res.status(400).json({
+          message: "At least one allocation is required",
+        });
+      }
 
-			// Validate vote against session constraints
-			const validation = validateBudgetVote(
-				{ allocations, incomeAllocations },
-				budgetSession
-			);
+      // Validate vote against session constraints
+      const validation = validateBudgetVote(
+        { allocations, incomeAllocations },
+        budgetSession,
+      );
 
-			if (!validation.valid) {
-				return res.status(400).json({
-					message: "Invalid budget allocations",
-					errors: validation.errors,
-				});
-			}
+      if (!validation.valid) {
+        return res.status(400).json({
+          message: "Invalid budget allocations",
+          errors: validation.errors,
+        });
+      }
 
-			// Find existing vote or create new
-			let vote = await BudgetVote.findOne({
-				sessionId,
-				userId: user._id,
-			});
+      // Find existing vote or create new
+      let vote = await BudgetVote.findOne({
+        sessionId,
+        userId: user._id,
+      });
 
-			if (vote) {
-				// Update existing vote
-				vote.allocations = allocations;
-				vote.incomeAllocations = incomeAllocations;
-				vote.totalExpenses = totalExpenses;
-				vote.totalIncome = totalIncome;
-			} else {
-				// Create new vote
-				vote = new BudgetVote({
-					sessionId,
-					userId: user._id,
-					allocations,
-					incomeAllocations,
-					totalExpenses,
-					totalIncome,
-				});
-			}
+      if (vote) {
+        // Update existing vote
+        vote.allocations = allocations;
+        vote.incomeAllocations = incomeAllocations;
+        vote.totalExpenses = totalExpenses;
+        vote.totalIncome = totalIncome;
+      } else {
+        // Create new vote
+        vote = new BudgetVote({
+          sessionId,
+          userId: user._id,
+          allocations,
+          incomeAllocations,
+          totalExpenses,
+          totalIncome,
+        });
+      }
 
-			await vote.save();
+      await vote.save();
 
-			return res.status(200).json({
-				message: "Vote submitted successfully",
-				vote,
-			});
-		} catch (error) {
-			log.error("Failed to submit budget vote", { sessionId: req.body.sessionId, error: error.message });
-			return res.status(500).json({ message: "An error occurred" });
-		}
-	}
+      return res.status(200).json({
+        message: "Vote submitted successfully",
+        vote,
+      });
+    } catch (error) {
+      log.error("Failed to submit budget vote", {
+        sessionId: req.body.sessionId,
+        error: error.message,
+      });
+      return res.status(500).json({ message: "An error occurred" });
+    }
+  }
 
-	return res.status(405).json({ message: "Method not allowed" });
+  return res.status(405).json({ message: "Method not allowed" });
 }

@@ -27,7 +27,11 @@ const YELLOW = "#f5a623";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 
-interface VoteCounts { ja: number; nej: number; abstar: number; }
+interface VoteCounts {
+  ja: number;
+  nej: number;
+  abstar: number;
+}
 interface VotingSession {
   id: string;
   question: string;
@@ -54,7 +58,9 @@ export default function VoteScreen() {
   const [currentIdx, setCurrentIdx] = useState(0);
   const currentIdxRef = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
-  const [selected, setSelected] = useState<"ja" | "nej" | "abstar" | null>(null);
+  const [selected, setSelected] = useState<"ja" | "nej" | "abstar" | null>(
+    null,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [celebration, setCelebration] = useState(false);
   const [showSuggest, setShowSuggest] = useState(false);
@@ -62,8 +68,9 @@ export default function VoteScreen() {
   const initialScrollDone = useRef(false);
 
   const loopedSessions = useMemo(
-    () => (sessions.length > 1 ? [...sessions, ...sessions, ...sessions] : sessions),
-    [sessions]
+    () =>
+      sessions.length > 1 ? [...sessions, ...sessions, ...sessions] : sessions,
+    [sessions],
   );
 
   useEffect(() => {
@@ -73,7 +80,10 @@ export default function VoteScreen() {
   useEffect(() => {
     if (sessions.length > 1 && containerH > 0 && !initialScrollDone.current) {
       initialScrollDone.current = true;
-      scrollRef.current?.scrollTo({ y: sessions.length * containerH, animated: false });
+      scrollRef.current?.scrollTo({
+        y: sessions.length * containerH,
+        animated: false,
+      });
     }
   }, [sessions.length, containerH]);
 
@@ -81,7 +91,9 @@ export default function VoteScreen() {
     setLoading(true);
     setFetchError(null);
     try {
-      const data = await apiClient<VotingSession[]>("/api/mobile/sessions/voting");
+      const data = await apiClient<VotingSession[]>(
+        "/api/mobile/sessions/voting",
+      );
       const list = data ?? [];
       sessionsRef.current = list;
       setSessions(list);
@@ -101,20 +113,29 @@ export default function VoteScreen() {
 
   function bgUri(s: VotingSession): string | null {
     if (!s.imageUrl) return null;
-    return s.imageUrl.startsWith("http") ? s.imageUrl : `${BASE_URL}${s.imageUrl}`;
+    return s.imageUrl.startsWith("http")
+      ? s.imageUrl
+      : `${BASE_URL}${s.imageUrl}`;
   }
 
   async function handleVote() {
-    const active = sessionsRef.current[0]?.isActive ? sessionsRef.current[0] : null;
+    const active = sessionsRef.current[0]?.isActive
+      ? sessionsRef.current[0]
+      : null;
     if (!selected || !active || submitting) return;
     setSubmitting(true);
     try {
       const res = await apiClient<{ voteCounts: VoteCounts; userVote: string }>(
         "/api/mobile/quick-vote",
-        { method: "POST", body: JSON.stringify({ sessionId: active.id, choice: selected }) }
+        {
+          method: "POST",
+          body: JSON.stringify({ sessionId: active.id, choice: selected }),
+        },
       );
       const updated = sessionsRef.current.map((s) =>
-        s.id === active.id ? { ...s, voteCounts: res.voteCounts, userVote: res.userVote as any } : s
+        s.id === active.id
+          ? { ...s, voteCounts: res.voteCounts, userVote: res.userVote as any }
+          : s,
       );
       sessionsRef.current = updated;
       setSessions(updated);
@@ -131,9 +152,10 @@ export default function VoteScreen() {
     const n = sessionsRef.current.length;
     if (n === 0 || containerH === 0) return;
     const rawIdx = Math.round(e.nativeEvent.contentOffset.y / containerH);
-    const clampedIdx = n > 1
-      ? Math.max(0, Math.min(n * 3 - 1, rawIdx))
-      : Math.max(0, Math.min(n - 1, rawIdx));
+    const clampedIdx =
+      n > 1
+        ? Math.max(0, Math.min(n * 3 - 1, rawIdx))
+        : Math.max(0, Math.min(n - 1, rawIdx));
     if (clampedIdx !== currentIdxRef.current) {
       currentIdxRef.current = clampedIdx;
       setCurrentIdx(clampedIdx);
@@ -146,7 +168,10 @@ export default function VoteScreen() {
       if (jumpIdx !== null) {
         currentIdxRef.current = jumpIdx;
         setCurrentIdx(jumpIdx);
-        scrollRef.current?.scrollTo({ y: jumpIdx * containerH, animated: false });
+        scrollRef.current?.scrollTo({
+          y: jumpIdx * containerH,
+          animated: false,
+        });
       }
     }
   }
@@ -163,40 +188,54 @@ export default function VoteScreen() {
     } catch {}
   }
 
-  if (loading) return (
-    <View style={[styles.center, { paddingTop: insets.top }]}>
-      <ActivityIndicator size="large" color={BLUE} />
-    </View>
-  );
+  if (loading)
+    return (
+      <View style={[styles.center, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={BLUE} />
+      </View>
+    );
 
-  if (fetchError) return (
-    <View style={[styles.center, { paddingTop: insets.top }]}>
-      <Ionicons name="alert-circle-outline" size={48} color="#dc2626" />
-      <Text style={styles.errorText}>{fetchError}</Text>
-      <TouchableOpacity style={styles.retryBtn} onPress={load}>
-        <Text style={styles.retryText}>Försök igen</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  if (fetchError)
+    return (
+      <View style={[styles.center, { paddingTop: insets.top }]}>
+        <Ionicons name="alert-circle-outline" size={48} color="#dc2626" />
+        <Text style={styles.errorText}>{fetchError}</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={load}>
+          <Text style={styles.retryText}>Försök igen</Text>
+        </TouchableOpacity>
+      </View>
+    );
 
-  if (sessions.length === 0) return (
-    <View style={[styles.center, { paddingTop: insets.top }]}>
-      <Ionicons name="hourglass-outline" size={56} color="#ccc" />
-      <Text style={styles.emptyTitle}>Ingen aktiv omröstning</Text>
-      <Text style={styles.emptyText}>Kom tillbaka snart — en ny fråga är på väg.</Text>
-      <TouchableOpacity style={styles.suggestBtnEmpty} onPress={() => setShowSuggest(true)} activeOpacity={0.85}>
-        <Ionicons name="bulb-outline" size={18} color={BLUE} />
-        <Text style={styles.suggestBtnText}>Föreslå en fråga om Vallentuna</Text>
-      </TouchableOpacity>
-      {showSuggest && <SuggestModal onClose={() => setShowSuggest(false)} />}
-    </View>
-  );
+  if (sessions.length === 0)
+    return (
+      <View style={[styles.center, { paddingTop: insets.top }]}>
+        <Ionicons name="hourglass-outline" size={56} color="#ccc" />
+        <Text style={styles.emptyTitle}>Ingen aktiv omröstning</Text>
+        <Text style={styles.emptyText}>
+          Kom tillbaka snart — en ny fråga är på väg.
+        </Text>
+        <TouchableOpacity
+          style={styles.suggestBtnEmpty}
+          onPress={() => setShowSuggest(true)}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="bulb-outline" size={18} color={BLUE} />
+          <Text style={styles.suggestBtnText}>
+            Föreslå en fråga om Vallentuna
+          </Text>
+        </TouchableOpacity>
+        {showSuggest && <SuggestModal onClose={() => setShowSuggest(false)} />}
+      </View>
+    );
 
   const actualDispIdx = sessions.length > 0 ? currentIdx % sessions.length : 0;
   const isDisplayActive = sessions[actualDispIdx]?.isActive ?? false;
 
   return (
-    <View style={styles.screen} onLayout={(e) => setContainerH(e.nativeEvent.layout.height)}>
+    <View
+      style={styles.screen}
+      onLayout={(e) => setContainerH(e.nativeEvent.layout.height)}
+    >
       <StatusBar barStyle="light-content" />
 
       {/* Fixed header — sits above the scrollable pages */}
@@ -220,23 +259,49 @@ export default function VoteScreen() {
       >
         {loopedSessions.map((s, idx) => {
           const uri = bgUri(s);
-          const total = s.voteCounts.ja + s.voteCounts.nej + s.voteCounts.abstar;
-          const pct = (n: number) => (total === 0 ? 0 : Math.round((n / total) * 100));
+          const total =
+            s.voteCounts.ja + s.voteCounts.nej + s.voteCounts.abstar;
+          const pct = (n: number) =>
+            total === 0 ? 0 : Math.round((n / total) * 100);
           const isPrimary = s.isActive;
           const showResults = s.userVote != null || !isPrimary;
-          const displayDate = new Date(s.startDate || s.createdAt).toLocaleDateString("sv-SE", { day: "numeric", month: "long", year: "numeric" });
+          const displayDate = new Date(
+            s.startDate || s.createdAt,
+          ).toLocaleDateString("sv-SE", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          });
           return (
             <View key={idx} style={{ height: containerH }}>
               {/* Per-page background */}
               <View style={[StyleSheet.absoluteFill, styles.pageBg]} />
-              {uri && <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />}
+              {uri && (
+                <Image
+                  source={{ uri }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                />
+              )}
               <View style={[StyleSheet.absoluteFill, styles.bgOverlay]} />
 
               {/* Card centred in lower half */}
-              <View style={{ flex: 1, justifyContent: "flex-end", paddingTop: insets.top + 68, paddingBottom: insets.bottom + 110, paddingHorizontal: 16 }}>
+              <View
+                style={{
+                  flex: 1,
+                  justifyContent: "flex-end",
+                  paddingTop: insets.top + 68,
+                  paddingBottom: insets.bottom + 110,
+                  paddingHorizontal: 16,
+                }}
+              >
                 <View style={styles.card}>
                   <View style={styles.dateLine}>
-                    <Ionicons name={isPrimary ? "calendar-outline" : "time-outline"} size={12} color="#666" />
+                    <Ionicons
+                      name={isPrimary ? "calendar-outline" : "time-outline"}
+                      size={12}
+                      color="#666"
+                    />
                     <Text style={styles.dateText}>{displayDate}</Text>
                   </View>
 
@@ -244,28 +309,52 @@ export default function VoteScreen() {
 
                   <View style={styles.alternatives}>
                     {ALTS.map(({ key, label }) => {
-                      const isSelected = isPrimary ? selected === key : s.userVote === key;
+                      const isSelected = isPrimary
+                        ? selected === key
+                        : s.userVote === key;
                       return (
                         <TouchableOpacity
                           key={key}
-                          style={[styles.alternative, isSelected && styles.alternativeSelected]}
-                          onPress={() => isPrimary && !showResults && setSelected(key)}
+                          style={[
+                            styles.alternative,
+                            isSelected && styles.alternativeSelected,
+                          ]}
+                          onPress={() =>
+                            isPrimary && !showResults && setSelected(key)
+                          }
                           activeOpacity={isPrimary && !showResults ? 0.75 : 1}
                         >
-                          <View style={[styles.radio, isSelected && styles.radioSelected]}>
+                          <View
+                            style={[
+                              styles.radio,
+                              isSelected && styles.radioSelected,
+                            ]}
+                          >
                             {isSelected && <View style={styles.radioDot} />}
                           </View>
-                          <Text style={[styles.alternativeLabel, isSelected && styles.alternativeLabelSelected]}>
+                          <Text
+                            style={[
+                              styles.alternativeLabel,
+                              isSelected && styles.alternativeLabelSelected,
+                            ]}
+                          >
                             {label}
                           </Text>
                           {showResults && (
                             <View style={styles.resultOuter}>
                               <View style={styles.resultBarWrap}>
                                 {pct(s.voteCounts[key]) > 0 && (
-                                  <View style={[styles.resultFill, { flex: pct(s.voteCounts[key]) / 100 }]} />
+                                  <View
+                                    style={[
+                                      styles.resultFill,
+                                      { flex: pct(s.voteCounts[key]) / 100 },
+                                    ]}
+                                  />
                                 )}
                               </View>
-                              <Text style={styles.resultPct}>{pct(s.voteCounts[key])}%</Text>
+                              <Text style={styles.resultPct}>
+                                {pct(s.voteCounts[key])}%
+                              </Text>
                             </View>
                           )}
                         </TouchableOpacity>
@@ -275,7 +364,10 @@ export default function VoteScreen() {
 
                   {isPrimary && !showResults ? (
                     <TouchableOpacity
-                      style={[styles.voteBtn, (!selected || submitting) && styles.voteBtnDisabled]}
+                      style={[
+                        styles.voteBtn,
+                        (!selected || submitting) && styles.voteBtnDisabled,
+                      ]}
                       onPress={handleVote}
                       disabled={!selected || submitting}
                       activeOpacity={0.85}
@@ -284,19 +376,31 @@ export default function VoteScreen() {
                         <ActivityIndicator color={BLUE} />
                       ) : (
                         <>
-                          <Ionicons name="checkmark-circle-outline" size={18} color={BLUE} />
+                          <Ionicons
+                            name="checkmark-circle-outline"
+                            size={18}
+                            color={BLUE}
+                          />
                           <Text style={styles.voteBtnText}>Rösta</Text>
                         </>
                       )}
                     </TouchableOpacity>
                   ) : isPrimary ? (
                     <View style={styles.votedBadge}>
-                      <Ionicons name="checkmark-circle" size={16} color="#16a34a" />
-                      <Text style={styles.votedText}>Din röst är registrerad · {total} totalt</Text>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color="#16a34a"
+                      />
+                      <Text style={styles.votedText}>
+                        Din röst är registrerad · {total} totalt
+                      </Text>
                     </View>
                   ) : (
                     <View style={styles.votedBadge}>
-                      <Text style={styles.votedText}>{total} {total === 1 ? "röst" : "röster"}</Text>
+                      <Text style={styles.votedText}>
+                        {total} {total === 1 ? "röst" : "röster"}
+                      </Text>
                     </View>
                   )}
                 </View>
@@ -308,9 +412,15 @@ export default function VoteScreen() {
 
       {/* Suggest button pinned to bottom */}
       <View style={[styles.suggestRow, { paddingBottom: insets.bottom + 16 }]}>
-        <TouchableOpacity style={styles.suggestBtn} onPress={() => setShowSuggest(true)} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={styles.suggestBtn}
+          onPress={() => setShowSuggest(true)}
+          activeOpacity={0.85}
+        >
           <Ionicons name="bulb-outline" size={16} color={BLUE} />
-          <Text style={styles.suggestBtnText}>Föreslå en fråga om Vallentuna</Text>
+          <Text style={styles.suggestBtnText}>
+            Föreslå en fråga om Vallentuna
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -355,9 +465,17 @@ function SuggestModal({ onClose }: { onClose: () => void }) {
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.modalBackdrop}>
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalKAV}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.modalKAV}
+          >
             <TouchableWithoutFeedback>
-              <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+              <View
+                style={[
+                  styles.modalSheet,
+                  { paddingBottom: insets.bottom + 16 },
+                ]}
+              >
                 <View style={styles.modalHandle} />
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Föreslå en fråga</Text>
@@ -367,9 +485,15 @@ function SuggestModal({ onClose }: { onClose: () => void }) {
                 </View>
                 {sent ? (
                   <View style={styles.sentBox}>
-                    <Ionicons name="checkmark-circle" size={48} color="#16a34a" />
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={48}
+                      color="#16a34a"
+                    />
                     <Text style={styles.sentTitle}>Tack!</Text>
-                    <Text style={styles.sentText}>Din fråga har skickats till oss. Vi läser alla förslag.</Text>
+                    <Text style={styles.sentText}>
+                      Din fråga har skickats till oss. Vi läser alla förslag.
+                    </Text>
                     <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
                       <Text style={styles.closeBtnText}>Stäng</Text>
                     </TouchableOpacity>
@@ -391,7 +515,10 @@ function SuggestModal({ onClose }: { onClose: () => void }) {
                     <Text style={styles.charCount}>{question.length}/200</Text>
                     {!!error && <Text style={styles.modalError}>{error}</Text>}
                     <TouchableOpacity
-                      style={[styles.sendBtn, (!question.trim() || sending) && { opacity: 0.5 }]}
+                      style={[
+                        styles.sendBtn,
+                        (!question.trim() || sending) && { opacity: 0.5 },
+                      ]}
                       onPress={send}
                       disabled={!question.trim() || sending}
                     >
@@ -435,7 +562,12 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,45,117,0.90)",
     zIndex: 10,
   },
-  headerTitle: { color: "#fff", fontSize: 18, fontWeight: "800", letterSpacing: 0.5 },
+  headerTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
 
   card: {
     backgroundColor: "rgba(255,255,255,0.68)",
@@ -478,9 +610,21 @@ const styles = StyleSheet.create({
   alternativeLabelSelected: { color: BLUE },
 
   resultOuter: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
-  resultBarWrap: { flex: 1, height: 8, backgroundColor: "#e5e7eb", borderRadius: 4, overflow: "hidden" },
+  resultBarWrap: {
+    flex: 1,
+    height: 8,
+    backgroundColor: "#e5e7eb",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
   resultFill: { height: "100%" as any, backgroundColor: BLUE, borderRadius: 4 },
-  resultPct: { fontSize: 12, color: BLUE, fontWeight: "700", minWidth: 34, textAlign: "right" },
+  resultPct: {
+    fontSize: 12,
+    color: BLUE,
+    fontWeight: "700",
+    minWidth: 34,
+    textAlign: "right",
+  },
 
   voteBtn: {
     flexDirection: "row",
@@ -493,7 +637,13 @@ const styles = StyleSheet.create({
   },
   voteBtnDisabled: { opacity: 0.45 },
   voteBtnText: { color: BLUE, fontSize: 16, fontWeight: "800" },
-  votedBadge: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 6 },
+  votedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 6,
+  },
   votedText: { fontSize: 13, color: "#444", fontWeight: "600" },
 
   suggestRow: {
@@ -530,7 +680,11 @@ const styles = StyleSheet.create({
   },
   suggestBtnText: { color: BLUE, fontSize: 15, fontWeight: "800" },
 
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
   modalKAV: { justifyContent: "flex-end" },
   modalSheet: {
     backgroundColor: "#fff",
@@ -540,8 +694,19 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     gap: 10,
   },
-  modalHandle: { width: 40, height: 4, backgroundColor: "#ddd", borderRadius: 2, alignSelf: "center", marginBottom: 4 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#ddd",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 4,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   modalTitle: { fontSize: 17, fontWeight: "800", color: "#111" },
   inputLabel: { fontSize: 13, fontWeight: "600", color: "#333" },
   textInput: {
@@ -569,14 +734,37 @@ const styles = StyleSheet.create({
   sendBtnText: { color: BLUE, fontSize: 15, fontWeight: "800" },
   sentBox: { alignItems: "center", paddingVertical: 24, gap: 10 },
   sentTitle: { fontSize: 22, fontWeight: "900", color: "#111" },
-  sentText: { fontSize: 14, color: "#555", textAlign: "center", lineHeight: 20 },
-  closeBtn: { backgroundColor: BLUE, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 10, marginTop: 8 },
+  sentText: {
+    fontSize: 14,
+    color: "#555",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  closeBtn: {
+    backgroundColor: BLUE,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 8,
+  },
   closeBtnText: { color: "#fff", fontWeight: "700" },
 
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, backgroundColor: "#f4f6fb", paddingHorizontal: 32 },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    backgroundColor: "#f4f6fb",
+    paddingHorizontal: 32,
+  },
   errorText: { color: "#dc2626", fontSize: 14, textAlign: "center" },
   emptyTitle: { fontSize: 18, fontWeight: "700", color: "#555" },
   emptyText: { fontSize: 14, color: "#aaa", textAlign: "center" },
-  retryBtn: { backgroundColor: BLUE, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
+  retryBtn: {
+    backgroundColor: BLUE,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
   retryText: { color: "#fff", fontWeight: "700" },
 });

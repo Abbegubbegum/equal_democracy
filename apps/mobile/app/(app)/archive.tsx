@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, ActivityIndicator,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -25,18 +29,22 @@ interface ArchivedSession {
 
 export default function ArchiveScreen() {
   const insets = useSafeAreaInsets();
-  const [sessions, setSessions]   = useState<ArchivedSession[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
-  const [expanded, setExpanded]   = useState<Record<string, boolean>>({});
+  const [sessions, setSessions] = useState<ArchivedSession[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiClient<ArchivedSession[]>("/api/mobile/sessions/archived");
+      const data = await apiClient<ArchivedSession[]>(
+        "/api/mobile/sessions/archived",
+      );
       setSessions(data);
     } catch (e: any) {
       setError(e.message);
@@ -72,7 +80,9 @@ export default function ArchiveScreen() {
       <View style={[styles.center, { paddingTop: insets.top }]}>
         <Ionicons name="archive-outline" size={56} color="#ccc" />
         <Text style={styles.emptyTitle}>Inga avslutade sessioner</Text>
-        <Text style={styles.emptyText}>Avslutade sessioner med resultat visas här.</Text>
+        <Text style={styles.emptyText}>
+          Avslutade sessioner med resultat visas här.
+        </Text>
       </View>
     );
   }
@@ -80,7 +90,10 @@ export default function ArchiveScreen() {
   return (
     <ScrollView
       style={styles.scroll}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + 16 }]}
+      contentContainerStyle={[
+        styles.container,
+        { paddingTop: insets.top + 16 },
+      ]}
       showsVerticalScrollIndicator={false}
     >
       <Text style={styles.pageTitle}>Arkiv</Text>
@@ -88,7 +101,8 @@ export default function ArchiveScreen() {
       {sessions.map((session) => {
         const isOpen = expanded[session.id] ?? true;
         const totalVotes = session.topProposals.reduce(
-          (sum, p) => sum + p.yesVotes + p.noVotes, 0
+          (sum, p) => sum + p.yesVotes + p.noVotes,
+          0,
         );
         return (
           <View key={session.id} style={styles.sessionCard}>
@@ -101,16 +115,24 @@ export default function ArchiveScreen() {
                 <Text style={styles.sessionPlace}>{session.place}</Text>
                 <Text style={styles.sessionDate}>
                   {new Date(session.startDate).toLocaleDateString("sv-SE", {
-                    day: "numeric", month: "long", year: "numeric",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
                   })}
                   {session.endDate
-                    ? ` – ${new Date(session.endDate).toLocaleDateString("sv-SE", {
-                        day: "numeric", month: "short",
-                      })}`
+                    ? ` – ${new Date(session.endDate).toLocaleDateString(
+                        "sv-SE",
+                        {
+                          day: "numeric",
+                          month: "short",
+                        },
+                      )}`
                     : ""}
                 </Text>
                 {totalVotes > 0 && (
-                  <Text style={styles.voteCount}>{totalVotes} röster totalt</Text>
+                  <Text style={styles.voteCount}>
+                    {totalVotes} röster totalt
+                  </Text>
                 )}
               </View>
               <Ionicons
@@ -123,24 +145,39 @@ export default function ArchiveScreen() {
             {isOpen && (
               <View style={styles.proposalList}>
                 {session.topProposals.length === 0 ? (
-                  <Text style={styles.noResults}>Inga topförslag registrerade.</Text>
+                  <Text style={styles.noResults}>
+                    Inga topförslag registrerade.
+                  </Text>
                 ) : (
                   session.topProposals.map((tp, i) => {
                     const total = tp.yesVotes + tp.noVotes;
-                    const yesPct = total > 0 ? Math.round((tp.yesVotes / total) * 100) : 0;
+                    const yesPct =
+                      total > 0 ? Math.round((tp.yesVotes / total) * 100) : 0;
                     return (
                       <View key={i} style={styles.proposalItem}>
                         <Text style={styles.proposalTitle}>{tp.title}</Text>
                         <View style={styles.voteBar}>
-                          <View style={[styles.yesBar, { flex: tp.yesVotes || 0.001 }]} />
-                          <View style={[styles.noBar,  { flex: tp.noVotes  || 0.001 }]} />
+                          <View
+                            style={[
+                              styles.yesBar,
+                              { flex: tp.yesVotes || 0.001 },
+                            ]}
+                          />
+                          <View
+                            style={[
+                              styles.noBar,
+                              { flex: tp.noVotes || 0.001 },
+                            ]}
+                          />
                         </View>
                         <View style={styles.voteLegend}>
                           <Text style={styles.yesLabel}>
-                            <Ionicons name="checkmark" size={11} /> Ja: {tp.yesVotes} ({yesPct}%)
+                            <Ionicons name="checkmark" size={11} /> Ja:{" "}
+                            {tp.yesVotes} ({yesPct}%)
                           </Text>
                           <Text style={styles.noLabel}>
-                            <Ionicons name="close" size={11} /> Nej: {tp.noVotes} ({100 - yesPct}%)
+                            <Ionicons name="close" size={11} /> Nej:{" "}
+                            {tp.noVotes} ({100 - yesPct}%)
                           </Text>
                         </View>
                       </View>
@@ -156,51 +193,79 @@ export default function ArchiveScreen() {
   );
 }
 
-const BLUE   = "#002d75";
+const BLUE = "#002d75";
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: "#f4f6fb" },
   container: { paddingHorizontal: 16, paddingBottom: 40 },
   center: {
-    flex: 1, alignItems: "center", justifyContent: "center",
-    gap: 12, backgroundColor: "#f4f6fb", paddingHorizontal: 32,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    backgroundColor: "#f4f6fb",
+    paddingHorizontal: 32,
   },
 
-  pageTitle: { fontSize: 24, fontWeight: "900", color: BLUE, marginBottom: 16, letterSpacing: 0.5, paddingLeft: 64 },
+  pageTitle: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: BLUE,
+    marginBottom: 16,
+    letterSpacing: 0.5,
+    paddingLeft: 64,
+  },
 
   sessionCard: {
-    backgroundColor: "#fff", borderRadius: 16, marginBottom: 14,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    marginBottom: 14,
     overflow: "hidden",
-    shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 }, elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   sessionHeader: {
-    backgroundColor: BLUE, paddingHorizontal: 16, paddingVertical: 14,
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: BLUE,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  headerLeft:   { flex: 1, gap: 2 },
+  headerLeft: { flex: 1, gap: 2 },
   sessionPlace: { color: "#fff", fontSize: 17, fontWeight: "800" },
-  sessionDate:  { color: "rgba(255,255,255,0.65)", fontSize: 12 },
-  voteCount:    { color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 2 },
+  sessionDate: { color: "rgba(255,255,255,0.65)", fontSize: 12 },
+  voteCount: { color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 2 },
 
   proposalList: { paddingHorizontal: 16, paddingVertical: 12, gap: 14 },
   proposalItem: { gap: 6 },
   proposalTitle: { fontSize: 14, fontWeight: "600", color: "#222" },
 
   voteBar: {
-    height: 8, borderRadius: 4, flexDirection: "row", overflow: "hidden",
+    height: 8,
+    borderRadius: 4,
+    flexDirection: "row",
+    overflow: "hidden",
     backgroundColor: "#f0f0f0",
   },
   yesBar: { backgroundColor: "#16a34a" },
-  noBar:  { backgroundColor: "#dc2626" },
+  noBar: { backgroundColor: "#dc2626" },
   voteLegend: { flexDirection: "row", gap: 16 },
-  yesLabel:   { fontSize: 12, color: "#16a34a", fontWeight: "600" },
-  noLabel:    { fontSize: 12, color: "#dc2626", fontWeight: "600" },
+  yesLabel: { fontSize: 12, color: "#16a34a", fontWeight: "600" },
+  noLabel: { fontSize: 12, color: "#dc2626", fontWeight: "600" },
 
-  noResults:  { color: "#999", fontSize: 13, paddingVertical: 4 },
-  errorText:  { color: "#dc2626", fontSize: 14, textAlign: "center" },
+  noResults: { color: "#999", fontSize: 13, paddingVertical: 4 },
+  errorText: { color: "#dc2626", fontSize: 14, textAlign: "center" },
   emptyTitle: { fontSize: 18, fontWeight: "700", color: "#555" },
-  emptyText:  { fontSize: 14, color: "#aaa", textAlign: "center" },
-  retryBtn:   { backgroundColor: BLUE, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
-  retryText:  { color: "#fff", fontWeight: "700" },
+  emptyText: { fontSize: 14, color: "#aaa", textAlign: "center" },
+  retryBtn: {
+    backgroundColor: BLUE,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  retryText: { color: "#fff", fontWeight: "700" },
 });

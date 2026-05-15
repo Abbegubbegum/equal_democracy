@@ -15,20 +15,23 @@ const log = createLogger("BudgetAIExtractor");
  * @param {string} documentType - "expenses" or "income"
  * @returns {Promise<Object>} - Extracted budget data
  */
-export async function extractBudgetFromPDF(pdfBuffer: Buffer, documentType = "expenses") {
-	// Initialize Anthropic client
-	const anthropic = new Anthropic({
-		apiKey: process.env.ANTHROPIC_API_KEY,
-	});
+export async function extractBudgetFromPDF(
+  pdfBuffer: Buffer,
+  documentType = "expenses",
+) {
+  // Initialize Anthropic client
+  const anthropic = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  });
 
-	// Convert buffer to base64 for Claude API
-	const pdfBase64 = pdfBuffer.toString("base64");
+  // Convert buffer to base64 for Claude API
+  const pdfBase64 = pdfBuffer.toString("base64");
 
-	// Create appropriate prompt based on document type
-	let prompt = "";
+  // Create appropriate prompt based on document type
+  let prompt = "";
 
-	if (documentType === "expenses") {
-		prompt = `Du är en expert på svenska kommunala budgetar. Analysera denna PDF-fil och extrahera BÅDE utgifter (nämnder) OCH intäkter.
+  if (documentType === "expenses") {
+    prompt = `Du är en expert på svenska kommunala budgetar. Analysera denna PDF-fil och extrahera BÅDE utgifter (nämnder) OCH intäkter.
 
 VIKTIGA INSTRUKTIONER FÖR UTGIFTER:
 1. Hitta ALLA nämnder i dokumentet (ofta 8-12 stycken)
@@ -116,10 +119,8 @@ VALIDERING:
 - totalBudget = summan av alla category amounts
 - totalIncome = summan av alla incomeCategory amounts
 - Alla belopp i heltal (kronor)`;
-
-
-	} else if (documentType === "income") {
-		prompt = `Du är en expert på svenska kommunala budgetar. Analysera denna PDF-fil (intäkter & bidrag) och extrahera ALLA intäktskällor.
+  } else if (documentType === "income") {
+    prompt = `Du är en expert på svenska kommunala budgetar. Analysera denna PDF-fil (intäkter & bidrag) och extrahera ALLA intäktskällor.
 
 VIKTIGA INSTRUKTIONER:
 1. Hitta ALLA intäktskällor (vanligtvis 3-6 poster)
@@ -167,145 +168,163 @@ VALIDERING:
 - totalIncome = summan av alla amounts
 - isTaxRate = true ENDAST för "Skatteintäkter"
 - Alla belopp i heltal (kronor)`;
-	}
+  }
 
-	try {
-		const message = await anthropic.messages.create({
-			model: "claude-haiku-4-5",
-			max_tokens: 4096,
-			messages: [
-				{
-					role: "user",
-					content: [
-						{
-							type: "document",
-							source: {
-								type: "base64",
-								media_type: "application/pdf",
-								data: pdfBase64,
-							},
-						},
-						{
-							type: "text",
-							text: prompt,
-						},
-					],
-				},
-			],
-		});
+  try {
+    const message = await anthropic.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 4096,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "document",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: pdfBase64,
+              },
+            },
+            {
+              type: "text",
+              text: prompt,
+            },
+          ],
+        },
+      ],
+    });
 
-		// Extract JSON from response
-		const firstBlock = message.content[0];
-		const responseText = firstBlock.type === "text" ? firstBlock.text : "";
+    // Extract JSON from response
+    const firstBlock = message.content[0];
+    const responseText = firstBlock.type === "text" ? firstBlock.text : "";
 
-		log.debug("Claude response preview", { preview: responseText.substring(0, 500) });
+    log.debug("Claude response preview", {
+      preview: responseText.substring(0, 500),
+    });
 
-		// Try to find JSON in the response (supports both ```json and plain JSON)
-		let jsonMatch = responseText.match(/```json\s*(\{[\s\S]*?\})\s*```/);
-		if (!jsonMatch) {
-			jsonMatch = responseText.match(/\{[\s\S]*\}/);
-		}
+    // Try to find JSON in the response (supports both ```json and plain JSON)
+    let jsonMatch = responseText.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+    if (!jsonMatch) {
+      jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    }
 
-		if (!jsonMatch) {
-			log.error("No JSON found in AI response", { fullResponse: responseText });
-			throw new Error("No JSON found in AI response. Check the logs.");
-		}
+    if (!jsonMatch) {
+      log.error("No JSON found in AI response", { fullResponse: responseText });
+      throw new Error("No JSON found in AI response. Check the logs.");
+    }
 
-		const jsonString = jsonMatch[1] || jsonMatch[0];
-		const extractedData = JSON.parse(jsonString);
+    const jsonString = jsonMatch[1] || jsonMatch[0];
+    const extractedData = JSON.parse(jsonString);
 
-		// Validate the extracted data
-		if (documentType === "expenses") {
-			if (!extractedData.categories || extractedData.categories.length < 3) {
-				throw new Error(`Too few categories extracted: ${extractedData.categories?.length || 0}. Expected at least 8 committees.`);
-			}
-			// Income categories are optional for expenses document type
-			log.debug("Income categories found", { count: extractedData.incomeCategories?.length || 0 });
-		} else if (documentType === "income") {
-			if (!extractedData.incomeCategories || extractedData.incomeCategories.length < 2) {
-				throw new Error(`Too few income categories extracted: ${extractedData.incomeCategories?.length || 0}. Expected at least 3.`);
-			}
-		}
+    // Validate the extracted data
+    if (documentType === "expenses") {
+      if (!extractedData.categories || extractedData.categories.length < 3) {
+        throw new Error(
+          `Too few categories extracted: ${extractedData.categories?.length || 0}. Expected at least 8 committees.`,
+        );
+      }
+      // Income categories are optional for expenses document type
+      log.debug("Income categories found", {
+        count: extractedData.incomeCategories?.length || 0,
+      });
+    } else if (documentType === "income") {
+      if (
+        !extractedData.incomeCategories ||
+        extractedData.incomeCategories.length < 2
+      ) {
+        throw new Error(
+          `Too few income categories extracted: ${extractedData.incomeCategories?.length || 0}. Expected at least 3.`,
+        );
+      }
+    }
 
-		// Generate IDs and ensure proper structure for categories
-		if (extractedData.categories) {
-			const totalCategories = extractedData.categories.length;
-			extractedData.categories = extractedData.categories.map((cat, idx) => {
-				const id = cat.name
-					.toLowerCase()
-					.replace(/å/g, "a")
-					.replace(/ä/g, "a")
-					.replace(/ö/g, "o")
-					.replace(/\s+/g, "-")
-					.replace(/[^a-z0-9-]/g, "");
+    // Generate IDs and ensure proper structure for categories
+    if (extractedData.categories) {
+      const totalCategories = extractedData.categories.length;
+      extractedData.categories = extractedData.categories.map((cat, idx) => {
+        const id = cat.name
+          .toLowerCase()
+          .replace(/å/g, "a")
+          .replace(/ä/g, "a")
+          .replace(/ö/g, "o")
+          .replace(/\s+/g, "-")
+          .replace(/[^a-z0-9-]/g, "");
 
-				const subcategories = (cat.subcategories || []).map((sub, subIdx) => {
-					const subId = sub.name
-						.toLowerCase()
-						.replace(/å/g, "a")
-						.replace(/ä/g, "a")
-						.replace(/ö/g, "o")
-						.replace(/\s+/g, "-")
-						.replace(/[^a-z0-9-]/g, "");
+        const subcategories = (cat.subcategories || []).map((sub, subIdx) => {
+          const subId = sub.name
+            .toLowerCase()
+            .replace(/å/g, "a")
+            .replace(/ä/g, "a")
+            .replace(/ö/g, "o")
+            .replace(/\s+/g, "-")
+            .replace(/[^a-z0-9-]/g, "");
 
-					return {
-						...sub,
-						id: `${id}-${subId}-${subIdx}`,
-						defaultAmount: sub.amount || 0,
-						minAmount: sub.minAmount || 0,
-						isFixed: sub.isFixed || false,
-					};
-				});
+          return {
+            ...sub,
+            id: `${id}-${subId}-${subIdx}`,
+            defaultAmount: sub.amount || 0,
+            minAmount: sub.minAmount || 0,
+            isFixed: sub.isFixed || false,
+          };
+        });
 
-				return {
-					...cat,
-					id: `${id}-${idx}`,
-					defaultAmount: cat.amount,
-					minAmount: cat.minAmount || Math.floor(cat.amount * 0.4),
-					isFixed: cat.isFixed || false,
-					color: generateCategoryColor(idx, totalCategories, "expense"),
-					subcategories,
-				};
-			});
-		}
+        return {
+          ...cat,
+          id: `${id}-${idx}`,
+          defaultAmount: cat.amount,
+          minAmount: cat.minAmount || Math.floor(cat.amount * 0.4),
+          isFixed: cat.isFixed || false,
+          color: generateCategoryColor(idx, totalCategories, "expense"),
+          subcategories,
+        };
+      });
+    }
 
-		if (extractedData.incomeCategories && extractedData.incomeCategories.length > 0) {
-			const totalIncome = extractedData.incomeCategories.length;
-			extractedData.incomeCategories = extractedData.incomeCategories.map((cat, idx) => {
-				const id = cat.name
-					.toLowerCase()
-					.replace(/å/g, "a")
-					.replace(/ä/g, "a")
-					.replace(/ö/g, "o")
-					.replace(/\s+/g, "-")
-					.replace(/[^a-z0-9-]/g, "");
+    if (
+      extractedData.incomeCategories &&
+      extractedData.incomeCategories.length > 0
+    ) {
+      const totalIncome = extractedData.incomeCategories.length;
+      extractedData.incomeCategories = extractedData.incomeCategories.map(
+        (cat, idx) => {
+          const id = cat.name
+            .toLowerCase()
+            .replace(/å/g, "a")
+            .replace(/ä/g, "a")
+            .replace(/ö/g, "o")
+            .replace(/\s+/g, "-")
+            .replace(/[^a-z0-9-]/g, "");
 
-				return {
-					...cat,
-					id: `${id}-${idx}`,
-					amount: cat.amount || 0,
-					isTaxRate: cat.isTaxRate || false,
-					taxRatePercent: cat.taxRatePercent || null,
-					color: generateCategoryColor(idx, totalIncome, "income"),
-				};
-			});
-		} else {
-			// Ensure incomeCategories is always an array
-			extractedData.incomeCategories = [];
-		}
+          return {
+            ...cat,
+            id: `${id}-${idx}`,
+            amount: cat.amount || 0,
+            isTaxRate: cat.isTaxRate || false,
+            taxRatePercent: cat.taxRatePercent || null,
+            color: generateCategoryColor(idx, totalIncome, "income"),
+          };
+        },
+      );
+    } else {
+      // Ensure incomeCategories is always an array
+      extractedData.incomeCategories = [];
+    }
 
-		log.info("Budget data extracted", {
-			categories: extractedData.categories?.length,
-			incomeCategories: extractedData.incomeCategories?.length,
-			totalBudget: extractedData.totalBudget,
-			totalIncome: extractedData.totalIncome,
-		});
+    log.info("Budget data extracted", {
+      categories: extractedData.categories?.length,
+      incomeCategories: extractedData.incomeCategories?.length,
+      totalBudget: extractedData.totalBudget,
+      totalIncome: extractedData.totalIncome,
+    });
 
-		return extractedData;
-	} catch (error) {
-		log.error("Failed to extract budget data using AI", { error: error.message });
-		throw new Error("Failed to extract budget data using AI");
-	}
+    return extractedData;
+  } catch (error) {
+    log.error("Failed to extract budget data using AI", {
+      error: error.message,
+    });
+    throw new Error("Failed to extract budget data using AI");
+  }
 }
 
 /**
@@ -316,21 +335,21 @@ VALIDERING:
  * @returns {string} - Hex color code
  */
 export function generateCategoryColor(index, total, type = "expense") {
-	if (type === "income") {
-		// Blue-gray gradient for income
-		// Hue: 210 (blue) -> 200 (gray-blue)
-		// Saturation: 40% -> 10% (from blue to gray)
-		const progress = index / Math.max(total - 1, 1);
-		const hue = 210 - progress * 10; // 210 -> 200
-		const saturation = 40 - progress * 30; // 40% -> 10%
-		const lightness = 50 + progress * 10; // 50% -> 60% (lighter as we go)
-		return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-	} else {
-		// Green-yellow-red gradient for expenses
-		// Hue: 120 (green) -> 60 (yellow) -> 0 (red)
-		const hue = 120 - (index / Math.max(total - 1, 1)) * 120;
-		const saturation = 70;
-		const lightness = 50;
-		return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-	}
+  if (type === "income") {
+    // Blue-gray gradient for income
+    // Hue: 210 (blue) -> 200 (gray-blue)
+    // Saturation: 40% -> 10% (from blue to gray)
+    const progress = index / Math.max(total - 1, 1);
+    const hue = 210 - progress * 10; // 210 -> 200
+    const saturation = 40 - progress * 30; // 40% -> 10%
+    const lightness = 50 + progress * 10; // 50% -> 60% (lighter as we go)
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+  } else {
+    // Green-yellow-red gradient for expenses
+    // Hue: 120 (green) -> 60 (yellow) -> 0 (red)
+    const hue = 120 - (index / Math.max(total - 1, 1)) * 120;
+    const saturation = 70;
+    const lightness = 50;
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+  }
 }

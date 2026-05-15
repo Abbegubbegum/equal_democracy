@@ -3,6 +3,7 @@
 ## TL;DR - Run This
 
 ### 1. Add production database URI to .env.local
+
 ```env
 # .env.local file in project root (or .env)
 MONGODB_URI=mongodb+srv://...../development  # Your dev database
@@ -12,11 +13,13 @@ MONGODB_URI_PRODUCTION=mongodb+srv://...../production  # Production database for
 The migration script will use `MONGODB_URI_PRODUCTION` if available, otherwise falls back to `MONGODB_URI`.
 
 ### 2. Test first (no changes made)
+
 ```bash
 npm run migrate:dry-run
 ```
 
 ### 3. Run the migration
+
 ```bash
 npm run migrate
 ```
@@ -24,6 +27,7 @@ npm run migrate
 ## What This Does
 
 The migration will:
+
 1. ✅ **Backup** your entire database to `backups/` folder
 2. ✅ **Add new fields** to User collection (isSuperAdmin, adminStatus, sessionLimit, etc.)
 3. 🌟 **Promote existing admins** to superAdmin automatically
@@ -90,6 +94,7 @@ npm run migrate
 The backup file is in `backups/` directory. Keep it safe for at least a week.
 
 To restore manually:
+
 1. Open MongoDB Compass or your MongoDB client
 2. Drop the affected collections
 3. Import from the JSON backup file
@@ -101,6 +106,7 @@ See [MIGRATION_README.md](./MIGRATION_README.md) for detailed documentation.
 ## Post-Migration
 
 After migration:
+
 - ✅ Test your application thoroughly
 - ✅ Check user logins work
 - ✅ Test budget features

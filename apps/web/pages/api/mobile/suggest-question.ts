@@ -6,8 +6,12 @@ import { createLogger } from "../../../lib/logger";
 const log = createLogger("MobileSuggestQuestion");
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ message: "Method not allowed" });
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "POST")
+    return res.status(405).json({ message: "Method not allowed" });
 
   let user;
   try {
@@ -17,8 +21,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const { question } = req.body;
-  if (!question?.trim()) return res.status(400).json({ message: "Fråga krävs" });
-  if (question.trim().length > 200) return res.status(400).json({ message: "Frågan är för lång (max 200 tecken)" });
+  if (!question?.trim())
+    return res.status(400).json({ message: "Fråga krävs" });
+  if (question.trim().length > 200)
+    return res
+      .status(400)
+      .json({ message: "Frågan är för lång (max 200 tecken)" });
 
   try {
     await resend.emails.send({
@@ -35,6 +43,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ ok: true });
   } catch (error) {
     log.error("Failed to send question suggestion", { error: error.message });
-    return res.status(500).json({ message: "Kunde inte skicka förslaget, försök igen" });
+    return res
+      .status(500)
+      .json({ message: "Kunde inte skicka förslaget, försök igen" });
   }
 }

@@ -6,7 +6,10 @@ import { createLogger } from "../../../../lib/logger";
 
 const log = createLogger("MobileSessions");
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   if (req.method !== "GET") {
     return res.status(405).json({ message: "Method not allowed" });
   }
@@ -24,7 +27,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       status: "active",
       sessionType: { $nin: ["municipal", "voting"] },
     })
-      .select("_id place phase startDate sessionType activeUsers showUserCount imageUrl noMotivation")
+      .select(
+        "_id place phase startDate sessionType activeUsers showUserCount imageUrl noMotivation",
+      )
       .sort({ startDate: -1 })
       .lean();
 
@@ -39,7 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         showUserCount: s.showUserCount || false,
         noMotivation: s.noMotivation || false,
         imageUrl: s.imageUrl || null,
-      }))
+      })),
     );
   } catch (error) {
     log.error("Failed to fetch mobile sessions", { error: error.message });

@@ -11,8 +11,12 @@ export const config = { api: { bodyParser: false } };
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "session-images");
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ message: "Method not allowed" });
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "POST")
+    return res.status(405).json({ message: "Method not allowed" });
 
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.isAdmin && !session?.user?.isSuperAdmin) {
@@ -29,7 +33,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
 
   const [fields, files] = await form.parse(req);
-  const sessionId = Array.isArray(fields.sessionId) ? fields.sessionId[0] : fields.sessionId;
+  const sessionId = Array.isArray(fields.sessionId)
+    ? fields.sessionId[0]
+    : fields.sessionId;
   const file = Array.isArray(files.image) ? files.image[0] : files.image;
 
   if (!file || !sessionId) {

@@ -3,6 +3,8 @@
 	"version": "1.0.0",
 	"main": "expo-router/entry",
 	"scripts": {
+		"check-types": "tsc --noEmit",
+		"lint": "eslint .",
 		"dev": "expo start",
 		"start": "expo start",
 		"android": "expo start --android",
@@ -30,6 +32,8 @@
 	},
 	"devDependencies": {
 		"@types/react": "~19.1.0",
+		"eslint": "^8.57.0",
+		"eslint-config-expo": "~10.0.0",
 		"typescript": "~5.9.2"
 	},
 	"private": true

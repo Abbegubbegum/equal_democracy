@@ -3,9 +3,18 @@ import { requireAdmin } from "@/lib/admin";
 import connectDB from "@/lib/mongodb";
 import { CitizenProposal } from "@/lib/models";
 
-const ALLOWED_STATUSES = ["active", "archived", "selected", "submitted_as_motion", "rejected"];
+const ALLOWED_STATUSES = [
+  "active",
+  "archived",
+  "selected",
+  "submitted_as_motion",
+  "rejected",
+];
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   const session = await requireAdmin(req, res);
   if (!session) return;
 
@@ -13,7 +22,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === "GET") {
     const proposals = await CitizenProposal.find({})
-      .select("_id title description authorName status averageRating ratingCount imageUrl createdAt")
+      .select(
+        "_id title description authorName status averageRating ratingCount imageUrl createdAt",
+      )
       .sort({ createdAt: -1 })
       .lean();
 

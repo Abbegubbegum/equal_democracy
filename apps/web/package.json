@@ -6,6 +6,7 @@
     "dev": "next dev --turbopack --port 3000",
     "build": "next build --turbopack",
     "start": "next start",
+    "check-types": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
     "migrate:dry-run": "node scripts/migrate-database.js --dry-run",

@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-const BLUE   = "#002d75";
+const BLUE = "#002d75";
 const YELLOW = "#f5a623";
 
 interface Props {
@@ -20,8 +20,14 @@ interface Props {
   onDone: () => void;
 }
 
-export default function CelebrationModal({ visible, title, subtitle, stars, onDone }: Props) {
-  const scale   = useRef(new Animated.Value(0.5)).current;
+export default function CelebrationModal({
+  visible,
+  title,
+  subtitle,
+  stars,
+  onDone,
+}: Props) {
+  const scale = useRef(new Animated.Value(0.5)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -29,22 +35,41 @@ export default function CelebrationModal({ visible, title, subtitle, stars, onDo
     scale.setValue(0.5);
     opacity.setValue(0);
     Animated.parallel([
-      Animated.spring(scale,   { toValue: 1, tension: 120, friction: 7, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+      Animated.spring(scale, {
+        toValue: 1,
+        tension: 120,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }),
     ]).start();
     const t = setTimeout(onDone, 3200);
     return () => clearTimeout(t);
-  }, [visible]);
+  }, [visible, onDone, opacity, scale]);
 
   if (!visible) return null;
 
   const displayStars = Math.min(stars, 5);
 
   return (
-    <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onDone}>
-        <Animated.View style={[styles.card, { transform: [{ scale }], opacity }]}>
-
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+    >
+      <TouchableOpacity
+        style={styles.backdrop}
+        activeOpacity={1}
+        onPress={onDone}
+      >
+        <Animated.View
+          style={[styles.card, { transform: [{ scale }], opacity }]}
+        >
           {/* Star burst */}
           <View style={styles.starBurst}>
             {Array.from({ length: displayStars }).map((_, i) => (
@@ -53,7 +78,11 @@ export default function CelebrationModal({ visible, title, subtitle, stars, onDo
                 name="star"
                 size={i === Math.floor(displayStars / 2) ? 38 : 28}
                 color={YELLOW}
-                style={{ transform: [{ rotate: `${(i - Math.floor(displayStars / 2)) * 12}deg` }] }}
+                style={{
+                  transform: [
+                    { rotate: `${(i - Math.floor(displayStars / 2)) * 12}deg` },
+                  ],
+                }}
               />
             ))}
           </View>

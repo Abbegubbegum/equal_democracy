@@ -7,25 +7,25 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_ADDRESS = "Vallentuna Framåt <no-reply@demokrati.vallentuna.app>";
 
 async function isOptedOut(email: string): Promise<boolean> {
-	try {
-		await dbConnect();
-		const user = await User.findOne(
-			{ email: email.toLowerCase() },
-			{ emailOptOut: 1 }
-		).lean();
-		return (user as { emailOptOut?: boolean } | null)?.emailOptOut === true;
-	} catch {
-		return false;
-	}
+  try {
+    await dbConnect();
+    const user = await User.findOne(
+      { email: email.toLowerCase() },
+      { emailOptOut: 1 },
+    ).lean();
+    return (user as { emailOptOut?: boolean } | null)?.emailOptOut === true;
+  } catch {
+    return false;
+  }
 }
 
 function getBaseUrl(): string {
-	return process.env.NEXTAUTH_URL || "https://vallentuna.app";
+  return process.env.NEXTAUTH_URL || "https://vallentuna.app";
 }
 
 function unsubscribeFooterHtml(email: string, language = "sv"): string {
-	const unsubscribeUrl = `${getBaseUrl()}/api/unsubscribe?email=${encodeURIComponent(email)}`;
-	return `
+  const unsubscribeUrl = `${getBaseUrl()}/api/unsubscribe?email=${encodeURIComponent(email)}`;
+  return `
       <div style="margin-top:40px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:12px">
         <p style="margin:4px 0">${t(language, "email.unsubscribe.text")}</p>
         <a href="${unsubscribeUrl}" style="color:#94a3b8;text-decoration:underline">${t(language, "email.unsubscribe.linkText")}</a>
@@ -33,39 +33,49 @@ function unsubscribeFooterHtml(email: string, language = "sv"): string {
 }
 
 function unsubscribeFooterText(email: string, language = "sv"): string {
-	const unsubscribeUrl = `${getBaseUrl()}/api/unsubscribe?email=${encodeURIComponent(email)}`;
-	return `\n\n---\n${t(language, "email.unsubscribe.text")}\n${t(language, "email.unsubscribe.linkText")}: ${unsubscribeUrl}`;
+  const unsubscribeUrl = `${getBaseUrl()}/api/unsubscribe?email=${encodeURIComponent(email)}`;
+  return `\n\n---\n${t(language, "email.unsubscribe.text")}\n${t(language, "email.unsubscribe.linkText")}: ${unsubscribeUrl}`;
 }
 
-export async function sendEmail(to: string, subject: string, text: string, html: string, language = "en"): Promise<void> {
-	if (await isOptedOut(to)) return;
+export async function sendEmail(
+  to: string,
+  subject: string,
+  text: string,
+  html: string,
+  language = "en",
+): Promise<void> {
+  if (await isOptedOut(to)) return;
 
-	text += unsubscribeFooterText(to, language);
+  text += unsubscribeFooterText(to, language);
 
-	const lastDivIndex = html.lastIndexOf("</div>");
-	if (lastDivIndex !== -1) {
-		html =
-			html.slice(0, lastDivIndex) +
-			unsubscribeFooterHtml(to, language) +
-			html.slice(lastDivIndex);
-	}
+  const lastDivIndex = html.lastIndexOf("</div>");
+  if (lastDivIndex !== -1) {
+    html =
+      html.slice(0, lastDivIndex) +
+      unsubscribeFooterHtml(to, language) +
+      html.slice(lastDivIndex);
+  }
 
-	await resend.emails.send({
-		to,
-		from: FROM_ADDRESS,
-		subject,
-		text,
-		html,
-	});
+  await resend.emails.send({
+    to,
+    from: FROM_ADDRESS,
+    subject,
+    text,
+    html,
+  });
 }
 
-export async function sendLoginCode(email: string, code: string, language = "sv"): Promise<void> {
-	const subject = t(language, "email.loginCode.subject");
-	const text = `${t(language, "email.loginCode.yourCode", { code })}\n\n${t(
-		language,
-		"email.loginCode.codeValid"
-	)}`;
-	const html = `
+export async function sendLoginCode(
+  email: string,
+  code: string,
+  language = "sv",
+): Promise<void> {
+  const subject = t(language, "email.loginCode.subject");
+  const text = `${t(language, "email.loginCode.yourCode", { code })}\n\n${t(
+    language,
+    "email.loginCode.codeValid",
+  )}`;
+  const html = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5">
       <h2>${t(language, "email.loginCode.title")}</h2>
       <p>${t(language, "email.loginCode.useCodeBelow")}</p>
@@ -73,115 +83,110 @@ export async function sendLoginCode(email: string, code: string, language = "sv"
       <p>${t(language, "email.loginCode.ignoreIfNotRequested")}</p>
     </div>
   `;
-  console.log("SEND!")
-	await resend.emails.send({
-		to: email,
-		from: FROM_ADDRESS,
-		subject,
-		text,
-		html,
-	});
+  console.log("SEND!");
+  await resend.emails.send({
+    to: email,
+    from: FROM_ADDRESS,
+    subject,
+    text,
+    html,
+  });
 }
 
 interface TopProposalSummary {
-	title: string;
-	yesVotes: number;
-	noVotes: number;
+  title: string;
+  yesVotes: number;
+  noVotes: number;
 }
 
 export async function sendSessionResultsEmail(
-	email: string,
-	sessionPlace: string,
-	topProposals: TopProposalSummary[],
-	language = "sv"
+  email: string,
+  sessionPlace: string,
+  topProposals: TopProposalSummary[],
+  language = "sv",
 ): Promise<void> {
-	const subject = t(language, "email.sessionResults.subject", {
-		place: sessionPlace,
-	});
+  const subject = t(language, "email.sessionResults.subject", {
+    place: sessionPlace,
+  });
 
-	let proposalsList = "";
-	if (topProposals.length > 0) {
-		proposalsList = topProposals
-			.map(
-				(p, i) =>
-					`${i + 1}. ${p.title} (${p.yesVotes} ${t(
-						language,
-						"email.sessionResults.yesVotes"
-					)}, ${p.noVotes} ${t(
-						language,
-						"email.sessionResults.noVotes"
-					)})`
-			)
-			.join("\n");
-	} else {
-		proposalsList = t(language, "email.sessionResults.noMajority");
-	}
+  let proposalsList = "";
+  if (topProposals.length > 0) {
+    proposalsList = topProposals
+      .map(
+        (p, i) =>
+          `${i + 1}. ${p.title} (${p.yesVotes} ${t(
+            language,
+            "email.sessionResults.yesVotes",
+          )}, ${p.noVotes} ${t(language, "email.sessionResults.noVotes")})`,
+      )
+      .join("\n");
+  } else {
+    proposalsList = t(language, "email.sessionResults.noMajority");
+  }
 
-	const text = `${t(language, "email.sessionResults.thankYou")}
+  const text = `${t(language, "email.sessionResults.thankYou")}
 
 ${t(language, "email.sessionResults.session", { place: sessionPlace })}
 
 ${
-	topProposals.length > 0
-		? t(language, "email.sessionResults.proposalsVotedThrough")
-		: ""
+  topProposals.length > 0
+    ? t(language, "email.sessionResults.proposalsVotedThrough")
+    : ""
 }
 ${proposalsList}
 
 ${
-	topProposals.length > 0
-		? t(language, "email.sessionResults.electionPromise")
-		: ""
+  topProposals.length > 0
+    ? t(language, "email.sessionResults.electionPromise")
+    : ""
 }
 
 ${t(language, "email.sessionResults.bestRegards")},
 Vallentuna Framåt
 `;
 
-	const html = `
+  const html = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#1e293b">
       <h2 style="color:#002d75">${t(
-		language,
-		"email.sessionResults.thankYou"
-	)}</h2>
+        language,
+        "email.sessionResults.thankYou",
+      )}</h2>
 
       <p><strong>${t(language, "email.sessionResults.session", {
-		place: sessionPlace,
-	})}</strong></p>
+        place: sessionPlace,
+      })}</strong></p>
 
       ${
-		topProposals.length > 0
-			? `
+        topProposals.length > 0
+          ? `
         <h3 style="color:#002d75;margin-top:24px">${t(
-			language,
-			"email.sessionResults.proposalsVotedThrough"
-		)}</h3>
+          language,
+          "email.sessionResults.proposalsVotedThrough",
+        )}</h3>
         <ol style="margin:16px 0">
           ${topProposals
-				.map(
-					(p) =>
-						`<li style="margin:8px 0"><strong>${
-							p.title
-						}</strong><br/>
+            .map(
+              (p) =>
+                `<li style="margin:8px 0"><strong>${p.title}</strong><br/>
               <span style="color:#64748b">${p.yesVotes} ${t(
-							language,
-							"email.sessionResults.yesVotes"
-						)}, ${p.noVotes} ${t(
-							language,
-							"email.sessionResults.noVotes"
-						)}</span></li>`
-				)
-				.join("")}
+                language,
+                "email.sessionResults.yesVotes",
+              )}, ${p.noVotes} ${t(
+                language,
+                "email.sessionResults.noVotes",
+              )}</span></li>`,
+            )
+            .join("")}
         </ol>
         <p style="margin-top:24px;padding:16px;background:#fef6e0;border-left:4px solid #f8b60e">
           ${t(language, "email.sessionResults.electionPromise")}
         </p>
       `
-			: `<p style="color:#64748b">${t(
-					language,
-					"email.sessionResults.noMajority"
-			  )}</p>`
-	}
+          : `<p style="color:#64748b">${t(
+              language,
+              "email.sessionResults.noMajority",
+            )}</p>`
+      }
 
       <p style="margin-top:32px;color:#64748b">
         ${t(language, "email.sessionResults.bestRegards")},<br/>
@@ -190,22 +195,22 @@ Vallentuna Framåt
     </div>
   `;
 
-	await sendEmail(email, subject, text, html, language);
+  await sendEmail(email, subject, text, html, language);
 }
 
 export async function sendBroadcastEmail(
-	email: string,
-	subject: string,
-	message: string,
-	language = "sv"
+  email: string,
+  subject: string,
+  message: string,
+  language = "sv",
 ): Promise<void> {
-	const text = message;
-	const html = `
+  const text = message;
+  const html = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#1e293b">
       ${message
-		.split("\n")
-		.map((line) => `<p>${line}</p>`)
-		.join("")}
+        .split("\n")
+        .map((line) => `<p>${line}</p>`)
+        .join("")}
 
       <p style="margin-top:32px;color:#64748b">
         ${t(language, "email.broadcast.bestRegards")},<br/>
@@ -214,19 +219,19 @@ export async function sendBroadcastEmail(
     </div>
   `;
 
-	await sendEmail(email, subject, text, html, language);
+  await sendEmail(email, subject, text, html, language);
 }
 
 export async function sendAdminApplicationNotification(
-	email: string,
-	applicantName: string,
-	applicantEmail: string,
-	organization: string,
-	requestedSessions: number
+  email: string,
+  applicantName: string,
+  applicantEmail: string,
+  organization: string,
+  requestedSessions: number,
 ): Promise<void> {
-	const subject = "New Admin Application";
+  const subject = "New Admin Application";
 
-	const text = `A new user has applied to become an admin.
+  const text = `A new user has applied to become an admin.
 
 Name: ${applicantName}
 Email: ${applicantEmail}
@@ -239,7 +244,7 @@ Best regards,
 Vallentuna Framåt
 `;
 
-	const html = `
+  const html = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#1e293b">
       <h2 style="color:#002d75">New Admin Application</h2>
       <p>A new user has applied to become an admin.</p>
@@ -260,17 +265,17 @@ Vallentuna Framåt
     </div>
   `;
 
-	await sendEmail(email, subject, text, html);
+  await sendEmail(email, subject, text, html);
 }
 
 export async function sendAdminApprovalNotification(
-	email: string,
-	name: string,
-	sessionLimit: number
+  email: string,
+  name: string,
+  sessionLimit: number,
 ): Promise<void> {
-	const subject = "Your Admin Application Has Been Approved";
+  const subject = "Your Admin Application Has Been Approved";
 
-	const text = `Congratulations ${name}!
+  const text = `Congratulations ${name}!
 
 Your application to become an admin has been approved.
 You can create up to ${sessionLimit} sessions.
@@ -281,7 +286,7 @@ Best regards,
 Vallentuna Framåt
 `;
 
-	const html = `
+  const html = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#1e293b">
       <h2 style="color:#16a34a">Your Admin Application Has Been Approved</h2>
       <p>Congratulations ${name}!</p>
@@ -300,13 +305,16 @@ Vallentuna Framåt
     </div>
   `;
 
-	await sendEmail(email, subject, text, html);
+  await sendEmail(email, subject, text, html);
 }
 
-export async function sendAdminDenialNotification(email: string, name: string): Promise<void> {
-	const subject = "Your Admin Application Has Been Denied";
+export async function sendAdminDenialNotification(
+  email: string,
+  name: string,
+): Promise<void> {
+  const subject = "Your Admin Application Has Been Denied";
 
-	const text = `Hello ${name},
+  const text = `Hello ${name},
 
 Unfortunately, your application to become an admin has been denied.
 
@@ -318,7 +326,7 @@ Best regards,
 Vallentuna Framåt
 `;
 
-	const html = `
+  const html = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#1e293b">
       <h2 style="color:#dc2626">Your Admin Application Has Been Denied</h2>
       <p>Hello ${name},</p>
@@ -337,20 +345,20 @@ Vallentuna Framåt
     </div>
   `;
 
-	await sendEmail(email, subject, text, html);
+  await sendEmail(email, subject, text, html);
 }
 
 export async function sendSessionRequestNotification(
-	email: string,
-	adminName: string,
-	adminEmail: string,
-	organization: string | undefined,
-	currentRemaining: number,
-	requestedSessions: number
+  email: string,
+  adminName: string,
+  adminEmail: string,
+  organization: string | undefined,
+  currentRemaining: number,
+  requestedSessions: number,
 ): Promise<void> {
-	const subject = "New Session Request";
+  const subject = "New Session Request";
 
-	const text = `An admin has requested more sessions
+  const text = `An admin has requested more sessions
 
 Admin: ${adminName}
 Email: ${adminEmail}
@@ -364,7 +372,7 @@ Best regards,
 Vallentuna Framåt
 `;
 
-	const html = `
+  const html = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#1e293b">
       <h2 style="color:#002d75">New Session Request</h2>
       <p>An admin has requested more sessions:</p>
@@ -386,17 +394,17 @@ Vallentuna Framåt
     </div>
   `;
 
-	await sendEmail(email, subject, text, html);
+  await sendEmail(email, subject, text, html);
 }
 
 export async function sendSessionRequestApprovalNotification(
-	email: string,
-	name: string,
-	grantedSessions: number
+  email: string,
+  name: string,
+  grantedSessions: number,
 ): Promise<void> {
-	const subject = "Your Session Request Has Been Approved";
+  const subject = "Your Session Request Has Been Approved";
 
-	const text = `Hello ${name},
+  const text = `Hello ${name},
 
 Your request for more sessions has been approved!
 Granted sessions: ${grantedSessions}
@@ -407,7 +415,7 @@ Best regards,
 Vallentuna Framåt
 `;
 
-	const html = `
+  const html = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#1e293b">
       <h2 style="color:#16a34a">Request Approved!</h2>
       <p>Hello ${name},</p>
@@ -426,13 +434,16 @@ Vallentuna Framåt
     </div>
   `;
 
-	await sendEmail(email, subject, text, html);
+  await sendEmail(email, subject, text, html);
 }
 
-export async function sendSessionRequestDenialNotification(email: string, name: string): Promise<void> {
-	const subject = "Your Session Request Has Been Denied";
+export async function sendSessionRequestDenialNotification(
+  email: string,
+  name: string,
+): Promise<void> {
+  const subject = "Your Session Request Has Been Denied";
 
-	const text = `Hello ${name},
+  const text = `Hello ${name},
 
 Unfortunately, your request for more sessions has been denied.
 
@@ -442,7 +453,7 @@ Best regards,
 Vallentuna Framåt
 `;
 
-	const html = `
+  const html = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#1e293b">
       <h2 style="color:#dc2626">Request Denied</h2>
       <p>Hello ${name},</p>
@@ -460,5 +471,5 @@ Vallentuna Framåt
     </div>
   `;
 
-	await sendEmail(email, subject, text, html);
+  await sendEmail(email, subject, text, html);
 }

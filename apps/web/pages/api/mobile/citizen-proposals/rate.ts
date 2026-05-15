@@ -6,8 +6,12 @@ import { createLogger } from "../../../../lib/logger";
 
 const log = createLogger("MobileCitizenRate");
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ message: "Method not allowed" });
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "POST")
+    return res.status(405).json({ message: "Method not allowed" });
 
   let user;
   try {
@@ -17,18 +21,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const { proposalId, rating } = req.body;
-  if (!proposalId) return res.status(400).json({ message: "Missing proposalId" });
-  if (!rating || rating < 1 || rating > 5) return res.status(400).json({ message: "Rating must be 1–5" });
+  if (!proposalId)
+    return res.status(400).json({ message: "Missing proposalId" });
+  if (!rating || rating < 1 || rating > 5)
+    return res.status(400).json({ message: "Rating must be 1–5" });
 
   try {
     await connectDB();
 
-    const existing = await CitizenProposalRating.findOne({ proposalId, userId: user.id });
+    const existing = await CitizenProposalRating.findOne({
+      proposalId,
+      userId: user.id,
+    });
     if (existing) {
       existing.rating = rating;
       await existing.save();
     } else {
-      await CitizenProposalRating.create({ proposalId, userId: user.id, rating });
+      await CitizenProposalRating.create({
+        proposalId,
+        userId: user.id,
+        rating,
+      });
     }
 
     const all = await CitizenProposalRating.find({ proposalId });
@@ -36,9 +49,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const ratingCount = all.length;
     const averageRating = totalStars / ratingCount;
 
-    await CitizenProposal.findByIdAndUpdate(proposalId, { totalStars, ratingCount, averageRating });
+    await CitizenProposal.findByIdAndUpdate(proposalId, {
+      totalStars,
+      ratingCount,
+      averageRating,
+    });
 
-    return res.status(200).json({ averageRating, ratingCount, userRating: rating });
+    return res
+      .status(200)
+      .json({ averageRating, ratingCount, userRating: rating });
   } catch (error) {
     log.error("Failed to rate citizen proposal", { error: error.message });
     return res.status(500).json({ message: "Failed to rate" });

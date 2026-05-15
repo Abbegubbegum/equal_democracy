@@ -14,7 +14,7 @@ export async function getAccessToken(): Promise<string | null> {
 
 export async function setTokens(
   accessToken: string,
-  refreshToken: string
+  refreshToken: string,
 ): Promise<void> {
   await setItem(ACCESS_TOKEN_KEY, accessToken);
   await setItem(REFRESH_TOKEN_KEY, refreshToken);
@@ -52,7 +52,7 @@ async function attemptRefresh(): Promise<string | null> {
 export class ApiError extends Error {
   constructor(
     public status: number,
-    message: string
+    message: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -61,7 +61,7 @@ export class ApiError extends Error {
 
 export async function apiClient<T = unknown>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const token = await getAccessToken();
 
@@ -87,7 +87,10 @@ export async function apiClient<T = unknown>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, body.message ?? `Request failed: ${res.status}`);
+    throw new ApiError(
+      res.status,
+      body.message ?? `Request failed: ${res.status}`,
+    );
   }
 
   return res.json() as Promise<T>;

@@ -6,8 +6,12 @@ import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("MobileQuickVote");
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ message: "Method not allowed" });
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "POST")
+    return res.status(405).json({ message: "Method not allowed" });
 
   let user;
   try {
@@ -18,7 +22,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { sessionId, choice } = req.body;
   if (!sessionId) return res.status(400).json({ message: "sessionId krävs" });
-  if (!["ja", "nej", "abstar"].includes(choice)) return res.status(400).json({ message: "Ogiltigt val" });
+  if (!["ja", "nej", "abstar"].includes(choice))
+    return res.status(400).json({ message: "Ogiltigt val" });
 
   try {
     await connectDB();
@@ -26,7 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await QuickVote.findOneAndUpdate(
       { sessionId, userId: user.id },
       { choice },
-      { upsert: true, new: true }
+      { upsert: true, new: true },
     );
 
     const allVotes = await QuickVote.find({ sessionId }).lean();

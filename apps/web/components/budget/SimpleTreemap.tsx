@@ -6,7 +6,11 @@ import * as d3 from "d3";
  * Shows only expense categories with green-to-red color scale
  * Displays committee name and amount in mnkr
  */
-export default function SimpleTreemap({ categories, taxBaseInfo, onCategoryClick }) {
+export default function SimpleTreemap({
+  categories,
+  taxBaseInfo,
+  onCategoryClick,
+}) {
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -91,7 +95,7 @@ export default function SimpleTreemap({ categories, taxBaseInfo, onCategoryClick
       .data(leaves)
       .join("g")
       .attr("transform", (d) => `translate(${d.x0},${d.y0})`)
-      .on("click", function(_event, d) {
+      .on("click", function (_event, d) {
         if (onCategoryClick) {
           onCategoryClick(d.data.id);
         }
@@ -248,7 +252,7 @@ export default function SimpleTreemap({ categories, taxBaseInfo, onCategoryClick
     return () => {
       window.removeEventListener("resize", handleResize);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories, taxBaseInfo, onCategoryClick]);
 
   // Helper function to wrap text with hyphenation support
