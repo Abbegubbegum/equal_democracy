@@ -178,7 +178,7 @@ function SessionsPanel() {
 	}, []);
 
 	useEffect(() => {
-		loadSessions(); // eslint-disable-line react-hooks/set-state-in-effect
+		loadSessions();
 		loadSessionLimit();
 		loadSettings();
 		setNewPlace("Write a short question max eight words here");

@@ -45,7 +45,7 @@ async function checkContent(text: string): Promise<{ shouldRemove: boolean; reas
 
 async function runBatched<T>(
   items: T[],
-  fn: (item: T) => Promise<void>,
+  fn: (_item: T) => Promise<void>,
   concurrency = 5,
 ) {
   for (let i = 0; i < items.length; i += concurrency) {
