@@ -3,7 +3,7 @@ import dbConnect from "@/lib/mongodb";
 import { Session } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
-import broadcaster from "@/lib/sse-broadcaster";
+import broadcaster from "@/lib/pusher-broadcaster";
 import { archiveRankingSession } from "@/lib/session-close";
 import { createLogger } from "@/lib/logger";
 

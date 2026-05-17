@@ -17,7 +17,7 @@ import {
 import { fetchWithCsrf } from "../../lib/fetch-with-csrf";
 import { useTranslation } from "../../lib/hooks/useTranslation";
 import { useConfig } from "../../lib/contexts/ConfigContext";
-import useSSE from "../../lib/hooks/useSSE";
+import usePusher from "../../lib/hooks/usePusher";
 import { useLazySound } from "../../lib/hooks/useLazySound";
 
 // Standard session page - for 2-phase democracy sessions
@@ -407,7 +407,7 @@ export default function SessionPage() {
   startTiebreakerCountdownRef.current = startTiebreakerCountdown;
 
   // Setup SSE for real-time updates
-  const { activeUserCount } = useSSE({
+  const { activeUserCount } = usePusher({
     onNewProposal: (proposal) => {
       if (proposal.sessionId === sessionId) {
         setProposals((prev) => [proposal, ...prev]);

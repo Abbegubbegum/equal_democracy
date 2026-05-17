@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session, Proposal } from "@/lib/models";
-import broadcaster from "@/lib/sse-broadcaster";
+import broadcaster from "@/lib/pusher-broadcaster";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("Sessions");

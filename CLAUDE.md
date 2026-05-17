@@ -1,8 +1,24 @@
 # Equal Democracy (Jämlik Demokrati) — Project Reference
 
+## Working Principles (read first)
+
+These override the default Claude Code defaults for this project:
+
+1. **Production-ready by default.** Every change must work on the deploy target (Vercel serverless), not just on a dev machine. No filesystem writes to `public/`, no assumptions of persistent in-process state across requests, no reliance on a long-running Node process. If a feature needs a cron/queue/blob store in production, wire it up — don't leave a dev-only shim. See [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for the running list of patterns to avoid.
+
+2. **Runtime matters.** Consider what happens after deploy: function cold starts, 60s/300s timeouts, read-only filesystem outside `/tmp`, ephemeral `/tmp`, multiple lambda instances, MongoDB connection pooling, CDN caching of `public/`. A solution that works at 5 users but fails at 500 is not finished.
+
+3. **No legacy.** This codebase has no backwards-compatibility burden. If a name is misleading, rename it. If code is dead or unused, delete it. If a pattern is outdated, rewrite it. Don't add deprecation shims, don't preserve old export names, don't keep "removed for X" comments.
+
+4. **Fix what you find.** If you encounter broken, stale, or low-quality code while working on a different task, fix it in the same change. Don't tip-toe around it or file a follow-up note. The exception is large refactors that would obscure the primary diff — flag those before starting.
+
+5. **Keep this file accurate.** When you add a model, route, page, package, or architectural decision, update the relevant section before completing the task. When you delete something, remove its entry. Stale docs are worse than no docs.
+
+6. **Always Read before Edit.** Before any batch of Edits, Read every target file in the same parallel batch — even just `limit: 1` is enough to satisfy the tool. Don't rely on having read the file earlier in the session, and never assume a renamed/moved path is cached. Firing Edit on an unread path errors out and forces a re-read round-trip, which wastes a turn.
+
 ## Maintenance
 
-This file should be kept up to date as the project evolves. When making significant changes — new models, API routes, pages, packages, or architectural decisions — update the relevant section of this file before completing the task.
+**Before deploying to Vercel**, read [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) — it tracks patterns in the codebase that work locally but break on serverless (filesystem writes to `public/`, missing cron, etc.) and lists the env vars + checklist for first deploy.
 
 ## Project Overview
 
@@ -44,6 +60,7 @@ pnpm dev:mobile       # Start mobile only (no web)
 pnpm build            # Build all apps
 pnpm lint             # Lint all (web + mobile + packages)
 pnpm check-types      # Type check all (web + mobile + packages)
+pnpm format           # Prettier-format all .ts/.tsx/.md files
 
 # From apps/web specifically
 pnpm dev --filter=web
@@ -189,7 +206,9 @@ apps/web/
 | `logger.ts`                     | `createLogger()`                                                                                             |
 | `fetch-with-csrf.ts`            | `fetchWithCsrf()` — CSRF-aware HTTP client for frontend                                                      |
 | `validation.ts`                 | Form validation helpers                                                                                      |
-| `sse-broadcaster.ts`            | Server-sent events broadcasting                                                                              |
+| `pusher-broadcaster.ts`         | Server-side Pusher publisher — `broadcaster.broadcast()` + `broadcastToSession()`                            |
+| `mobile-jwt.ts`                 | `signTokenPair()`, `verifyBearerToken()` — JWT auth for mobile API routes                                    |
+| `ai.ts`                         | `moderateContent()`, `classifyCategories()` — Claude API wrappers for moderation + category suggestions      |
 | `session-close.ts`              | Session termination logic                                                                                    |
 | `push-notifications.ts`         | `sendPushNotifications()` + `notifyNewVotingQuestion()` — sends to Expo Push API in batches of 100           |
 | `budget/ai-extractor.ts`        | `extractBudgetFromPDF()` — Claude API extracts budget data from PDFs                                         |
@@ -198,7 +217,7 @@ apps/web/
 | `municipal/notifications.ts`    | Municipal notification logic                                                                                 |
 | `contexts/ConfigContext.tsx`    | Theme + language context provider                                                                            |
 | `hooks/useTranslation.ts`       | i18n hook                                                                                                    |
-| `hooks/useSSE.ts`               | SSE connection hook                                                                                          |
+| `hooks/usePusher.ts`            | Client Pusher subscriber + presence channel (`activeUserCount`)                                              |
 | `hooks/useLazySound.ts`         | Audio playback hook                                                                                          |
 | `locales/[sv,en,sr,es,de].ts`   | Translation strings (5 languages)                                                                            |
 
@@ -324,6 +343,9 @@ Session types: `"standard"` · `"survey"` · `"municipal"` · `"voting"`
 - `GET/POST /api/admin/session-limit`
 - `POST /api/admin/clean-content` — Super-admin only: scans all comments, proposals, AND citizen proposals with Claude Haiku, deletes flagged items, returns `{ checked, removed, items }`
 - `GET/PATCH /api/admin/citizen-proposals` — List all citizen proposals / update status (active/archived/selected/submitted_as_motion/rejected)
+- `POST /api/admin/suggest-categories` — Suggest category tags for a proposal title/description via Claude (admin-only)
+- `GET/PATCH /api/admin/session-requests` — List session-quota requests / approve or deny
+- `POST /api/admin/session-image` — Multipart image upload for session backgrounds (writes to `public/session-images/` — see PRODUCTION_READINESS.md, this breaks on Vercel)
 
 ### Mobile Auth (JWT)
 
@@ -351,6 +373,9 @@ Mobile API calls pass `Authorization: Bearer <accessToken>`. Use `verifyBearerTo
 - `POST /api/mobile/push-token` — Store Expo push token on the user record (`ExponentPushToken[…]` prefix validated)
 - `POST /api/mobile/suggest-question` — Send a question suggestion as email to admin via Resend
 - `POST /api/mobile/xai` — XAI chat: `{ message, context }` → `{ reply }`. Calls `claude-haiku-4-5-20251001` with a democratic-assistant system prompt. Max 300 tokens. Context is the current tab label (passed for relevance).
+- `POST /api/mobile/user/interests` — Update the user's interest-area filter list (validated against `ALL_CATEGORIES`)
+- `POST /api/mobile/suggest-categories` — Claude-backed category suggestion for a draft citizen proposal
+- `POST /api/mobile/proposals/rate` — Star rating on a session proposal (mobile equivalent of `/api/thumbsup`)
 
 ### Other
 
@@ -359,7 +384,7 @@ Mobile API calls pass `Authorization: Bearer <accessToken>`. Use `verifyBearerTo
 - `GET /api/user/activity`
 - `POST /api/apply-admin`
 - `GET /api/recent` — includes "voting"-type sessions with icon 📱 and subtitle "Röstning · svara i appen"; link is `"#"` (no dedicated web page yet)
-- `GET /api/events` — SSE stream
+- `POST /api/moderate` — Content moderation via Claude Haiku (uses `lib/ai.ts`)
 - `POST /api/csrf-token`
 - `POST /api/check-session-timeout`
 - `POST /api/pusher/auth`
@@ -476,8 +501,8 @@ Claude API receives base64-encoded PDF. Budget extraction (`lib/budget/ai-extrac
 
 ### Real-time
 
-- **Pusher:** Client-to-client broadcast (votes, phase transitions)
-- **SSE:** Server-to-client streaming (`/api/events`) — used for admin live panel
+- **Pusher:** All real-time fan-out (votes, phase transitions, ratings, new proposals, presence). Server publishes via `lib/pusher-broadcaster.ts`; clients subscribe via the `usePusher` hook. Presence channel `presence-active-users` powers the live "active users" count (authed through `POST /api/pusher/auth`).
+- **Admin live panel:** uses `GET /api/admin/live-panel` polling for proposal/vote progress metrics (Pusher pushes the events that trigger refetches).
 
 ### Internationalization
 
@@ -518,7 +543,7 @@ Claude API receives base64-encoded PDF. Budget extraction (`lib/budget/ai-extrac
 | Charts             | D3.js v7 (treemaps, visualizations)                                                |
 | Audio              | Howler.js + use-sound                                                              |
 | File upload        | Formidable                                                                         |
-| PDF parsing        | pdf-parse                                                                          |
+| PDF parsing        | Claude API (reads PDF base64 directly; `pdf-parse` is in package.json but unused)  |
 | Analytics          | Vercel Analytics                                                                   |
 | Mobile             | Expo 54 + React Native 0.81.5 + expo-image-picker ~16 + expo-image-manipulator ~13 |
 | Monorepo           | Turborepo 2.8.20                                                                   |

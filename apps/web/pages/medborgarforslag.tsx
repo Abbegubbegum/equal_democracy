@@ -15,7 +15,7 @@ import {
 import { fetchWithCsrf } from "../lib/fetch-with-csrf";
 import { useTranslation } from "../lib/hooks/useTranslation";
 import { useConfig } from "../lib/contexts/ConfigContext";
-import useSSE from "../lib/hooks/useSSE";
+import usePusher from "../lib/hooks/usePusher";
 
 const CATEGORY_NAMES = {
   1: "Bygga, bo och miljö",
@@ -57,7 +57,7 @@ export default function MedborgarforslagPage() {
     }
   }, []);
 
-  useSSE({
+  usePusher({
     onNewSession: fetchActiveSessions,
     onPhaseChange: fetchActiveSessions,
     onSessionArchived: fetchActiveSessions,

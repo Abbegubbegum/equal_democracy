@@ -4,7 +4,7 @@ import { Session, User, FinalVote } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { csrfProtection } from "@/lib/csrf";
-import broadcaster from "@/lib/sse-broadcaster";
+import broadcaster from "@/lib/pusher-broadcaster";
 import {
   hasAdminAccess,
   isSuperAdmin,

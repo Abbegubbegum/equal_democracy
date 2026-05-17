@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session } from "@/lib/models";
 import { closeSession } from "@/lib/session-close";
-import broadcaster from "@/lib/sse-broadcaster";
+import broadcaster from "@/lib/pusher-broadcaster";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("ExecuteScheduledTermination");

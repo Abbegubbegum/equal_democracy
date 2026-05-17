@@ -5,7 +5,7 @@ import type { Channel, PresenceChannel } from "pusher-js";
 
 type AnyData = any;
 
-export interface SSEHandlers {
+export interface PusherHandlers {
   onConnected?: (_data: { message: string }) => void;
   onError?: (_error: unknown) => void;
   onNewProposal?: (_data: AnyData) => void;
@@ -21,12 +21,12 @@ export interface SSEHandlers {
   onSessionArchived?: (_data: AnyData) => void;
 }
 
-export default function useSSE(handlers: SSEHandlers = {}) {
+export default function usePusher(handlers: PusherHandlers = {}) {
   const { data: session, status } = useSession();
   const pusherRef = useRef<Pusher | null>(null);
   const channelRef = useRef<Channel | null>(null);
   const presenceChannelRef = useRef<PresenceChannel | null>(null);
-  const handlersRef = useRef<SSEHandlers>(handlers);
+  const handlersRef = useRef<PusherHandlers>(handlers);
   const [activeUserCount, setActiveUserCount] = useState(0);
 
   useEffect(() => {

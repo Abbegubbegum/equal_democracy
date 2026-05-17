@@ -5,7 +5,7 @@ import connectDB from "../../lib/mongodb";
 import { Comment } from "../../lib/models";
 import { getActiveSession, registerActiveUser } from "../../lib/session-helper";
 import { csrfProtection } from "../../lib/csrf";
-import broadcaster from "../../lib/sse-broadcaster";
+import broadcaster from "../../lib/pusher-broadcaster";
 import { createLogger } from "../../lib/logger";
 
 const log = createLogger("Comments");

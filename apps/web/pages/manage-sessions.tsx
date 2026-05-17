@@ -13,7 +13,7 @@ import { GEOGRAPHIC_CATEGORIES, THEMATIC_CATEGORIES } from "@repo/types";
 import { fetchWithCsrf } from "../lib/fetch-with-csrf";
 import { useConfig } from "../lib/contexts/ConfigContext";
 import { useTranslation } from "../lib/hooks/useTranslation";
-import useSSE from "../lib/hooks/useSSE";
+import usePusher from "../lib/hooks/usePusher";
 
 export default function ManageSessionsPage() {
   const { data: session, status } = useSession();
@@ -1269,7 +1269,7 @@ function LivePanel({ sessionId, onPhaseAdvanced }) {
   }, [countdown, fetchData, onPhaseAdvanced, data?.phase, executeTermination]);
 
   // Listen for Pusher events to trigger immediate refresh
-  useSSE({
+  usePusher({
     onRatingUpdate: () => fetchData(),
     onNewProposal: () => fetchData(),
     onVoteUpdate: () => fetchData(),

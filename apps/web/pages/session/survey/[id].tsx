@@ -13,7 +13,7 @@ import {
 import { fetchWithCsrf } from "../../../lib/fetch-with-csrf";
 import { useTranslation } from "../../../lib/hooks/useTranslation";
 import { useConfig } from "../../../lib/contexts/ConfigContext";
-import useSSE from "../../../lib/hooks/useSSE";
+import usePusher from "../../../lib/hooks/usePusher";
 import { useLazySound } from "../../../lib/hooks/useLazySound";
 
 export default function SurveySessionPage() {
@@ -99,7 +99,7 @@ export default function SurveySessionPage() {
   }, [sessionId, router]);
 
   // Setup SSE for real-time updates
-  const { activeUserCount } = useSSE({
+  const { activeUserCount } = usePusher({
     onNewProposal: (proposal) => {
       if (proposal.sessionId === sessionId) {
         setProposals((prev) => [proposal, ...prev]);

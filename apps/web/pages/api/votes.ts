@@ -6,7 +6,7 @@ import { FinalVote, Session, Settings } from "../../lib/models";
 import { getActiveSession, registerActiveUser } from "../../lib/session-helper";
 import { validateObjectId, toObjectId } from "../../lib/validation";
 import { csrfProtection } from "../../lib/csrf";
-import broadcaster from "../../lib/sse-broadcaster";
+import broadcaster from "../../lib/pusher-broadcaster";
 import { closeSession } from "../../lib/session-close";
 import { createLogger } from "../../lib/logger";
 
