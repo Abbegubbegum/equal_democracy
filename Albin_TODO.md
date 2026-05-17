@@ -15,144 +15,41 @@ EXPO_PUBLIC_API_URL=https://din-vercel-domän.vercel.app
 
 ---
 
-## 2. Generera app-ikon från SVG
+## 2. ✅ Generera app-ikon från SVG
 
-Den färdiga logotypen finns i `apps/mobile/assets/icon.svg` (mörk blå rundad ruta med två gula pilar).
-Expo behöver PNG-filer i rätt storlekar.
-
-```bash
-# Installera sharp-cli eller använd ett onlineverktyg (t.ex. svgtopng.com)
-# Generera:
-#   icon.png          — 1024×1024 (App Store + Play Store)
-#   adaptive-icon.png — 1024×1024 (Android adaptive icon, förgrundslager)
-#   splash-icon.png   — valfri storlek
-
-# Ersätt filerna i apps/mobile/assets/
-```
-
-Kontrollera att `apps/mobile/app.json` pekar rätt:
-
-```json
-{
-  "expo": {
-    "icon": "./assets/icon.png",
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#002d75"
-      }
-    }
-  }
-}
-```
+**Klart.** `icon.png`, `adaptive-icon.png`, `splash-icon.png` och `favicon.png` finns redan i `apps/mobile/assets/`.
+`app.json` pekar redan rätt och Android-färgen är satt till `#002d75`.
 
 ---
 
 ## 3. Installera expo-notifications
 
-OneDrive blockerade installationen under utveckling. Pausa OneDrive-synkronisering och kör:
+**Paketet är installerat** (`expo-notifications ^55.0.23` finns i `package.json`).
 
-```bash
-pnpm add expo-notifications --filter=mobile
-```
-
-Lägg sedan till pluginen i `apps/mobile/app.json`:
+**Återstår:** Lägg till pluginen i `apps/mobile/app.json` (under `"plugins"`):
 
 ```json
-{
-  "expo": {
-    "plugins": [
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#002d75"
-        }
-      ]
-    ]
+[
+  "expo-notifications",
+  {
+    "icon": "./assets/notification-icon.png",
+    "color": "#002d75"
   }
-}
+]
 ```
+
+> OBS: Du behöver också skapa/exportera `notification-icon.png` (vit ikon, 96×96 px, transparent bakgrund) och lägga den i `apps/mobile/assets/`.
 
 ---
 
-## 4. Återaktivera notis-koden i appen
+## 4. ✅ Återaktivera notis-koden i appen
 
-Två filer behöver uppdateras (koden är förberedd men kommenterades bort p.g.a. installationsproblem):
+**Klart.** Koden är redan på plats i båda filerna:
 
-### `apps/mobile/app/(app)/_layout.tsx`
+- `apps/mobile/app/(app)/_layout.tsx` — import, `setNotificationHandler`, push-token-registrering och notis-lyssnare
+- `apps/mobile/app/(app)/vote.tsx` — `setBadgeCountAsync(0)` vid tab-fokus
 
-Lägg tillbaka längst upp i filen:
-
-```ts
-import * as Notifications from "expo-notifications";
-import { apiClient } from "../../lib/api";
-import { Platform } from "react-native";
-```
-
-Lägg tillbaka `setNotificationHandler` utanför komponenten:
-
-```ts
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
-```
-
-Lägg tillbaka `useEffect` i `AppLayout`:
-
-```ts
-useEffect(() => {
-  if (!user) return;
-  (async () => {
-    try {
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== "granted") return;
-      if (Platform.OS === "android") {
-        await Notifications.setNotificationChannelAsync("default", {
-          name: "Default",
-          importance: Notifications.AndroidImportance.MAX,
-          sound: "default",
-        });
-      }
-      const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: "<ditt-eas-project-id>", // ← fyll i efter steg 5
-      });
-      await apiClient("/api/mobile/push-token", {
-        method: "POST",
-        body: JSON.stringify({ token: tokenData.data }),
-      }).catch(() => {});
-    } catch {}
-  })();
-
-  const sub = Notifications.addNotificationResponseReceivedListener(
-    (response) => {
-      const screen = response.notification.request.content.data?.screen;
-      if (screen === "vote") {
-        router.navigate("/(app)/vote");
-        Notifications.setBadgeCountAsync(0);
-      }
-    },
-  );
-  return () => sub.remove();
-}, [user]);
-```
-
-### `apps/mobile/app/(app)/vote.tsx`
-
-Lägg tillbaka i `useEffect`:
-
-```ts
-import * as Notifications from "expo-notifications";
-// ...
-useEffect(() => {
-  load();
-  Notifications.setBadgeCountAsync(0);
-}, []);
-```
+När du har ett riktigt EAS **project-id** (steg 5) behöver du inte ändra något — koden misslyckas tyst i Expo Go men fungerar automatiskt i ett EAS-bygge med `projectId` satt i `app.json`.
 
 ---
 
@@ -262,9 +159,10 @@ eas build --profile production --platform ios
 ## Sammanfattning — checklista
 
 - [ ] Produktions-URL i `.env`
-- [ ] Generera `icon.png` från `icon.svg` (1024×1024)
-- [ ] Installera `expo-notifications` (pausa OneDrive först)
-- [ ] Återaktivera notis-koden i `_layout.tsx` och `vote.tsx`
+- [x] Generera `icon.png` från `icon.svg` (1024×1024)
+- [x] Installera `expo-notifications`
+- [ ] Lägg till `expo-notifications`-plugin i `app.json` + skapa `notification-icon.png`
+- [x] Återaktivera notis-koden i `_layout.tsx` och `vote.tsx`
 - [ ] Skapa EAS-konto och kör `eas init`
 - [ ] FCM-nyckel (Android-notiser)
 - [ ] Apple Developer-konto + APNs-nyckel (iOS-notiser)

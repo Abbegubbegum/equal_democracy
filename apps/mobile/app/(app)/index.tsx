@@ -6,17 +6,10 @@ import {
   StyleSheet,
   Image,
   TouchableOpacity,
-  Modal,
-  Switch,
-  TouchableWithoutFeedback,
-  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "../../lib/auth-context";
-import { getItem, setItem } from "../../lib/storage";
-import { BASE_URL } from "../../lib/api";
 import {
   getStars,
   addStars,
@@ -26,6 +19,7 @@ import {
   markInterestsSaved,
 } from "../../lib/stars";
 import CelebrationModal from "../../lib/CelebrationModal";
+import { SettingsModal } from "../../lib/SettingsModal";
 
 const PLACEHOLDER_IMAGE =
   "https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&q=80";
@@ -36,66 +30,31 @@ const YELLOW = "#f5a623";
 const VALUES = [
   {
     icon: "people-outline" as const,
-    title: "Medborgarinflytande",
-    text: "Vallentuna framåt ser invånare som delägare av vår kommun — med samma rätt att bestämma som en aktieägare.\n\nVi vill skapa en smartare demokrati där alla samarbetar och ingen sitter på för mycket makt. Rösta på Vallentuna framåt för att vara med och bestämma i dina frågor.",
+    title: "INFLYTANDE",
+    text: "Du som bor i Vallentuna ska ha samma rätt att påverka här som en aktieägare. Swipa, scrolla och rösta för att vara med.",
   },
   {
     icon: "leaf-outline" as const,
-    title: "Hållbar utveckling",
-    text: "Vallentuna ska växa in i framtiden och bli en föregångare inom socioteknik.\n\nVi ska bevara naturen och utnyttja teknologin för att skapa ett bra liv för kommande generationer.",
+    title: "UTVECKLING",
+    text: "Vallentuna ska växa in i framtiden och bli föregångare inom sociotekniska innovationer. Vi ska också bevara naturen och skapa ett bra liv för kommande generationer.",
   },
   {
     icon: "sunny-outline" as const,
-    title: "Öppenhet och anonymitet",
-    text: "Vallentuna framåt bygger på öppenhet och anonymitet. Det gör korruption och maktmissbruk i princip omöjligt.\n\nDebatt och omröstning är anonym. Anonymiteten skyddar mot röstköp och åsiktsregistrering.",
+    title: "POLICY",
+    text: "För att motverka maktmissbruk är appen anonym. Det skyddar mot personpåhopp, korruption och åsiktsregistrering.",
   },
   {
     icon: "sparkles" as const,
     title: "XAI",
-    text: "XAI är AI som alltid förklarar vad den gör. Den hjälper dig hitta intressanta frågor, träffa andra med samma intressen samt sammanfatta information och skriva bra förslag.\n\nDet gör Vallentuna till pionjärer inom AI och politik. Skriver XAI något konstigt finns det en anmälningsknapp — då kan andra bedöma om den måste bytas ut. XAI ska förbättra demokratin, inte försämra den.\n\nVarje år lämnar XAI en demokratirapport som mäter maktkoncentrationen i Vallentuna framåt. Vi vill inte ha någon mäktig ledare.",
+    text: "XAI är en betjänt som hjälper dig att göra rätt, men det är du som bestämmer. Gör XAI något konstigt så finns det en anmälningsknapp. Tryck så granskar vi den.\n\nVarje år lämnar XAI en demokratirapport som mäter maktkoncentrationen i lokalpartiet. Vi vill inte ha någon mäktig ledare utan mäktiga medborgare.",
   },
 ];
-
-export const INTEREST_AREAS: {
-  key: string;
-  label: string;
-  alwaysOn?: boolean;
-  note?: string;
-  groupLabel?: string;
-}[] = [
-  {
-    key: "budget",
-    label: "Budgeten",
-    alwaysOn: true,
-    note: "Alltid aktiv — balanserar övriga intressen",
-  },
-  { key: "barn", label: "Barn och utbildning" },
-  { key: "arbete", label: "Arbete och Näringsliv" },
-  { key: "aldre", label: "Äldre och social gemenskap" },
-  { key: "politik", label: "Politik och Organisation" },
-  { key: "infra", label: "Infrastruktur och Identitet" },
-  { key: "kultur", label: "Kultur och Fritid" },
-  {
-    key: "geo_central",
-    label: "Centrala Vallentuna",
-    groupLabel: "Geografiska intressen",
-  },
-  { key: "geo_lindholmen", label: "Lindholmen och Västra Vallentuna" },
-  { key: "geo_karsta", label: "Kårsta och norra Vallentuna" },
-  { key: "geo_karby", label: "Karby, Brottby, Össeby-Garn" },
-];
-
-const STORAGE_INTERESTS = "user_interests";
-const STORAGE_INTERESTS_ONLY = "user_interests_only";
 
 export default function HomeScreen() {
-  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [heroHeight, setHeroHeight] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
-  const [interests, setInterests] = useState<string[]>(["budget"]);
-  const [interestsOnly, setInterestsOnly] = useState(true);
   const [starCount, setStarCount] = useState(0);
   const [celebration, setCelebration] = useState<{
     title: string;
@@ -105,10 +64,6 @@ export default function HomeScreen() {
 
   useEffect(() => {
     (async () => {
-      const saved = await getItem(STORAGE_INTERESTS);
-      if (saved) setInterests(JSON.parse(saved));
-      const savedOnly = await getItem(STORAGE_INTERESTS_ONLY);
-      if (savedOnly !== null) setInterestsOnly(savedOnly === "true");
       const stars = await getStars();
       setStarCount(stars);
       if (await isFirstVisit()) {
@@ -125,12 +80,7 @@ export default function HomeScreen() {
     })();
   }, []);
 
-  async function handleSave(newInterests: string[], newOnly: boolean) {
-    setInterests(newInterests);
-    setInterestsOnly(newOnly);
-    await setItem(STORAGE_INTERESTS, JSON.stringify(newInterests));
-    await setItem(STORAGE_INTERESTS_ONLY, String(newOnly));
-    setShowSettings(false);
+  async function handleSaved() {
     if (await isFirstInterestsSave()) {
       await markInterestsSaved();
       const newTotal = await addStars(2);
@@ -158,18 +108,6 @@ export default function HomeScreen() {
         contentContainerStyle={[styles.container, { paddingTop: heroHeight }]}
         showsVerticalScrollIndicator={false}
       >
-        {user && (
-          <View style={styles.welcomeBox}>
-            <Text style={styles.welcomeText}>
-              Välkommen, {user.email.split("@")[0]}!
-            </Text>
-            <Text style={styles.welcomeSub}>
-              Swipa och scrolla för att delta i demokratin.
-            </Text>
-          </View>
-        )}
-
-        <Text style={styles.sectionTitle}>Våra kärnvärden</Text>
         {VALUES.map((v) => (
           <View key={v.title} style={styles.valueCard}>
             <View style={styles.valueIcon}>
@@ -247,10 +185,8 @@ export default function HomeScreen() {
 
       <SettingsModal
         visible={showSettings}
-        initialInterests={interests}
-        initialOnly={interestsOnly}
-        onSave={handleSave}
         onClose={() => setShowSettings(false)}
+        onSaved={handleSaved}
       />
 
       <CelebrationModal
@@ -261,155 +197,6 @@ export default function HomeScreen() {
         onDone={() => setCelebration(null)}
       />
     </View>
-  );
-}
-
-function SettingsModal({
-  visible,
-  initialInterests,
-  initialOnly,
-  onSave,
-  onClose,
-}: {
-  visible: boolean;
-  initialInterests: string[];
-  initialOnly: boolean;
-  onSave: (interests: string[], only: boolean) => void;
-  onClose: () => void;
-}) {
-  const insets = useSafeAreaInsets();
-  const { user } = useAuth();
-  const [localInterests, setLocalInterests] = useState(initialInterests);
-  const [localOnly, setLocalOnly] = useState(initialOnly);
-
-  useEffect(() => {
-    if (visible) {
-      setLocalInterests(initialInterests);
-      setLocalOnly(initialOnly);
-    }
-  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function toggle(key: string) {
-    if (key === "budget") return;
-    setLocalInterests((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
-  }
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={st.backdrop}>
-          <TouchableWithoutFeedback>
-            <View style={[st.sheet, { paddingBottom: insets.bottom + 20 }]}>
-              <View style={st.handle} />
-
-              <View style={st.header}>
-                <Text style={st.title}>Mina inställningar</Text>
-                <TouchableOpacity onPress={onClose} hitSlop={12}>
-                  <Ionicons name="close" size={22} color="#666" />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={st.sectionLabel}>Intresseområden</Text>
-              <Text style={st.sectionHint}>Välj ett eller flera</Text>
-
-              {INTEREST_AREAS.map((area) => {
-                const checked = localInterests.includes(area.key);
-                return (
-                  <View key={area.key}>
-                    {area.groupLabel ? (
-                      <View style={st.groupHeader}>
-                        <View style={st.divider} />
-                        <Text style={st.groupLabelText}>{area.groupLabel}</Text>
-                      </View>
-                    ) : null}
-                    <TouchableOpacity
-                      style={[st.row, area.alwaysOn && st.rowFixed]}
-                      onPress={() => toggle(area.key)}
-                      activeOpacity={area.alwaysOn ? 1 : 0.7}
-                    >
-                      <View style={[st.checkbox, checked && st.checkboxOn]}>
-                        {checked && (
-                          <Ionicons name="checkmark" size={14} color="#fff" />
-                        )}
-                      </View>
-                      <View style={st.rowText}>
-                        <Text
-                          style={[
-                            st.rowLabel,
-                            area.alwaysOn && st.rowLabelFixed,
-                          ]}
-                        >
-                          {area.label}
-                        </Text>
-                        {area.note ? (
-                          <Text style={st.rowNote}>{area.note}</Text>
-                        ) : null}
-                      </View>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
-
-              <View style={st.divider} />
-
-              <View style={st.toggleRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={st.toggleLabel}>Visa bara mina intressen</Text>
-                  <Text style={st.toggleHint}>
-                    Filtrerar notiser och flödet
-                  </Text>
-                </View>
-                <Switch
-                  value={localOnly}
-                  onValueChange={setLocalOnly}
-                  trackColor={{ false: "#e5e7eb", true: BLUE }}
-                  thumbColor="#fff"
-                />
-              </View>
-
-              {user?.isAdmin && (
-                <TouchableOpacity
-                  style={st.adminBtn}
-                  onPress={() =>
-                    Linking.openURL(
-                      `${BASE_URL}${user.isSuperAdmin ? "/admin" : "/manage-sessions"}`,
-                    )
-                  }
-                  activeOpacity={0.85}
-                >
-                  <Ionicons
-                    name="shield-checkmark-outline"
-                    size={20}
-                    color="#fff"
-                  />
-                  <Text style={st.adminBtnText}>Admin</Text>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                style={st.saveBtn}
-                onPress={() => onSave(localInterests, localOnly)}
-                activeOpacity={0.85}
-              >
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={20}
-                  color={BLUE}
-                />
-                <Text style={st.saveBtnText}>Spara inställningar</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
   );
 }
 
@@ -497,30 +284,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  welcomeBox: {
-    margin: 16,
-    backgroundColor: "rgba(255,255,255,0.92)",
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: YELLOW,
-  },
-  welcomeText: { fontSize: 16, fontWeight: "700", color: BLUE },
-  welcomeSub: { fontSize: 13, color: "#666", marginTop: 4 },
-
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#fff",
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 8,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
   valueCard: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.92)",
+    backgroundColor: "rgba(255,255,255,0.85)",
     marginHorizontal: 16,
     marginBottom: 10,
     borderRadius: 12,
@@ -544,7 +310,7 @@ const styles = StyleSheet.create({
   valueTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#222",
+    color: BLUE,
     marginBottom: 3,
   },
   valueBody: { fontSize: 13, color: "#555", lineHeight: 18 },
@@ -567,7 +333,7 @@ const styles = StyleSheet.create({
   memberBox: {
     margin: 16,
     marginTop: 0,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    backgroundColor: "rgba(255,255,255,0.85)",
     borderRadius: 12,
     padding: 20,
     gap: 14,
@@ -584,120 +350,4 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   memberBtnText: { color: BLUE, fontSize: 15, fontWeight: "800" },
-});
-
-const st = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    gap: 2,
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    backgroundColor: "#ddd",
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 8,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  title: { fontSize: 18, fontWeight: "800", color: "#111" },
-
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#888",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 2,
-  },
-  sectionHint: { fontSize: 12, color: "#aaa", marginBottom: 10 },
-
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 11,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#f0f0f0",
-  },
-  rowFixed: {
-    backgroundColor: "rgba(0,45,117,0.04)",
-    marginHorizontal: -20,
-    paddingHorizontal: 20,
-    borderRadius: 0,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: "#d1d5db",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkboxOn: { backgroundColor: BLUE, borderColor: BLUE },
-  rowText: { flex: 1 },
-  rowLabel: { fontSize: 15, color: "#222", fontWeight: "600" },
-  rowLabelFixed: { color: BLUE, fontWeight: "700" },
-  rowNote: { fontSize: 11, color: "#888", marginTop: 1 },
-
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "#e5e7eb",
-    marginVertical: 12,
-  },
-  groupHeader: { paddingTop: 4, paddingBottom: 2 },
-  groupLabelText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#888",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 2,
-  },
-
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 4,
-  },
-  toggleLabel: { fontSize: 15, fontWeight: "600", color: "#222" },
-  toggleHint: { fontSize: 12, color: "#aaa", marginTop: 2 },
-
-  saveBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: YELLOW,
-    paddingVertical: 15,
-    borderRadius: 14,
-    gap: 8,
-    marginTop: 14,
-  },
-  saveBtnText: { color: BLUE, fontSize: 16, fontWeight: "800" },
-  adminBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: BLUE,
-    borderRadius: 14,
-    paddingVertical: 14,
-    gap: 8,
-  },
-  adminBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
 });

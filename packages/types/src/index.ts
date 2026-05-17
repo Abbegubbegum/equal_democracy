@@ -1,4 +1,15 @@
-export type { BaseDocument } from "./base.js";
+export type { BaseDocument } from "./base";
+
+export {
+  GEOGRAPHIC_CATEGORIES,
+  THEMATIC_CATEGORIES,
+  ALL_CATEGORIES,
+} from "./categories";
+export type {
+  GeographicCategory,
+  ThematicCategory,
+  ContentCategory,
+} from "./categories";
 
 export type {
   AdminStatus,
@@ -6,7 +17,7 @@ export type {
   NotificationPreference,
   User,
   AuthUser,
-} from "./user.js";
+} from "./user";
 
 export type {
   SessionType,
@@ -18,7 +29,7 @@ export type {
   AppLanguage,
   AppTheme,
   Settings,
-} from "./session.js";
+} from "./session";
 
 export type {
   ProposalStatus,
@@ -29,7 +40,7 @@ export type {
   Comment,
   CommentRating,
   FinalVote,
-} from "./proposal.js";
+} from "./proposal";
 
 export type {
   BudgetSessionStatus,
@@ -45,7 +56,7 @@ export type {
   BudgetMedianIncomeAllocation,
   BudgetResult,
   BudgetArgument,
-} from "./budget.js";
+} from "./budget";
 
 export type {
   MunicipalSessionStatus,
@@ -56,11 +67,11 @@ export type {
   MunicipalSession,
   CitizenProposal,
   CitizenProposalRating,
-} from "./municipal.js";
+} from "./municipal";
 
 export type {
   SurveyStatus,
   SurveyChoice,
   Survey,
   SurveyVote,
-} from "./survey.js";
+} from "./survey";

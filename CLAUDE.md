@@ -84,6 +84,7 @@ apps/mobile/
 │   ├── stars.ts             # Local star counter (SecureStore) + one-time celebration flags
 │   ├── XAIModal.tsx         # XAI chat sheet — sparkles button opens Claude-backed assistant
 │   ├── CelebrationModal.tsx # Spring-animated star reward overlay (reused across all 4 trigger screens)
+│   ├── SettingsModal.tsx    # Interest-area settings sheet — self-contained (reads/writes SecureStore internally); used on Hem and Bli medlem tabs
 │   └── ChevronsRight.tsx    # Custom >> logo component (no longer used — logo now rendered inline in index.tsx)
 ├── metro.config.js          # Monorepo-aware Metro config — required for pnpm workspace resolution
 └── .env                     # EXPO_PUBLIC_API_URL — must be LAN IP for physical devices
@@ -115,7 +116,9 @@ apps/mobile/
 
 **Star/gamification system (mobile):** Local-only star counter stored via `lib/stars.ts` (SecureStore key `"user_stars"`). Awards: first app open +1, set interests +2, rate a session proposal +3, vote on Rösta question +1, submit citizen proposal +5. One-time actions guarded by storage flags (`celebrated_first_visit`, `celebrated_interests_set`). Star count shown as a badge in the Hem hero (top-left). `lib/CelebrationModal.tsx` is a reusable spring-animated overlay used by all four trigger screens.
 
-**Admin button (mobile):** In the settings modal (gear icon on Hem), an "Admin" button is shown only when `user.isAdmin`. Opens `BASE_URL/admin` (super admin) or `BASE_URL/manage-sessions` (regular admin) in the device browser via `Linking.openURL`.
+**Settings modal (mobile):** `lib/SettingsModal.tsx` is a self-contained bottom-sheet that reads and writes interest preferences to SecureStore internally. Props: `visible`, `onClose`, `onSaved?`. The gear icon appears in the top-right of the blue hero on the **Hem** tab (`index.tsx`) and as a floating button on the **Bli medlem** tab (rendered in `(app)/_layout.tsx` when `normPath === "/membership"`). Exports `STORAGE_INTERESTS`, `STORAGE_INTERESTS_ONLY`, and `INTEREST_AREAS` for use elsewhere (e.g. filtering feeds by interests).
+
+**Admin button (mobile):** Inside `SettingsModal`, an "Admin" button is shown only when `user.isAdmin`. Opens `BASE_URL/admin` (super admin) or `BASE_URL/manage-sessions` (regular admin) in the device browser via `Linking.openURL`.
 
 **Infinite vertical loop (Sessioner, Rösta, Förslag):** All three screens use the triple-array pattern: `loopedItems = [...items, ...items, ...items]`, start scrolled to the middle copy (`items.length * pageH`), and silently jump back to the middle copy when `onMomentumScrollEnd` detects the user has reached the outer thirds. Uses `containerH` from `onLayout` (never `Dimensions.get("window").height`) for the page size so `pagingEnabled` snaps correctly. Key refs: `scrollRef`, `currentIdxRef`, `initialScrollDone`. Never use `SCREEN_H` for page heights in these screens.
 
