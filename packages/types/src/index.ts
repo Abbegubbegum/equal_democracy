@@ -69,9 +69,4 @@ export type {
   CitizenProposalRating,
 } from "./municipal";
 
-export type {
-  SurveyStatus,
-  SurveyChoice,
-  Survey,
-  SurveyVote,
-} from "./survey";
+export type { SurveyStatus, SurveyChoice, Survey, SurveyVote } from "./survey";

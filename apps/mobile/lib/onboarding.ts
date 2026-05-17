@@ -1,32 +1,37 @@
 import { getItem, setItem } from "./storage";
-import { STORAGE_INTERESTS } from "./SettingsModal";
 
-const KEY_LOGIN_COUNT = "onboarding_login_count";
-const KEY_PROMPT_SHOWN_COUNT = "onboarding_prompt_shown_count";
+const KEYS = {
+  loginCount: "onboarding_login_count",
+  promptShown: "onboarding_prompt_shown",
+  profileDone: "onboarding_profile_done",
+};
 
 export async function incrementLoginCount(): Promise<number> {
-  const raw = await getItem(KEY_LOGIN_COUNT);
-  const count = raw ? parseInt(raw, 10) + 1 : 1;
-  await setItem(KEY_LOGIN_COUNT, String(count));
-  return count;
+  const raw = await getItem(KEYS.loginCount);
+  const next = parseInt(raw ?? "0", 10) + 1;
+  await setItem(KEYS.loginCount, String(next));
+  return next;
 }
 
-export async function getOnboardingState(): Promise<{
-  promptShownCount: number;
-  profileCompleted: boolean;
-}> {
-  const [promptRaw, interestsRaw] = await Promise.all([
-    getItem(KEY_PROMPT_SHOWN_COUNT),
-    getItem(STORAGE_INTERESTS),
+export async function getOnboardingState() {
+  const [lc, ps, pd] = await Promise.all([
+    getItem(KEYS.loginCount),
+    getItem(KEYS.promptShown),
+    getItem(KEYS.profileDone),
   ]);
   return {
-    promptShownCount: promptRaw ? parseInt(promptRaw, 10) : 0,
-    profileCompleted: interestsRaw !== null,
+    loginCount: parseInt(lc ?? "0", 10),
+    promptShownCount: parseInt(ps ?? "0", 10),
+    profileCompleted: pd === "true",
   };
 }
 
 export async function markPromptShown(): Promise<void> {
-  const raw = await getItem(KEY_PROMPT_SHOWN_COUNT);
-  const count = raw ? parseInt(raw, 10) + 1 : 1;
-  await setItem(KEY_PROMPT_SHOWN_COUNT, String(count));
+  const raw = await getItem(KEYS.promptShown);
+  const next = parseInt(raw ?? "0", 10) + 1;
+  await setItem(KEYS.promptShown, String(next));
+}
+
+export async function markProfileCompleted(): Promise<void> {
+  await setItem(KEYS.profileDone, "true");
 }

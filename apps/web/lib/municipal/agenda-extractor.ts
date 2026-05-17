@@ -3,7 +3,7 @@
  * Uses Claude AI to extract meeting items from Swedish municipal agendas (kallelser)
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { anthropic, AI_MODELS } from "../ai";
 import { createLogger } from "../logger";
 
 const log = createLogger("AgendaExtractor");
@@ -18,11 +18,6 @@ export async function extractAgendaFromPDF(
   pdfBuffer,
   meetingType = "Kommunfullmäktige",
 ) {
-  // Initialize Anthropic client
-  const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  });
-
   // Convert buffer to base64 for Claude API
   const pdfBase64 = pdfBuffer.toString("base64");
 
@@ -109,7 +104,7 @@ VALIDERING:
 
   try {
     const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-5",
+      model: AI_MODELS.smart,
       max_tokens: 8192,
       messages: [
         {

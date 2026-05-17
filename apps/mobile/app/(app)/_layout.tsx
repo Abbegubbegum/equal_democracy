@@ -10,7 +10,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import XAIModal from "../../lib/XAIModal";
 import InterestsModal from "../../lib/InterestsModal";
 import { SettingsModal } from "../../lib/SettingsModal";
-import { incrementLoginCount, getOnboardingState, markPromptShown } from "../../lib/onboarding";
+import {
+  incrementLoginCount,
+  getOnboardingState,
+  markPromptShown,
+} from "../../lib/onboarding";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -52,10 +56,14 @@ function SwipeTabNavigator() {
       proposals: "/proposals",
       archive: "/archive",
     };
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const screen = response.notification.request.content.data?.screen as string | undefined;
-      routerRef.current.navigate((screenMap[screen ?? ""] ?? "/") as any);
-    });
+    const sub = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const screen = response.notification.request.content.data?.screen as
+          | string
+          | undefined;
+        routerRef.current.navigate((screenMap[screen ?? ""] ?? "/") as any);
+      },
+    );
     return () => sub.remove();
   }, []);
 
@@ -149,7 +157,11 @@ function SwipeTabNavigator() {
           activeOpacity={0.8}
           hitSlop={8}
         >
-          <Ionicons name="settings-outline" size={20} color="rgba(255,255,255,0.85)" />
+          <Ionicons
+            name="settings-outline"
+            size={20}
+            color="rgba(255,255,255,0.85)"
+          />
         </TouchableOpacity>
       )}
 
@@ -165,7 +177,7 @@ export default function AppLayout() {
   const { user, isLoading } = useAuth();
   const [showInterests, setShowInterests] = useState(false);
   const startupDone = useRef(false);
-  const timerRef    = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     if (!user || startupDone.current) return;
@@ -209,7 +221,7 @@ export default function AppLayout() {
       }
     })();
 
-    return () => clearTimeout(timerRef.current);  // useEffect cleanup — cancels the 30s timer if user logs out
+    return () => clearTimeout(timerRef.current); // useEffect cleanup — cancels the 30s timer if user logs out
   }, [user]);
 
   if (isLoading) return null;
@@ -217,7 +229,10 @@ export default function AppLayout() {
   return (
     <>
       <SwipeTabNavigator />
-      <InterestsModal visible={showInterests} onClose={() => setShowInterests(false)} />
+      <InterestsModal
+        visible={showInterests}
+        onClose={() => setShowInterests(false)}
+      />
     </>
   );
 }

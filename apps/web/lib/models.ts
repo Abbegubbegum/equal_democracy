@@ -79,16 +79,9 @@ const UserSchema = new mongoose.Schema(
       type: String,
       // Encrypted personal number for verification
     },
-    // Interest categories (max 3)
-    interestedCategories: {
-      type: [Number],
+    interests: {
+      type: [String],
       default: [],
-      validate: {
-        validator: function (v) {
-          return v.length <= 3;
-        },
-        message: "Maximum 3 categories allowed",
-      },
     },
     expoPushToken: {
       type: String,
@@ -483,6 +476,11 @@ const SessionSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // Content categories for targeted notifications
+    categories: {
+      type: [String],
+      default: [],
+    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -663,14 +661,8 @@ const CitizenProposalSchema = new mongoose.Schema(
       maxlength: [2000, "Description cannot be more than 2000 characters"],
     },
     categories: {
-      type: [Number],
+      type: [String],
       default: [],
-      validate: {
-        validator: function (v) {
-          return v.length >= 1 && v.length <= 3;
-        },
-        message: "1-3 categories required",
-      },
     },
     authorId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -1267,7 +1259,8 @@ function safeModel(name: string, schema: mongoose.Schema): AnyModel {
 }
 
 // Export models
-export const User = safeModel("User", UserSchema);
+if (mongoose.models["User"]) delete mongoose.models["User"];
+export const User: AnyModel = mongoose.model("User", UserSchema);
 export const Proposal = safeModel("Proposal", ProposalSchema);
 export const ThumbsUp = safeModel("ThumbsUp", ThumbsUpSchema);
 export const Comment = safeModel("Comment", CommentSchema);

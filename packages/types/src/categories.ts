@@ -1,38 +1,32 @@
-export type ThematicCategory =
-  | "budget"
-  | "barn"
-  | "arbete"
-  | "aldre"
-  | "politik"
-  | "infra"
-  | "kultur";
+export const GEOGRAPHIC_CATEGORIES = [
+  "Vallentuna centrum",
+  "Bällsta",
+  "Kårsta",
+  "Össeby-Garn",
+  "Frösunda",
+  "Lindholmen",
+  "Angarn",
+  "Karby",
+] as const;
 
-export type GeographicCategory =
-  | "geo_central"
-  | "geo_lindholmen"
-  | "geo_karsta"
-  | "geo_karby";
+export const THEMATIC_CATEGORIES = [
+  "Skola & utbildning",
+  "Trafik & infrastruktur",
+  "Miljö & klimat",
+  "Äldreomsorg",
+  "Barn & familj",
+  "Fritid & kultur",
+  "Bostäder",
+  "Trygghet & säkerhet",
+  "Näringsliv & arbete",
+  "Allmänt",
+] as const;
 
-export type ContentCategory = ThematicCategory | GeographicCategory;
-
-export const THEMATIC_CATEGORIES: ThematicCategory[] = [
-  "budget",
-  "barn",
-  "arbete",
-  "aldre",
-  "politik",
-  "infra",
-  "kultur",
-];
-
-export const GEOGRAPHIC_CATEGORIES: GeographicCategory[] = [
-  "geo_central",
-  "geo_lindholmen",
-  "geo_karsta",
-  "geo_karby",
-];
-
-export const ALL_CATEGORIES: ContentCategory[] = [
-  ...THEMATIC_CATEGORIES,
+export const ALL_CATEGORIES = [
   ...GEOGRAPHIC_CATEGORIES,
-];
+  ...THEMATIC_CATEGORIES,
+] as const;
+
+export type GeographicCategory = (typeof GEOGRAPHIC_CATEGORIES)[number];
+export type ThematicCategory = (typeof THEMATIC_CATEGORIES)[number];
+export type ContentCategory = (typeof ALL_CATEGORIES)[number];

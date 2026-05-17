@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import Anthropic from "@anthropic-ai/sdk";
+import { moderateContent } from "@/lib/ai";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "@/lib/mongodb";
@@ -7,48 +7,13 @@ import { Comment, Proposal, CitizenProposal } from "@/lib/models";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("clean-content");
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-const SYSTEM = `Du är ett modereringssystem för en svensk demokratisk diskussionsplattform.
-Analysera inlägget och svara med ENBART ett JSON-objekt på EN rad, inget annat.
-
-Format: {"status":"ok","reason":""}
-
-Statusvärden:
-- "ok"   → acceptabelt innehåll, även hetsiga politiska argument
-- "flag" → något av följande: svordomar, grov obscenitet, sexuellt stötande innehåll, hat mot folkgrupp, uppmaning till brott, hot, annat lagbrott
-
-Regler:
-• reason ska bara fyllas i om status är "flag", annars tom sträng
-• reason ska vara max 1 mening på svenska
-• Sexuellt innehåll som är uppenbart olämpligt för ett demokratiskt forum ska flaggas
-• Flagga INTE normala hetsiga politiska argument`;
 
 async function checkContent(
   text: string,
 ): Promise<{ shouldRemove: boolean; reason: string }> {
   try {
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 80,
-      system: SYSTEM,
-      messages: [
-        { role: "user", content: `Inlägg:\n\n${text.trim().slice(0, 800)}` },
-      ],
-    });
-    const raw = ((response.content[0] as any).text ?? "").trim();
-    const match = raw.match(/\{.*?\}/s);
-    if (!match) return { shouldRemove: false, reason: "" };
-    let parsed: { status?: string; reason?: string };
-    try {
-      parsed = JSON.parse(match[0]);
-    } catch {
-      return { shouldRemove: false, reason: "" };
-    }
-    return {
-      shouldRemove: parsed.status === "flag",
-      reason: parsed.reason ?? "",
-    };
+    const { status, message } = await moderateContent(text.slice(0, 800));
+    return { shouldRemove: status === "flag", reason: message };
   } catch {
     return { shouldRemove: false, reason: "" };
   }

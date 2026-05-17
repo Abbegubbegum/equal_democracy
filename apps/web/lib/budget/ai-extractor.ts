@@ -4,7 +4,7 @@
  * Claude can read PDFs directly, so we don't need pdf-parse!
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { anthropic, AI_MODELS } from "../ai";
 import { createLogger } from "../logger";
 
 const log = createLogger("BudgetAIExtractor");
@@ -19,11 +19,6 @@ export async function extractBudgetFromPDF(
   pdfBuffer: Buffer,
   documentType = "expenses",
 ) {
-  // Initialize Anthropic client
-  const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  });
-
   // Convert buffer to base64 for Claude API
   const pdfBase64 = pdfBuffer.toString("base64");
 
@@ -172,7 +167,7 @@ VALIDERING:
 
   try {
     const message = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
+      model: AI_MODELS.smart,
       max_tokens: 4096,
       messages: [
         {

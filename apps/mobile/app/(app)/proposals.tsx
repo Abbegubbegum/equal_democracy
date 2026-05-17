@@ -14,6 +14,7 @@ import {
   Keyboard,
   Image,
 } from "react-native";
+import { GEOGRAPHIC_CATEGORIES, THEMATIC_CATEGORIES } from "@repo/types";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -179,6 +180,8 @@ function SubmitModal({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -203,6 +206,38 @@ function SubmitModal({
     setImageUri(compressed.uri);
   }
 
+  async function suggestCategories() {
+    if (!title.trim()) return;
+    setSuggesting(true);
+    try {
+      const result = await apiClient<{ categories: string[] }>(
+        "/api/mobile/suggest-categories",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            title: title.trim(),
+            description: description.trim(),
+          }),
+        },
+      );
+      setCategories(result.categories);
+    } catch {
+      // fail silently — user can select manually
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  function toggleCategory(cat: string) {
+    setCategories((prev) =>
+      prev.includes(cat)
+        ? prev.filter((c) => c !== cat)
+        : prev.length < 3
+          ? [...prev, cat]
+          : prev,
+    );
+  }
+
   async function submit() {
     if (!title.trim()) {
       setError("Ange en titel");
@@ -219,6 +254,7 @@ function SubmitModal({
       const fd = new FormData();
       fd.append("title", title.trim());
       fd.append("description", description.trim());
+      fd.append("categories", JSON.stringify(categories));
       if (imageUri) {
         fd.append("image", {
           uri: imageUri,
@@ -263,76 +299,175 @@ function SubmitModal({
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.inputLabel}>Titel *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Kortfattad titel på ditt förslag..."
-                  placeholderTextColor="#aaa"
-                  value={title}
-                  onChangeText={setTitle}
-                  maxLength={200}
-                  returnKeyType="next"
-                  autoFocus
-                />
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <Text style={styles.inputLabel}>Titel *</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Kortfattad titel på ditt förslag..."
+                    placeholderTextColor="#aaa"
+                    value={title}
+                    onChangeText={setTitle}
+                    maxLength={200}
+                    returnKeyType="next"
+                    autoFocus
+                  />
 
-                <Text style={styles.inputLabel}>Beskrivning *</Text>
-                <TextInput
-                  style={[styles.textInput, styles.textInputMulti]}
-                  placeholder="Beskriv ditt förslag i detalj..."
-                  placeholderTextColor="#aaa"
-                  value={description}
-                  onChangeText={setDescription}
-                  maxLength={2000}
-                  multiline
-                  numberOfLines={5}
-                  textAlignVertical="top"
-                />
+                  <Text style={[styles.inputLabel, { marginTop: 8 }]}>
+                    Beskrivning *
+                  </Text>
+                  <TextInput
+                    style={[styles.textInput, styles.textInputMulti]}
+                    placeholder="Beskriv ditt förslag i detalj..."
+                    placeholderTextColor="#aaa"
+                    value={description}
+                    onChangeText={setDescription}
+                    maxLength={2000}
+                    multiline
+                    numberOfLines={5}
+                    textAlignVertical="top"
+                  />
 
-                {imageUri ? (
-                  <View style={styles.previewWrapper}>
-                    <Image
-                      source={{ uri: imageUri }}
-                      style={styles.previewImage}
-                      resizeMode="cover"
-                    />
+                  {/* Category picker */}
+                  <View style={styles.catHeader}>
+                    <Text style={styles.inputLabel}>
+                      Kategorier (valfritt, max 3)
+                    </Text>
                     <TouchableOpacity
-                      style={styles.removeImageBtn}
-                      onPress={() => setImageUri(null)}
+                      style={[
+                        styles.suggestBtn,
+                        (!title.trim() || suggesting) && { opacity: 0.4 },
+                      ]}
+                      onPress={suggestCategories}
+                      disabled={!title.trim() || suggesting}
                       hitSlop={8}
                     >
-                      <Ionicons name="close-circle" size={22} color="#dc2626" />
+                      {suggesting ? (
+                        <ActivityIndicator size="small" color={BLUE} />
+                      ) : (
+                        <>
+                          <Ionicons name="sparkles" size={13} color={BLUE} />
+                          <Text style={styles.suggestBtnText}>
+                            XAI föreslår
+                          </Text>
+                        </>
+                      )}
                     </TouchableOpacity>
                   </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.imagePickerBtn}
-                    onPress={pickImage}
-                  >
-                    <Ionicons name="image-outline" size={18} color="#555" />
-                    <Text style={styles.imagePickerText}>
-                      Lägg till bild (valfritt)
+
+                  <Text style={styles.catGroupLabel}>Plats</Text>
+                  <View style={styles.chipRow}>
+                    {GEOGRAPHIC_CATEGORIES.map((cat) => (
+                      <TouchableOpacity
+                        key={cat}
+                        style={[
+                          styles.chip,
+                          categories.includes(cat) && styles.chipSelected,
+                        ]}
+                        onPress={() => toggleCategory(cat)}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            categories.includes(cat) && styles.chipTextSelected,
+                          ]}
+                        >
+                          {cat}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text style={[styles.catGroupLabel, { marginTop: 8 }]}>
+                    Ämne
+                  </Text>
+                  <View style={styles.chipRow}>
+                    {THEMATIC_CATEGORIES.map((cat) => (
+                      <TouchableOpacity
+                        key={cat}
+                        style={[
+                          styles.chip,
+                          categories.includes(cat) && styles.chipSelected,
+                        ]}
+                        onPress={() => toggleCategory(cat)}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            categories.includes(cat) && styles.chipTextSelected,
+                          ]}
+                        >
+                          {cat}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Image */}
+                  <View style={{ marginTop: 8 }}>
+                    {imageUri ? (
+                      <View style={styles.previewWrapper}>
+                        <Image
+                          source={{ uri: imageUri }}
+                          style={styles.previewImage}
+                          resizeMode="cover"
+                        />
+                        <TouchableOpacity
+                          style={styles.removeImageBtn}
+                          onPress={() => setImageUri(null)}
+                          hitSlop={8}
+                        >
+                          <Ionicons
+                            name="close-circle"
+                            size={22}
+                            color="#dc2626"
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.imagePickerBtn}
+                        onPress={pickImage}
+                      >
+                        <Ionicons name="image-outline" size={18} color="#555" />
+                        <Text style={styles.imagePickerText}>
+                          Lägg till bild (valfritt)
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {!!error && (
+                    <Text style={[styles.formError, { marginTop: 8 }]}>
+                      {error}
                     </Text>
-                  </TouchableOpacity>
-                )}
-
-                {!!error && <Text style={styles.formError}>{error}</Text>}
-
-                <TouchableOpacity
-                  style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
-                  onPress={submit}
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <ActivityIndicator color={BLUE} />
-                  ) : (
-                    <>
-                      <Ionicons name="send" size={16} color={BLUE} />
-                      <Text style={styles.submitBtnText}>
-                        Skicka in förslag
-                      </Text>
-                    </>
                   )}
-                </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.submitBtn,
+                      submitting && { opacity: 0.6 },
+                      { marginTop: 12 },
+                    ]}
+                    onPress={submit}
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <ActivityIndicator color={BLUE} />
+                    ) : (
+                      <>
+                        <Ionicons name="send" size={16} color={BLUE} />
+                        <Text style={styles.submitBtnText}>
+                          Skicka in förslag
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </ScrollView>
               </View>
             </TouchableWithoutFeedback>
           </KeyboardAvoidingView>
@@ -727,4 +862,44 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   submitBtnText: { color: BLUE, fontSize: 15, fontWeight: "800" },
+
+  // Category picker
+  catHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  catGroupLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#888",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#d1d5db",
+    backgroundColor: "#f9fafb",
+  },
+  chipSelected: { backgroundColor: BLUE, borderColor: BLUE },
+  chipText: { fontSize: 12, color: "#555", fontWeight: "600" },
+  chipTextSelected: { color: "#fff" },
+  suggestBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: BLUE,
+    backgroundColor: "#f0f4ff",
+  },
+  suggestBtnText: { fontSize: 12, color: BLUE, fontWeight: "700" },
 });

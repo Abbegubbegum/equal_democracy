@@ -1,123 +1,190 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getItem, setItem } from "./storage";
-import { STORAGE_INTERESTS, INTEREST_AREAS } from "./SettingsModal";
+import { GEOGRAPHIC_CATEGORIES, THEMATIC_CATEGORIES } from "@repo/types";
+import { apiClient } from "./api";
+import { addStars, isFirstInterestsSave, markInterestsSaved } from "./stars";
+import CelebrationModal from "./CelebrationModal";
+import { markProfileCompleted } from "./onboarding";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
 
-export default function InterestsModal({
-  visible,
-  onClose,
-}: {
+interface Props {
   visible: boolean;
   onClose: () => void;
-}) {
+}
+
+export default function InterestsModal({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
-  const [selected, setSelected] = useState<string[]>(["budget"]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [celebration, setCelebration] = useState(false);
 
-  useEffect(() => {
-    if (!visible) return;
-    (async () => {
-      const saved = await getItem(STORAGE_INTERESTS);
-      if (saved) setSelected(JSON.parse(saved));
-    })();
-  }, [visible]);
-
-  function toggle(key: string) {
-    if (key === "budget") return;
+  function toggle(cat: string) {
     setSelected((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
     );
   }
 
-  async function handleSave() {
-    await setItem(STORAGE_INTERESTS, JSON.stringify(selected));
-    onClose();
+  async function save() {
+    setSaving(true);
+    try {
+      await apiClient("/api/mobile/user/interests", {
+        method: "POST",
+        body: JSON.stringify({ interests: selected }),
+      });
+      await markProfileCompleted();
+      const firstTime = await isFirstInterestsSave();
+      if (firstTime) {
+        await addStars(2);
+        await markInterestsSaved();
+        setCelebration(true);
+      } else {
+        onClose();
+      }
+    } catch {
+      // fail silently — profile state is saved locally regardless
+      await markProfileCompleted();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={st.backdrop}>
-          <TouchableWithoutFeedback>
-            <View style={[st.sheet, { paddingBottom: 0 }]}>
-              <View style={st.handle} />
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
-              >
-                <View style={st.introBox}>
-                  <View style={st.introRow}>
-                    <Text style={st.introTitle}>VÄLJ DINA INTRESSEN</Text>
-                    <TouchableOpacity onPress={onClose} hitSlop={12}>
-                      <Ionicons name="close" size={22} color="#666" />
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={st.introText}>
-                    Välj de ämnen som engagerar dig — vi anpassar flödet efter vad du bryr dig om.
-                  </Text>
-                </View>
+    <>
+      <Modal
+        visible={visible}
+        animationType="slide"
+        transparent
+        onRequestClose={onClose}
+      >
+        <View style={styles.backdrop}>
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.handle} />
 
-                {INTEREST_AREAS.map((area) => {
-                  const checked = selected.includes(area.key);
-                  return (
-                    <View key={area.key}>
-                      {area.groupLabel ? (
-                        <View style={st.groupHeader}>
-                          <View style={st.divider} />
-                          <Text style={st.groupLabelText}>{area.groupLabel}</Text>
-                        </View>
-                      ) : null}
-                      <TouchableOpacity
-                        style={[st.row, area.alwaysOn && st.rowFixed]}
-                        onPress={() => toggle(area.key)}
-                        activeOpacity={area.alwaysOn ? 1 : 0.7}
-                      >
-                        <View style={[st.checkbox, checked && st.checkboxOn]}>
-                          {checked && <Ionicons name="checkmark" size={14} color="#fff" />}
-                        </View>
-                        <View style={st.rowText}>
-                          <Text style={[st.rowLabel, area.alwaysOn && st.rowLabelFixed]}>
-                            {area.label}
-                          </Text>
-                          {area.note ? <Text style={st.rowNote}>{area.note}</Text> : null}
-                        </View>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-
-                <View style={st.divider} />
-
-                <TouchableOpacity style={st.saveBtn} onPress={handleSave} activeOpacity={0.85}>
-                  <Ionicons name="checkmark-circle-outline" size={20} color={BLUE} />
-                  <Text style={st.saveBtnText}>Spara och fortsätt</Text>
-                </TouchableOpacity>
-              </ScrollView>
+            <View style={styles.header}>
+              <View style={styles.iconWrap}>
+                <Ionicons name="options-outline" size={22} color={BLUE} />
+              </View>
+              <Text style={styles.title}>Anpassa din app</Text>
             </View>
-          </TouchableWithoutFeedback>
+
+            <Text style={styles.subtitle}>
+              Välj vad du bryr dig om — då får du bara notiser som är relevanta
+              för dig. Du kan ändra detta när som helst.
+            </Text>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={styles.scroll}
+            >
+              <Text style={styles.groupLabel}>Plats i Vallentuna</Text>
+              <View style={styles.chipRow}>
+                {GEOGRAPHIC_CATEGORIES.map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[
+                      styles.chip,
+                      selected.includes(cat) && styles.chipOn,
+                    ]}
+                    onPress={() => toggle(cat)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        selected.includes(cat) && styles.chipTextOn,
+                      ]}
+                    >
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.groupLabel, { marginTop: 16 }]}>
+                Ämnesområde
+              </Text>
+              <View style={styles.chipRow}>
+                {THEMATIC_CATEGORIES.map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[
+                      styles.chip,
+                      selected.includes(cat) && styles.chipOn,
+                    ]}
+                    onPress={() => toggle(cat)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        selected.includes(cat) && styles.chipTextOn,
+                      ]}
+                    >
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.saveBtn, saving && { opacity: 0.6 }]}
+              onPress={save}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color={BLUE} />
+              ) : (
+                <Text style={styles.saveBtnText}>
+                  {selected.length > 0
+                    ? `Spara ${selected.length} intressen`
+                    : "Spara (alla kategorier)"}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.skipBtn}
+              onPress={onClose}
+              hitSlop={12}
+            >
+              <Text style={styles.skipText}>Inte nu</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </TouchableWithoutFeedback>
-    </Modal>
+      </Modal>
+
+      <CelebrationModal
+        visible={celebration}
+        title="Profil sparad! +2 stjärnor"
+        subtitle="Nu vet vi vad du bryr dig om. Du får bara notiser som är relevanta för dig."
+        stars={2}
+        onDone={() => {
+          setCelebration(false);
+          onClose();
+        }}
+      />
+    </>
   );
 }
 
-const st = StyleSheet.create({
+const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "flex-end",
   },
   sheet: {
@@ -126,7 +193,7 @@ const st = StyleSheet.create({
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 12,
-    maxHeight: "88%",
+    maxHeight: "85%",
   },
   handle: {
     width: 40,
@@ -134,77 +201,53 @@ const st = StyleSheet.create({
     backgroundColor: "#ddd",
     borderRadius: 2,
     alignSelf: "center",
-    marginBottom: 12,
+    marginBottom: 20,
   },
-  introBox: {
-    backgroundColor: "rgba(0,45,117,0.06)",
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 12,
-  },
-  introRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  introTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: BLUE,
-    letterSpacing: 1.2,
-  },
-  introText: { fontSize: 14, color: "#555", lineHeight: 20 },
-  row: {
+  header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingVertical: 11,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#f0f0f0",
+    marginBottom: 10,
   },
-  rowFixed: {
-    backgroundColor: "rgba(0,45,117,0.04)",
-    marginHorizontal: -20,
-    paddingHorizontal: 20,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: "#d1d5db",
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f0f4ff",
     alignItems: "center",
     justifyContent: "center",
   },
-  checkboxOn: { backgroundColor: BLUE, borderColor: BLUE },
-  rowText: { flex: 1 },
-  rowLabel: { fontSize: 15, color: "#222", fontWeight: "600" },
-  rowLabelFixed: { color: BLUE, fontWeight: "700" },
-  rowNote: { fontSize: 11, color: "#888", marginTop: 1 },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "#e5e7eb",
-    marginVertical: 12,
-  },
-  groupHeader: { paddingTop: 4, paddingBottom: 2 },
-  groupLabelText: {
-    fontSize: 13,
+  title: { fontSize: 19, fontWeight: "800", color: "#111" },
+  subtitle: { fontSize: 14, color: "#555", lineHeight: 20, marginBottom: 20 },
+  scroll: { flexGrow: 0 },
+  groupLabel: {
+    fontSize: 11,
     fontWeight: "700",
     color: "#888",
     textTransform: "uppercase",
     letterSpacing: 0.8,
-    marginBottom: 2,
+    marginBottom: 10,
   },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#d1d5db",
+    backgroundColor: "#f9fafb",
+  },
+  chipOn: { backgroundColor: BLUE, borderColor: BLUE },
+  chipText: { fontSize: 13, color: "#555", fontWeight: "600" },
+  chipTextOn: { color: "#fff" },
   saveBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
     backgroundColor: YELLOW,
     paddingVertical: 15,
     borderRadius: 14,
-    gap: 8,
-    marginTop: 14,
+    alignItems: "center",
+    marginTop: 24,
   },
-  saveBtnText: { color: BLUE, fontSize: 16, fontWeight: "800" },
+  saveBtnText: { color: BLUE, fontSize: 15, fontWeight: "800" },
+  skipBtn: { alignItems: "center", paddingVertical: 14 },
+  skipText: { color: "#aaa", fontSize: 14 },
 });

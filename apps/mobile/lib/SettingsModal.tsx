@@ -29,14 +29,23 @@ export const INTEREST_AREAS: {
   note?: string;
   groupLabel?: string;
 }[] = [
-  { key: "budget", label: "Budgeten", alwaysOn: true, note: "Alltid aktiv — balanserar övriga intressen" },
+  {
+    key: "budget",
+    label: "Budgeten",
+    alwaysOn: true,
+    note: "Alltid aktiv — balanserar övriga intressen",
+  },
   { key: "barn", label: "Barn och utbildning" },
   { key: "arbete", label: "Arbete och Näringsliv" },
   { key: "aldre", label: "Äldre och social gemenskap" },
   { key: "politik", label: "Politik och Organisation" },
   { key: "infra", label: "Infrastruktur och Identitet" },
   { key: "kultur", label: "Kultur och Fritid" },
-  { key: "geo_central", label: "Centrala Vallentuna", groupLabel: "Geografiska intressen" },
+  {
+    key: "geo_central",
+    label: "Centrala Vallentuna",
+    groupLabel: "Geografiska intressen",
+  },
   { key: "geo_lindholmen", label: "Lindholmen och Västra Vallentuna" },
   { key: "geo_karsta", label: "Kårsta och norra Vallentuna" },
   { key: "geo_karby", label: "Karby, Brottby, Össeby-Garn" },
@@ -81,7 +90,12 @@ export function SettingsModal({
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={st.backdrop}>
           <TouchableWithoutFeedback>
@@ -100,7 +114,8 @@ export function SettingsModal({
                     </TouchableOpacity>
                   </View>
                   <Text style={st.introText}>
-                    Ingen är intresserad av allt. Välj ett eller flera områden och spara.
+                    Ingen är intresserad av allt. Välj ett eller flera områden
+                    och spara.
                   </Text>
                 </View>
 
@@ -111,7 +126,9 @@ export function SettingsModal({
                       {area.groupLabel ? (
                         <View style={st.groupHeader}>
                           <View style={st.divider} />
-                          <Text style={st.groupLabelText}>{area.groupLabel}</Text>
+                          <Text style={st.groupLabelText}>
+                            {area.groupLabel}
+                          </Text>
                         </View>
                       ) : null}
                       <TouchableOpacity
@@ -120,13 +137,22 @@ export function SettingsModal({
                         activeOpacity={area.alwaysOn ? 1 : 0.7}
                       >
                         <View style={[st.checkbox, checked && st.checkboxOn]}>
-                          {checked && <Ionicons name="checkmark" size={14} color="#fff" />}
+                          {checked && (
+                            <Ionicons name="checkmark" size={14} color="#fff" />
+                          )}
                         </View>
                         <View style={st.rowText}>
-                          <Text style={[st.rowLabel, area.alwaysOn && st.rowLabelFixed]}>
+                          <Text
+                            style={[
+                              st.rowLabel,
+                              area.alwaysOn && st.rowLabelFixed,
+                            ]}
+                          >
                             {area.label}
                           </Text>
-                          {area.note ? <Text style={st.rowNote}>{area.note}</Text> : null}
+                          {area.note ? (
+                            <Text style={st.rowNote}>{area.note}</Text>
+                          ) : null}
                         </View>
                       </TouchableOpacity>
                     </View>
@@ -138,7 +164,9 @@ export function SettingsModal({
                 <View style={st.toggleRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={st.toggleLabel}>Visa bara mina intressen</Text>
-                    <Text style={st.toggleHint}>Filtrerar notiser och flödet</Text>
+                    <Text style={st.toggleHint}>
+                      Filtrerar notiser och flödet
+                    </Text>
                   </View>
                   <Switch
                     value={localOnly}
@@ -158,13 +186,25 @@ export function SettingsModal({
                     }
                     activeOpacity={0.85}
                   >
-                    <Ionicons name="shield-checkmark-outline" size={20} color="#fff" />
+                    <Ionicons
+                      name="shield-checkmark-outline"
+                      size={20}
+                      color="#fff"
+                    />
                     <Text style={st.adminBtnText}>Admin</Text>
                   </TouchableOpacity>
                 )}
 
-                <TouchableOpacity style={st.saveBtn} onPress={handleSave} activeOpacity={0.85}>
-                  <Ionicons name="checkmark-circle-outline" size={20} color={BLUE} />
+                <TouchableOpacity
+                  style={st.saveBtn}
+                  onPress={handleSave}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons
+                    name="checkmark-circle-outline"
+                    size={20}
+                    color={BLUE}
+                  />
                   <Text style={st.saveBtnText}>Spara inställningar</Text>
                 </TouchableOpacity>
               </ScrollView>

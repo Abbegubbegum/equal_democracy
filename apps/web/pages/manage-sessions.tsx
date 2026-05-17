@@ -1,7 +1,15 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import { Calendar, ArrowLeft, Radio, Minus, Plus } from "lucide-react";
+import {
+  Calendar,
+  ArrowLeft,
+  Radio,
+  Minus,
+  Plus,
+  Sparkles,
+} from "lucide-react";
+import { GEOGRAPHIC_CATEGORIES, THEMATIC_CATEGORIES } from "@repo/types";
 import { fetchWithCsrf } from "../lib/fetch-with-csrf";
 import { useConfig } from "../lib/contexts/ConfigContext";
 import { useTranslation } from "../lib/hooks/useTranslation";
@@ -89,6 +97,8 @@ function SessionsPanel() {
   const [message, setMessage] = useState("");
   const [remainingSessions, setRemainingSessions] = useState(null);
   const [requestedSessions, setRequestedSessions] = useState("10");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
   const [imageUploading, setImageUploading] = useState<Record<string, boolean>>(
     {},
   );
@@ -209,6 +219,32 @@ function SessionsPanel() {
     }
   };
 
+  const suggestCategories = async () => {
+    if (!newPlace.trim()) return;
+    setSuggesting(true);
+    try {
+      const res = await fetchWithCsrf("/api/admin/suggest-categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newPlace.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCategories(data.categories ?? []);
+      }
+    } catch {
+      // fail silently
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  const toggleCategory = (cat: string) => {
+    setCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
+    );
+  };
+
   const createSession = async () => {
     if (!newPlace) {
       setMessage("Place required");
@@ -245,6 +281,7 @@ function SessionsPanel() {
           sessionType: sessionType,
           surveyDurationDays:
             sessionType === "survey" ? parseInt(surveyDurationDays) : undefined,
+          categories,
         }),
       });
 
@@ -271,6 +308,7 @@ function SessionsPanel() {
           setOnlyYesVotes(false);
           setSessionType("standard");
           setSurveyDurationDays("6");
+          setCategories([]);
           setTimeout(() => setMessage(""), data.isLastSession ? 5000 : 3000);
         }
       } else {
@@ -455,6 +493,94 @@ function SessionsPanel() {
                   placeholder="e.g. 'City Name' or 'Topic'"
                 />
               )}
+            </div>
+
+            {/* Category picker */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-semibold text-slate-700">
+                  Kategorier{" "}
+                  <span className="font-normal text-slate-400">
+                    (valfritt, max 3)
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  onClick={suggestCategories}
+                  disabled={!newPlace.trim() || suggesting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{
+                    borderColor: primaryDark,
+                    color: primaryDark,
+                    backgroundColor: "#f0f4ff",
+                  }}
+                >
+                  <Sparkles className="w-3 h-3" />
+                  {suggesting ? "Tänker…" : "XAI föreslår"}
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-400 mb-3">
+                Avgör vilka användare som får push-notiser om detta innehåll.
+              </p>
+
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                Plats
+              </p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {GEOGRAPHIC_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => toggleCategory(cat)}
+                    className="px-3 py-1 text-xs font-semibold rounded-full border-2 transition-all"
+                    style={
+                      categories.includes(cat)
+                        ? {
+                            backgroundColor: primaryDark,
+                            borderColor: primaryDark,
+                            color: "#fff",
+                          }
+                        : {
+                            backgroundColor: "#f9fafb",
+                            borderColor: "#d1d5db",
+                            color: "#555",
+                          }
+                    }
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                Ämne
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {THEMATIC_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => toggleCategory(cat)}
+                    className="px-3 py-1 text-xs font-semibold rounded-full border-2 transition-all"
+                    style={
+                      categories.includes(cat)
+                        ? {
+                            backgroundColor: primaryDark,
+                            borderColor: primaryDark,
+                            color: "#fff",
+                          }
+                        : {
+                            backgroundColor: "#f9fafb",
+                            borderColor: "#d1d5db",
+                            color: "#555",
+                          }
+                    }
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div>

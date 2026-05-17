@@ -1,4 +1,6 @@
 import { createLogger } from "./logger";
+import connectDB from "./mongodb";
+import { User } from "./models";
 
 const log = createLogger("push-notifications");
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
@@ -41,6 +43,30 @@ export async function sendPushNotifications(
       log.error("Failed to send push notifications", { error: error.message });
     }
   }
+}
+
+/**
+ * Returns push tokens for users whose interests overlap with the given categories.
+ * Users with no interests set receive all notifications (opt-in model — filter only after preferences are saved).
+ * If categories is empty, all users with tokens are returned.
+ */
+export async function getTokensForCategories(
+  categories: string[],
+): Promise<string[]> {
+  await connectDB();
+  const query =
+    categories.length > 0
+      ? {
+          expoPushToken: { $exists: true, $ne: null },
+          $or: [
+            { interests: { $size: 0 } },
+            { interests: { $in: categories } },
+          ],
+        }
+      : { expoPushToken: { $exists: true, $ne: null } };
+
+  const users = await User.find(query, "expoPushToken").lean();
+  return (users as any[]).map((u) => u.expoPushToken).filter(Boolean);
 }
 
 export async function notifyNewVotingQuestion(

@@ -11,7 +11,11 @@ import {
   checkAdminSessionLimit,
 } from "@/lib/admin-helper";
 import { createLogger } from "@/lib/logger";
-import { notifyNewVotingQuestion } from "@/lib/push-notifications";
+import {
+  notifyNewVotingQuestion,
+  getTokensForCategories,
+} from "@/lib/push-notifications";
+import { ALL_CATEGORIES } from "@repo/types";
 
 const log = createLogger("AdminSessions");
 
@@ -109,7 +113,18 @@ export default async function handler(
         onlyYesVotes,
         sessionType,
         surveyDurationDays,
+        categories: rawCategories,
       } = req.body;
+
+      const categories = Array.isArray(rawCategories)
+        ? (rawCategories as unknown[])
+            .filter(
+              (c): c is string =>
+                typeof c === "string" &&
+                (ALL_CATEGORIES as readonly string[]).includes(c),
+            )
+            .slice(0, 3)
+        : [];
 
       if (!place) {
         return res.status(400).json({ error: "Place is required" });
@@ -165,18 +180,14 @@ export default async function handler(
             : false,
         singleResult: singleResult !== undefined ? singleResult : false,
         onlyYesVotes: onlyYesVotes || false,
+        categories,
       });
 
-      // Send push notification to all mobile users when a voting question is created
+      // Send targeted push notification when a voting question is created
       if (isVoting) {
-        const usersWithTokens = await User.find(
-          { expoPushToken: { $exists: true, $ne: null } },
-          "expoPushToken",
-        ).lean();
-        const tokens = usersWithTokens
-          .map((u: any) => u.expoPushToken)
-          .filter(Boolean);
-        notifyNewVotingQuestion(place.trim(), tokens).catch(() => {});
+        getTokensForCategories(categories)
+          .then((tokens) => notifyNewVotingQuestion(place.trim(), tokens))
+          .catch(() => {});
       }
 
       // Decrement remainingSessions for regular admins (not superadmins)

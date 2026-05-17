@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as Notifications from "expo-notifications";
+import { useFocusEffect } from "expo-router";
 import CelebrationModal from "../../lib/CelebrationModal";
 import { addStars } from "../../lib/stars";
 import {
@@ -51,6 +53,13 @@ const ALTS: { key: "ja" | "nej" | "abstar"; label: string }[] = [
 
 export default function VoteScreen() {
   const insets = useSafeAreaInsets();
+
+  useFocusEffect(
+    useCallback(() => {
+      Notifications.setBadgeCountAsync(0).catch(() => {});
+    }, []),
+  );
+
   const [sessions, setSessions] = useState<VotingSession[]>([]);
   const sessionsRef = useRef<VotingSession[]>([]);
   const [loading, setLoading] = useState(true);

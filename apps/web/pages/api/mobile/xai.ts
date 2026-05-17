@@ -1,11 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import Anthropic from "@anthropic-ai/sdk";
+import { chat } from "../../../lib/ai";
 import { verifyBearerToken } from "../../../lib/mobile-jwt";
 import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("MobileXAI");
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const SYSTEM_PROMPT = `Du är XAI, en demokratisk assistent för Vallentuna Framåt — ett lokalt demokratiparti i Vallentuna kommun, Sverige.
 
@@ -45,19 +43,20 @@ export default async function handler(
       ? `[Kontext: användaren är på fliken "${context}"]\n\n${message.trim()}`
       : message.trim();
 
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 300,
+    const reply = await chat({
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userContent }],
+      message: userContent,
+      maxTokens: 300,
+      fallbackReply: "",
     });
-
-    const reply = (response.content[0] as any).text ?? "";
+    if (!reply) throw new Error("empty reply");
     return res.status(200).json({ reply });
   } catch (error) {
     log.error("XAI call failed", { error: error.message });
-    return res.status(500).json({
-      message: "XAI är tillfälligt otillgänglig. Försök igen om en stund.",
-    });
+    return res
+      .status(500)
+      .json({
+        message: "XAI är tillfälligt otillgänglig. Försök igen om en stund.",
+      });
   }
 }

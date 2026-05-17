@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 import connectDB from "../../../../lib/mongodb";
 import { CitizenProposal, CitizenProposalRating } from "../../../../lib/models";
 import { verifyBearerToken } from "../../../../lib/mobile-jwt";
+import { ALL_CATEGORIES } from "@repo/types";
 import { createLogger } from "../../../../lib/logger";
 
 export const config = { api: { bodyParser: false } };
@@ -55,10 +56,29 @@ export default async function handler(
     const description = Array.isArray(fields.description)
       ? fields.description[0]
       : fields.description;
+    const categoriesRaw = Array.isArray(fields.categories)
+      ? fields.categories[0]
+      : fields.categories;
 
     if (!title?.trim()) return res.status(400).json({ message: "Titel krävs" });
     if (!description?.trim())
       return res.status(400).json({ message: "Beskrivning krävs" });
+
+    let categories: string[] = [];
+    if (categoriesRaw) {
+      try {
+        const parsed = JSON.parse(categoriesRaw);
+        categories = (Array.isArray(parsed) ? parsed : [])
+          .filter(
+            (c): c is string =>
+              typeof c === "string" &&
+              (ALL_CATEGORIES as readonly string[]).includes(c),
+          )
+          .slice(0, 3);
+      } catch {
+        /* invalid JSON — use empty */
+      }
+    }
 
     const file = Array.isArray(files.image) ? files.image[0] : files.image;
     const id = new mongoose.Types.ObjectId();
@@ -78,7 +98,7 @@ export default async function handler(
         _id: id,
         title: title.trim(),
         description: description.trim(),
-        categories: [1],
+        categories,
         authorId: user.id,
         authorName: user.name || user.email,
         status: "active",
