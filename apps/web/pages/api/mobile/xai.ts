@@ -53,10 +53,8 @@ export default async function handler(
     return res.status(200).json({ reply });
   } catch (error) {
     log.error("XAI call failed", { error: error.message });
-    return res
-      .status(500)
-      .json({
-        message: "XAI är tillfälligt otillgänglig. Försök igen om en stund.",
-      });
+    return res.status(500).json({
+      message: "XAI är tillfälligt otillgänglig. Försök igen om en stund.",
+    });
   }
 }

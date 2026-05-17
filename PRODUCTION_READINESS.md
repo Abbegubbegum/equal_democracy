@@ -12,9 +12,9 @@ Last audited: 2026-05-17.
 
 Vercel's runtime filesystem is **read-only outside `/tmp`**. Anything written to `public/` will throw `EROFS`. Even if writes succeeded, `public/` is baked at build time and served from the CDN — new files would never be visible to clients.
 
-| File | What it does | Fix |
-|------|--------------|-----|
-| [apps/web/pages/api/admin/session-image.ts:26-49](apps/web/pages/api/admin/session-image.ts#L26-L49) | Admin uploads session backgrounds via `fs.renameSync` into `public/session-images/` | Vercel Blob / S3 / R2; store returned URL in `Session.imageUrl` |
+| File                                                                                                                       | What it does                                                                                                                                      | Fix                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| [apps/web/pages/api/admin/session-image.ts:26-49](apps/web/pages/api/admin/session-image.ts#L26-L49)                       | Admin uploads session backgrounds via `fs.renameSync` into `public/session-images/`                                                               | Vercel Blob / S3 / R2; store returned URL in `Session.imageUrl`      |
 | [apps/web/pages/api/mobile/citizen-proposals/index.ts:36,92,119](apps/web/pages/api/mobile/citizen-proposals/index.ts#L36) | Mobile uploads citizen-proposal images via `fs.renameSync` into `public/citizen-proposal-images/`; failure path uses `fs.unlink` against same dir | Vercel Blob / S3 / R2; mirror cleanup path to the blob `delete` call |
 
 [apps/web/pages/api/budget/upload-pdf.ts](apps/web/pages/api/budget/upload-pdf.ts) is **OK** — it only writes to `formidable`'s OS temp directory, which Vercel routes to `/tmp` (writable within a single invocation).
@@ -27,23 +27,29 @@ Vercel's runtime filesystem is **read-only outside `/tmp`**. Anything written to
 
 No `vercel.json` or any other cron configuration is checked in. The following endpoints are designed to be called periodically, but only fire when a client happens to trigger them. If no client polls, **the action never happens**.
 
-| Endpoint | What stops working without cron |
-|----------|-------------------------------|
-| [apps/web/pages/api/check-session-timeout.ts](apps/web/pages/api/check-session-timeout.ts) | Sessions exceeding `Settings.sessionLimitHours` (default 24h) never auto-close. Stale sessions accumulate indefinitely. |
+| Endpoint                                                                                                                   | What stops working without cron                                                                                                                                                                                           |
+| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [apps/web/pages/api/check-session-timeout.ts](apps/web/pages/api/check-session-timeout.ts)                                 | Sessions exceeding `Settings.sessionLimitHours` (default 24h) never auto-close. Stale sessions accumulate indefinitely.                                                                                                   |
 | [apps/web/pages/api/sessions/execute-scheduled-transition.ts](apps/web/pages/api/sessions/execute-scheduled-transition.ts) | The 90-second Phase 1 → Phase 2 transition only fires if a user has the session page open and is polling. If everyone closes their tab, the session is frozen in phase1 with `phase1TransitionScheduled` set in the past. |
-| [apps/web/pages/api/admin/execute-scheduled-termination.ts](apps/web/pages/api/admin/execute-scheduled-termination.ts) | Same issue for the 60-second Phase 2 termination. |
-| [apps/web/pages/api/sessions/check-archive.ts](apps/web/pages/api/sessions/check-archive.ts) | Closed sessions never auto-archive without polling. |
+| [apps/web/pages/api/admin/execute-scheduled-termination.ts](apps/web/pages/api/admin/execute-scheduled-termination.ts)     | Same issue for the 60-second Phase 2 termination.                                                                                                                                                                         |
+| [apps/web/pages/api/sessions/check-archive.ts](apps/web/pages/api/sessions/check-archive.ts)                               | Closed sessions never auto-archive without polling.                                                                                                                                                                       |
 
 **Fix:** Add `vercel.json` at the repo root:
 
 ```jsonc
 {
   "crons": [
-    { "path": "/api/sessions/execute-scheduled-transition", "schedule": "* * * * *" },
-    { "path": "/api/admin/execute-scheduled-termination",   "schedule": "* * * * *" },
-    { "path": "/api/check-session-timeout",                 "schedule": "*/5 * * * *" },
-    { "path": "/api/sessions/check-archive",                "schedule": "*/5 * * * *" }
-  ]
+    {
+      "path": "/api/sessions/execute-scheduled-transition",
+      "schedule": "* * * * *",
+    },
+    {
+      "path": "/api/admin/execute-scheduled-termination",
+      "schedule": "* * * * *",
+    },
+    { "path": "/api/check-session-timeout", "schedule": "*/5 * * * *" },
+    { "path": "/api/sessions/check-archive", "schedule": "*/5 * * * *" },
+  ],
 }
 ```
 
@@ -73,23 +79,51 @@ Vercel Hobby plan limits crons to **daily**. Schedules above the per-minute rate
 If the lambda is killed, the second half of the recipient list silently never receives the email/SMS, and there is no resume mechanism.
 
 **Fix options:**
+
 - Use `Promise.allSettled` with bounded concurrency (e.g. 10 parallel sends) — gets you ~10x throughput without queueing.
 - Push to a queue (Upstash QStash, Vercel Queues, Trigger.dev) and let the worker handle pacing.
 - At minimum, set `export const maxDuration = 300` on broadcast endpoints and document the recipient cap.
 
 ---
 
-### 4. Expo push notification fan-out is fire-and-forget inside admin requests
+### 4. `POST /api/admin/clean-content` re-scans the entire DB on every call
+
+[apps/web/pages/api/admin/clean-content.ts](apps/web/pages/api/admin/clean-content.ts) iterates **all** comments + proposals + citizen proposals and calls Claude Haiku on each at concurrency 5 (~0.4s per item amortized). No `export const maxDuration`, so it inherits Vercel's default (10s on Hobby, 15s on Pro) — times out at roughly 25-50 items.
+
+Worse: `Comment.deleteOne` / `Proposal.deleteOne` / `CitizenProposal.deleteOne` are called inline. If the lambda is killed mid-loop:
+
+- Already-deleted items stay deleted, but the admin never sees the response listing them.
+- There is no `moderatedAt` field, so re-running re-checks everything — **double-billing the Anthropic API** and re-evaluating items that were already approved.
+
+| Total items | Time at concurrency 5 | Verdict                                   |
+| ----------- | --------------------- | ----------------------------------------- |
+| 100         | ~40s                  | OK on Hobby if `maxDuration` raised       |
+| 500         | ~200s                 | Dies on Hobby (60s cap), OK on Pro (300s) |
+| 2,000       | ~800s                 | Dies even on Pro at default `maxDuration` |
+| 10,000+     | hours                 | Impossible inside a single lambda         |
+
+**Fix options (in order of effort):**
+
+- **A. Incremental + idempotent (~30 min).** Add `moderatedAt` timestamp on each model. Only check items where `moderatedAt < createdAt` (never checked, or content edited since). Set `export const maxDuration = 300`. Admin can repeatedly click the button without re-billing.
+- **B. Queue-based.** Enqueue per-item jobs (Upstash QStash / Vercel Queues / Inngest); a worker route processes one item per invocation. Admin polls status. Right answer for scale.
+- **C. Moderate at write-time.** Already partially done via `POST /api/moderate` — extend it to reject flagged content before it's saved. `clean-content` then becomes a one-off migration script, not a button.
+
+Recommended path: **A** as the production fix; **C** is the longer-term architecture.
+
+---
+
+### 5. Expo push notification fan-out is fire-and-forget inside admin requests
 
 `POST /api/admin/sessions` calls `notifyNewVotingQuestion()` ([apps/web/lib/push-notifications.ts](apps/web/lib/push-notifications.ts)). The admin's HTTP request blocks until Expo's push API responds for all chunks of 100 tokens. No retry on failure; no dead-letter queue.
 
 Acceptable for MVP. As the user base grows past ~500 push-enabled users, consider:
+
 - Move fan-out into a background job (return 200 to admin immediately, queue the push).
 - Persist Expo "tickets" so you can poll receipts and prune dead tokens.
 
 ---
 
-### 5. Same-process state across lambdas
+### 6. Same-process state across lambdas
 
 [apps/web/lib/pusher-broadcaster.ts:84](apps/web/lib/pusher-broadcaster.ts#L84) and [apps/web/lib/mongodb.ts:11](apps/web/lib/mongodb.ts#L11) cache instances on `global`. Each lambda instance has its own copy.
 
@@ -101,17 +135,17 @@ Acceptable for MVP. As the user base grows past ~500 push-enabled users, conside
 
 ## 🟡 Lower-risk / cosmetic
 
-### 6. CORS allow-list is dev-only by default
+### 7. CORS allow-list is dev-only by default
 
 [apps/web/middleware.ts:5-9](apps/web/middleware.ts#L5-L9) hard-codes `localhost:8081` and `localhost:19006`. The `ALLOWED_ORIGINS` env var extends it but must be set in Vercel project settings or mobile-web hits CORS errors with no local symptom.
 
 **Deployment checklist:** set `ALLOWED_ORIGINS=https://app.example.com,https://expo-web.example.com` in Vercel env.
 
-### 7. `output: "standalone"` in next.config.mjs is unused on Vercel
+### 8. `output: "standalone"` in next.config.mjs is unused on Vercel
 
 [apps/web/next.config.mjs:4](apps/web/next.config.mjs#L4) — `output: "standalone"` is for self-hosted Node/Docker. Vercel ignores it. Not broken, but signals confusion about deployment target. Safe to delete unless you also plan to deploy via Docker.
 
-### 8. `pdf-parse` dependency is unused
+### 9. `pdf-parse` dependency is unused
 
 [apps/web/package.json](apps/web/package.json#L34) lists `pdf-parse@^2.4.5`, but [apps/web/lib/budget/ai-extractor.ts:4](apps/web/lib/budget/ai-extractor.ts#L4) explicitly notes Claude reads PDFs directly. Safe to remove from dependencies.
 
