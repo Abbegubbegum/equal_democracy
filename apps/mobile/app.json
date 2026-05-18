@@ -29,7 +29,20 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
-    ]
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#002d75"
+        }
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5420a366-1997-4cac-a9a3-44f96ed67292"
+      }
+    },
+    "owner": "peerdemocracy"
   }
 }

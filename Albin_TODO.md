@@ -32,13 +32,13 @@ EXPO_PUBLIC_API_URL=https://din-vercel-domän.vercel.app
 [
   "expo-notifications",
   {
-    "icon": "./assets/notification-icon.png",
     "color": "#002d75"
   }
 ]
 ```
 
-> OBS: Du behöver också skapa/exportera `notification-icon.png` (vit ikon, 96×96 px, transparent bakgrund) och lägga den i `apps/mobile/assets/`.
+> **OBS — ingen `notification-icon.png` behövs:**
+> Den röda cirkeln med vit siffra (badge) på appikonen är 100 % inbyggt i iOS och Android — det kräver ingen bild. `notification-icon.png` är enbart den lilla vita ikonen i **Androids statusfält** när en push-notis visas, och Expo faller tillbaka på appikonen om den saknas. Du kan lägga till den senare som en polish-detalj; den blockerar inte lansering.
 
 ---
 
@@ -161,9 +161,9 @@ eas build --profile production --platform ios
 - [ ] Produktions-URL i `.env`
 - [x] Generera `icon.png` från `icon.svg` (1024×1024)
 - [x] Installera `expo-notifications`
-- [ ] Lägg till `expo-notifications`-plugin i `app.json` + skapa `notification-icon.png`
+- [x] Lägg till `expo-notifications`-plugin i `app.json`
 - [x] Återaktivera notis-koden i `_layout.tsx` och `vote.tsx`
-- [ ] Skapa EAS-konto och kör `eas init`
+- [x] Skapa EAS-konto och kör `eas init` (project ID: 5420a366-1997-4cac-a9a3-44f96ed67292)
 - [ ] FCM-nyckel (Android-notiser)
 - [ ] Apple Developer-konto + APNs-nyckel (iOS-notiser)
 - [ ] Testbygge APK och verifiera på riktig Android-telefon
