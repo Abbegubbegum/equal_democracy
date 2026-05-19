@@ -22,7 +22,8 @@
         "backgroundColor": "#002d75"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.peerdemocracy.mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
