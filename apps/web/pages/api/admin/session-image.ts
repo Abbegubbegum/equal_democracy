@@ -2,14 +2,13 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import formidable from "formidable";
 import fs from "fs";
 import path from "path";
+import { put, del } from "@vercel/blob";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
 import { Session } from "../../../lib/models";
 
 export const config = { api: { bodyParser: false } };
-
-const UPLOAD_DIR = path.join(process.cwd(), "public", "session-images");
 
 export default async function handler(
   req: NextApiRequest,
@@ -23,10 +22,7 @@ export default async function handler(
     return res.status(403).json({ message: "Forbidden" });
   }
 
-  if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
   const form = formidable({
-    uploadDir: UPLOAD_DIR,
     keepExtensions: true,
     maxFileSize: 5 * 1024 * 1024, // 5 MB
     filter: ({ mimetype }) => !!mimetype?.startsWith("image/"),
@@ -42,16 +38,29 @@ export default async function handler(
     return res.status(400).json({ message: "Missing image or sessionId" });
   }
 
-  const filename = `${sessionId}${path.extname(file.originalFilename ?? ".jpg")}`;
-  const dest = path.join(UPLOAD_DIR, filename);
-
-  // Replace any previous image for this session
-  fs.renameSync(file.filepath, dest);
-
-  const imageUrl = `/session-images/${filename}`;
-
   await connectDB();
-  await Session.findByIdAndUpdate(sessionId, { imageUrl });
 
-  return res.status(200).json({ imageUrl });
+  const ext = path.extname(file.originalFilename ?? ".jpg") || ".jpg";
+  const blobPath = `session-images/${sessionId}-${Date.now()}${ext}`;
+  const buffer = await fs.promises.readFile(file.filepath);
+
+  const { url } = await put(blobPath, buffer, {
+    access: "public",
+    contentType: file.mimetype ?? "image/jpeg",
+  });
+
+  // Clean up the temp file formidable wrote to /tmp.
+  fs.promises.unlink(file.filepath).catch(() => {});
+
+  // Remove the previous blob for this session so we don't accumulate orphans.
+  const existing = await Session.findById(sessionId).select("imageUrl").lean<{
+    imageUrl?: string | null;
+  } | null>();
+  if (existing?.imageUrl && existing.imageUrl.startsWith("http")) {
+    del(existing.imageUrl).catch(() => {});
+  }
+
+  await Session.findByIdAndUpdate(sessionId, { imageUrl: url });
+
+  return res.status(200).json({ imageUrl: url });
 }

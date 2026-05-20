@@ -7,8 +7,8 @@ import { createLogger } from "@/lib/logger";
 const log = createLogger("SessionTimeout");
 
 /**
- * API endpoint to check and automatically close sessions that have exceeded their time limit
- * This can be called periodically by a cron job or manually
+ * Closes any active session that has exceeded Settings.sessionLimitHours.
+ * Invoked by Vercel Cron (see apps/web/vercel.json) with a Bearer CRON_SECRET.
  */
 export default async function handler(
   req: NextApiRequest,
@@ -16,6 +16,13 @@ export default async function handler(
 ) {
   if (req.method !== "POST" && req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  if (
+    !process.env.CRON_SECRET ||
+    req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`
+  ) {
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
   try {

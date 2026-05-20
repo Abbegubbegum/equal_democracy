@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/check-session-timeout",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

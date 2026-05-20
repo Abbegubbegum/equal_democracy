@@ -64,9 +64,7 @@ pnpm format           # Prettier-format all .ts/.tsx/.md files
 
 # From apps/web specifically
 pnpm dev --filter=web
-npm run migrate:dry-run   # Test DB migration
-npm run migrate           # Migrate + backup
-npm run backup            # Backup to MongoDB
+npm run backup            # Mirror prod DB to backup DB
 ```
 
 Web runs on `http://localhost:3000` (Next.js with Turbopack)
@@ -182,9 +180,7 @@ apps/web/
 ├── components/
 │   └── budget/                 # Budget visualization components
 ├── lib/                        # All utility/helper code
-├── public/
-│   ├── session-images/         # Session background images (admin upload via /api/admin/session-image)
-│   └── citizen-proposal-images/ # Citizen proposal images (mobile upload via /api/mobile/citizen-proposals)
+├── public/                     # Static assets only — user uploads go to Vercel Blob (session-images/, citizen-proposal-images/ prefixes)
 ├── styles/                     # Global CSS (Tailwind v4)
 ├── types/                      # Local TypeScript types
 └── scripts/                    # DB migration + utility scripts
@@ -345,7 +341,7 @@ Session types: `"standard"` · `"survey"` · `"municipal"` · `"voting"`
 - `GET/PATCH /api/admin/citizen-proposals` — List all citizen proposals / update status (active/archived/selected/submitted_as_motion/rejected)
 - `POST /api/admin/suggest-categories` — Suggest category tags for a proposal title/description via Claude (admin-only)
 - `GET/PATCH /api/admin/session-requests` — List session-quota requests / approve or deny
-- `POST /api/admin/session-image` — Multipart image upload for session backgrounds (writes to `public/session-images/` — see PRODUCTION_READINESS.md, this breaks on Vercel)
+- `POST /api/admin/session-image` — Multipart image upload for session backgrounds; stores via `@vercel/blob` under prefix `session-images/`, returns the public CDN URL, deletes the previous blob if `Session.imageUrl` already pointed to one
 
 ### Mobile Auth (JWT)
 
@@ -366,7 +362,7 @@ Mobile API calls pass `Authorization: Bearer <accessToken>`. Use `verifyBearerTo
 - `GET /api/mobile/sessions/archived` — Closed/archived sessions with TopProposals and vote counts (excludes "voting" type)
 - `GET /api/mobile/sessions/[id]/proposals` — Proposals for a specific session
 - `GET /api/mobile/sessions/voting` — All voting-type sessions as an array: active first (isActive: true), then closed/archived newest-first (isActive: false). Each entry has `{ id, question, imageUrl, isActive, startDate, voteCounts, userVote }`. Returns `[]` if none exist.
-- `GET/POST /api/mobile/citizen-proposals` — List active citizen proposals / create new one (multipart, supports image upload; `bodyParser: false` + formidable; 600 KB server-side limit; saves to `public/citizen-proposal-images/`)
+- `GET/POST /api/mobile/citizen-proposals` — List active citizen proposals / create new one (multipart, supports image upload; `bodyParser: false` + formidable; 600 KB server-side limit; stores via `@vercel/blob` under prefix `citizen-proposal-images/`, rolls back with `del()` if the DB insert fails)
 - `POST /api/mobile/citizen-proposals/rate` — Upsert star rating (1-5), recalculates averageRating
 - `POST /api/mobile/votes` — Cast or update yes/no vote on a phase2 proposal
 - `POST /api/mobile/quick-vote` — Cast or update Ja/Nej/Avstår vote on a "voting"-type session; returns updated vote counts
@@ -462,6 +458,9 @@ NEXT_PUBLIC_PUSHER_CLUSTER=eu
 TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_FROM_PHONE=
+
+# Blob storage (Vercel Blob — required in production; for local dev only if you want uploads to work)
+BLOB_READ_WRITE_TOKEN=
 ```
 
 ---
@@ -554,10 +553,9 @@ Claude API receives base64-encoded PDF. Budget extraction (`lib/budget/ai-extrac
 ## Scripts (`apps/web/scripts/`)
 
 ```bash
-node scripts/migrate-database.js [--dry-run|--backup-only|--migrate]
-node scripts/backup-to-mongodb.js
-node scripts/force-close-session.js
-node scripts/test-agenda-extraction.js
-node scripts/test-auto-close.js
-node scripts/add-fixed-percentages.js
+node scripts/backup-to-mongodb.js              # Mirror prod DB → MONGODB_URI_BACKUP
+node scripts/force-close-session.js            # Emergency close of a stuck phase-2 session
+node scripts/test-agenda-extraction.js         # Dev test for municipal/agenda-extractor.ts
+node scripts/test-auto-close.js                # Read-only diagnostic for phase-2 auto-close
+node scripts/migrate-images-to-blob.js         # One-shot: move public/*-images/ to Vercel Blob
 ```

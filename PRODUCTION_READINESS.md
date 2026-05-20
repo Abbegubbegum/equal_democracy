@@ -8,62 +8,47 @@ Last audited: 2026-05-17.
 
 ## 🔴 Critical — broken on Vercel
 
-### 1. Filesystem writes to `public/`
+### 1. ~~Filesystem writes to `public/`~~ ✅ Fixed (2026-05-20)
 
-Vercel's runtime filesystem is **read-only outside `/tmp`**. Anything written to `public/` will throw `EROFS`. Even if writes succeeded, `public/` is baked at build time and served from the CDN — new files would never be visible to clients.
+Migrated both endpoints to `@vercel/blob`:
 
-| File                                                                                                                       | What it does                                                                                                                                      | Fix                                                                  |
-| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| [apps/web/pages/api/admin/session-image.ts:26-49](apps/web/pages/api/admin/session-image.ts#L26-L49)                       | Admin uploads session backgrounds via `fs.renameSync` into `public/session-images/`                                                               | Vercel Blob / S3 / R2; store returned URL in `Session.imageUrl`      |
-| [apps/web/pages/api/mobile/citizen-proposals/index.ts:36,92,119](apps/web/pages/api/mobile/citizen-proposals/index.ts#L36) | Mobile uploads citizen-proposal images via `fs.renameSync` into `public/citizen-proposal-images/`; failure path uses `fs.unlink` against same dir | Vercel Blob / S3 / R2; mirror cleanup path to the blob `delete` call |
+- [apps/web/pages/api/admin/session-image.ts](apps/web/pages/api/admin/session-image.ts) — `put()` to `session-images/<sessionId>-<ts>.<ext>`, public access. Deletes the previous blob (read from `Session.imageUrl`) before overwriting, so replacing a session image no longer accumulates orphans.
+- [apps/web/pages/api/mobile/citizen-proposals/index.ts](apps/web/pages/api/mobile/citizen-proposals/index.ts) — `put()` to `citizen-proposal-images/<id>.<ext>`. Failure path now calls `del()` instead of `fs.unlink`.
 
-[apps/web/pages/api/budget/upload-pdf.ts](apps/web/pages/api/budget/upload-pdf.ts) is **OK** — it only writes to `formidable`'s OS temp directory, which Vercel routes to `/tmp` (writable within a single invocation).
+`imageUrl` is now a full HTTPS URL (e.g. `https://<hash>.public.blob.vercel-storage.com/...`). All consumers either already handled absolute URLs (`startsWith("http")` branches in [vote.tsx](apps/mobile/app/(app)/vote.tsx), [sessions.tsx](apps/mobile/app/(app)/sessions.tsx), [admin/index.tsx](apps/web/pages/admin/index.tsx)) or use the URL verbatim in an `<img src>` (which works for both). [apps/mobile/app/(app)/proposals.tsx](apps/mobile/app/(app)/proposals.tsx) was updated to add the same `startsWith("http")` check.
 
-**Recommendation:** `@vercel/blob` is the lowest-friction migration — same field shape, no CORS setup, no signed URLs. Two small endpoints, ~20 lines each.
+**Vercel setup required before deploy:**
+
+1. Dashboard → Storage → Create Database → Blob → "Create".
+2. Connect the store to the project. Vercel will inject `BLOB_READ_WRITE_TOKEN` automatically into the production environment (also pull it into Preview if you want previews to upload). Run `vercel env pull` locally for dev uploads, or set `BLOB_READ_WRITE_TOKEN` in `apps/web/.env.local`.
+3. No bucket / CORS / signed-URL config is needed — `access: "public"` returns a CDN-fronted public URL.
+
+[apps/web/pages/api/budget/upload-pdf.ts](apps/web/pages/api/budget/upload-pdf.ts) is still **OK** — it only writes to `formidable`'s OS temp directory, which Vercel routes to `/tmp` (writable within a single invocation).
 
 ---
 
-### 2. No scheduler exists, but the app assumes one
+### 2. ~~No scheduler exists~~ ✅ Resolved for Hobby tier (2026-05-20)
 
-No `vercel.json` or any other cron configuration is checked in. The following endpoints are designed to be called periodically, but only fire when a client happens to trigger them. If no client polls, **the action never happens**.
+The Hobby plan caps crons at **once per day**, which rules out the per-minute / 5-minute crons originally planned for phase transitions. After auditing each endpoint, only one of them genuinely needs to run on a schedule on Hobby. The rest are self-healing (lazy-fired by clients) or pure cosmetic housekeeping.
 
-| Endpoint                                                                                                                   | What stops working without cron                                                                                                                                                                                           |
-| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [apps/web/pages/api/check-session-timeout.ts](apps/web/pages/api/check-session-timeout.ts)                                 | Sessions exceeding `Settings.sessionLimitHours` (default 24h) never auto-close. Stale sessions accumulate indefinitely.                                                                                                   |
-| [apps/web/pages/api/sessions/execute-scheduled-transition.ts](apps/web/pages/api/sessions/execute-scheduled-transition.ts) | The 90-second Phase 1 → Phase 2 transition only fires if a user has the session page open and is polling. If everyone closes their tab, the session is frozen in phase1 with `phase1TransitionScheduled` set in the past. |
-| [apps/web/pages/api/admin/execute-scheduled-termination.ts](apps/web/pages/api/admin/execute-scheduled-termination.ts)     | Same issue for the 60-second Phase 2 termination.                                                                                                                                                                         |
-| [apps/web/pages/api/sessions/check-archive.ts](apps/web/pages/api/sessions/check-archive.ts)                               | Closed sessions never auto-archive without polling.                                                                                                                                                                       |
+| Endpoint                                                                                                                   | Self-heals lazily?                                                              | Decision on Hobby                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [check-session-timeout.ts](apps/web/pages/api/check-session-timeout.ts)                                                    | No client trigger — would never fire without cron.                              | **Daily cron, 03:00 UTC.** Sweeps any session past `Settings.sessionLimitHours`.   |
+| [sessions/execute-scheduled-transition.ts](apps/web/pages/api/sessions/execute-scheduled-transition.ts)                    | Yes — [session/[id].tsx:241](apps/web/pages/session/[id].tsx#L241) polls it.    | No cron. Lazy.                                                                     |
+| [admin/execute-scheduled-termination.ts](apps/web/pages/api/admin/execute-scheduled-termination.ts)                        | Yes — same page + [manage-sessions.tsx:1185](apps/web/pages/manage-sessions.tsx#L1185). | No cron. Lazy. **Edge case:** if *nobody* visits the session page after phase 2 expires, the participant result emails (sent inside `closeSession({ sendEmails: true })`) never go out. Accepted on Hobby. |
+| [sessions/check-archive.ts](apps/web/pages/api/sessions/check-archive.ts)                                                  | No client trigger.                                                              | No cron. Pure housekeeping for survey sessions — archive state isn't user-visible. |
 
-**Fix:** Add `vercel.json` at the repo root:
+**What's wired up:**
 
-```jsonc
-{
-  "crons": [
-    {
-      "path": "/api/sessions/execute-scheduled-transition",
-      "schedule": "* * * * *",
-    },
-    {
-      "path": "/api/admin/execute-scheduled-termination",
-      "schedule": "* * * * *",
-    },
-    { "path": "/api/check-session-timeout", "schedule": "*/5 * * * *" },
-    { "path": "/api/sessions/check-archive", "schedule": "*/5 * * * *" },
-  ],
-}
-```
+- [apps/web/vercel.json](apps/web/vercel.json) — one cron entry, `0 3 * * *`.
+- [apps/web/pages/api/check-session-timeout.ts](apps/web/pages/api/check-session-timeout.ts) is now gated by `Authorization: Bearer ${CRON_SECRET}` and returns 401 to anything else.
 
-Vercel Cron only invokes `GET` and only allows authenticated calls via the `Authorization: Bearer <CRON_SECRET>` header (Vercel injects `CRON_SECRET` automatically when configured in project env vars). Add a guard at the top of each endpoint:
+**Vercel setup required before deploy:**
 
-```ts
-if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
-  return res.status(401).end();
-}
-```
+1. Project → **Settings** → **Environment Variables** → add `CRON_SECRET` (any long random string). Vercel injects it into the cron invocation's `Authorization` header automatically.
+2. Confirm the cron shows up under **Settings** → **Cron Jobs** after the next deploy.
 
-Note: `execute-scheduled-transition` and `execute-scheduled-termination` currently require `POST`. Either accept `GET` for cron, or wire a Vercel Cron-compatible wrapper.
-
-Vercel Hobby plan limits crons to **daily**. Schedules above the per-minute rate require Pro.
+**Upgrade path to Pro:** if you ever want sub-daily reliability for the lazy endpoints (e.g. always send result emails even if nobody visits), upgrade to Pro and add `execute-scheduled-transition`, `execute-scheduled-termination`, and `check-archive` to `vercel.json` at the schedules you want. All three already accept `POST`, so they'd need a `GET` branch or a wrapper — but that's a Pro-tier concern, not blocking deploy on Hobby.
 
 ---
 
@@ -155,9 +140,9 @@ Acceptable for MVP. As the user base grows past ~500 push-enabled users, conside
 
 Before the first Vercel deploy:
 
-- [ ] Migrate `public/session-images` and `public/citizen-proposal-images` to Vercel Blob (or S3/R2).
-- [ ] Add `vercel.json` with cron entries + `CRON_SECRET` guards.
-- [ ] Set Vercel env: `MONGODB_URI_PRODUCTION`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` (production URL), `RESEND_API_KEY`, `ANTHROPIC_API_KEY`, `PUSHER_*`, `NEXT_PUBLIC_PUSHER_*`, `TWILIO_*` (if used), `ALLOWED_ORIGINS`, `CRON_SECRET`.
+- [x] ~~Migrate `public/session-images` and `public/citizen-proposal-images` to Vercel Blob~~ — done 2026-05-20. Still need to **create the Blob store in the Vercel dashboard** and confirm `BLOB_READ_WRITE_TOKEN` is set in project env.
+- [x] ~~Add `vercel.json` with cron entries + `CRON_SECRET` guards~~ — done 2026-05-20. Still need to **set `CRON_SECRET` in Vercel project env** so the daily sweep can authenticate.
+- [ ] Set Vercel env: `MONGODB_URI_PRODUCTION`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` (production URL), `RESEND_API_KEY`, `ANTHROPIC_API_KEY`, `PUSHER_*`, `NEXT_PUBLIC_PUSHER_*`, `TWILIO_*` (if used), `ALLOWED_ORIGINS`, `CRON_SECRET`, `BLOB_READ_WRITE_TOKEN` (auto-set when you connect a Blob store, but verify).
 - [ ] Set `EXPO_PUBLIC_API_URL` in mobile build to the production domain.
 - [ ] Confirm `apps/web/turbo.json` `build.env[]` lists every env var consumed at build time (Vercel requires the declaration).
 - [ ] Rotate any secrets that were ever committed to `.env` (check git history).
@@ -166,5 +151,5 @@ Before the first Vercel deploy:
 
 - Admin can create a "voting" session and the image actually appears for clients.
 - Mobile can submit a citizen proposal with an image and the URL is reachable.
-- A session left running past `sessionLimitHours` auto-closes (verify via cron logs).
-- Phase 2 termination fires when all users close their tabs (verify by manually triggering, then closing all clients).
+- A session left running past `sessionLimitHours` auto-closes within 24h (verify via Vercel Cron logs at **Settings** → **Cron Jobs** → last invocation).
+- Phase 2 termination fires when *anyone* loads the session or manage-sessions page after the 60s window. On Hobby, "nobody visits ever" means the result email never sends — accepted.

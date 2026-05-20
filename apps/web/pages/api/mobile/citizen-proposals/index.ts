@@ -3,6 +3,7 @@ import formidable from "formidable";
 import fs from "fs";
 import path from "path";
 import mongoose from "mongoose";
+import { put, del } from "@vercel/blob";
 import connectDB from "../../../../lib/mongodb";
 import { CitizenProposal, CitizenProposalRating } from "../../../../lib/models";
 import { verifyBearerToken } from "../../../../lib/mobile-jwt";
@@ -12,11 +13,6 @@ import { createLogger } from "../../../../lib/logger";
 export const config = { api: { bodyParser: false } };
 
 const log = createLogger("MobileCitizenProposals");
-const UPLOAD_DIR = path.join(
-  process.cwd(),
-  "public",
-  "citizen-proposal-images",
-);
 
 export default async function handler(
   req: NextApiRequest,
@@ -32,11 +28,7 @@ export default async function handler(
   await connectDB();
 
   if (req.method === "POST") {
-    if (!fs.existsSync(UPLOAD_DIR))
-      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
     const form = formidable({
-      uploadDir: UPLOAD_DIR,
       keepExtensions: true,
       maxFileSize: 600 * 1024, // 600 KB — mobile already compresses to ~max 500 KB
       filter: ({ mimetype }) => !!mimetype?.startsWith("image/"),
@@ -87,10 +79,13 @@ export default async function handler(
     if (file) {
       const ext =
         path.extname(file.originalFilename ?? "").toLowerCase() || ".jpg";
-      const filename = `${id}${ext}`;
-      const dest = path.join(UPLOAD_DIR, filename);
-      fs.renameSync(file.filepath, dest);
-      imageUrl = `/citizen-proposal-images/${filename}`;
+      const buffer = await fs.promises.readFile(file.filepath);
+      const { url } = await put(`citizen-proposal-images/${id}${ext}`, buffer, {
+        access: "public",
+        contentType: file.mimetype ?? "image/jpeg",
+      });
+      imageUrl = url;
+      fs.promises.unlink(file.filepath).catch(() => {});
     }
 
     try {
@@ -115,8 +110,7 @@ export default async function handler(
         userRating: 0,
       });
     } catch (error) {
-      if (imageUrl)
-        fs.unlink(path.join(process.cwd(), "public", imageUrl), () => {});
+      if (imageUrl) del(imageUrl).catch(() => {});
       log.error("Failed to create citizen proposal", { error: error.message });
       return res.status(500).json({ message: "Failed to create proposal" });
     }

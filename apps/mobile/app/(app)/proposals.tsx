@@ -87,7 +87,11 @@ function ProposalBlock({
 
   if (!height) return null;
 
-  const bgUri = proposal.imageUrl ? `${BASE_URL}${proposal.imageUrl}` : null;
+  const bgUri = !proposal.imageUrl
+    ? null
+    : proposal.imageUrl.startsWith("http")
+      ? proposal.imageUrl
+      : `${BASE_URL}${proposal.imageUrl}`;
 
   return (
     <View style={{ width: "100%", height }}>

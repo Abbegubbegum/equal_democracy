@@ -9,15 +9,13 @@
     "check-types": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
-    "migrate:dry-run": "node scripts/migrate-database.js --dry-run",
-    "migrate:backup": "node scripts/migrate-database.js --backup-only",
-    "migrate": "node scripts/migrate-database.js --migrate",
     "backup": "node scripts/backup-to-mongodb.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.69.0",
     "@repo/types": "workspace:*",
     "@vercel/analytics": "^1.6.1",
+    "@vercel/blob": "^2.4.0",
     "@vercel/speed-insights": "^2.0.0",
     "bcryptjs": "^3.0.2",
     "csrf": "^3.1.0",
