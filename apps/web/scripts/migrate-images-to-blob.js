@@ -61,7 +61,6 @@ const PUBLIC_DIR = path.join(process.cwd(), "public");
 async function migrateCollection({
   collectionName,
   pathPrefix,
-  blobPrefix,
   buildBlobKey,
 }) {
   const collection = mongoose.connection.collection(collectionName);
@@ -136,7 +135,6 @@ async function main() {
   const sessionResult = await migrateCollection({
     collectionName: "sessions",
     pathPrefix: "/session-images/",
-    blobPrefix: "session-images",
     buildBlobKey: (doc, ext) =>
       `session-images/${doc._id}-${Date.now()}${ext}`,
   });
@@ -144,7 +142,6 @@ async function main() {
   const proposalResult = await migrateCollection({
     collectionName: "citizenproposals",
     pathPrefix: "/citizen-proposal-images/",
-    blobPrefix: "citizen-proposal-images",
     buildBlobKey: (doc, ext) => `citizen-proposal-images/${doc._id}${ext}`,
   });
 

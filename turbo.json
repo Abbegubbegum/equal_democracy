@@ -1,45 +1,49 @@
 {
-  "$schema": "https://turborepo.dev/schema.json",
-  "ui": "tui",
-  "tasks": {
-    "build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**"],
-      "env": [
-        "ANTHROPIC_API_KEY",
-        "RESEND_API_KEY",
-        "NEXTAUTH_URL",
-        "NEXTAUTH_SECRET",
-        "PUSHER_CLUSTER",
-        "PUSHER_APP_ID",
-        "PUSHER_KEY",
-        "PUSHER_SECRET",
-        "MONGODB_URI",
-        "NODE_ENV"
-      ]
-    },
-    "lint": {
-      "dependsOn": ["^lint"]
-    },
-    "check-types": {
-      "dependsOn": ["^check-types"]
-    },
-    "dev": {
-      "cache": false,
-      "persistent": true
-    },
-    "start": {
-      "cache": false,
-      "persistent": true
-    },
-    "android": {
-      "cache": false,
-      "persistent": true
-    },
-    "ios": {
-      "cache": false,
-      "persistent": true
-    }
-  }
+	"$schema": "https://turborepo.dev/schema.json",
+	"ui": "tui",
+	"tasks": {
+		"build": {
+			"dependsOn": ["^build"],
+			"inputs": ["$TURBO_DEFAULT$", ".env*"],
+			"outputs": [".next/**", "!.next/cache/**"],
+			"env": [
+				"ANTHROPIC_API_KEY",
+				"RESEND_API_KEY",
+				"NEXTAUTH_URL",
+				"NEXTAUTH_SECRET",
+				"PUSHER_CLUSTER",
+				"PUSHER_APP_ID",
+				"PUSHER_KEY",
+				"PUSHER_SECRET",
+				"MONGODB_URI",
+				"NODE_ENV",
+				"BLOB_STORE_ID",
+				"BLOB_WEBHOOK_PUBLIC_KEY",
+				"BLOB_READ_WRITE_TOKEN",
+				"CRON_SECRET"
+			]
+		},
+		"lint": {
+			"dependsOn": ["^lint"]
+		},
+		"check-types": {
+			"dependsOn": ["^check-types"]
+		},
+		"dev": {
+			"cache": false,
+			"persistent": true
+		},
+		"start": {
+			"cache": false,
+			"persistent": true
+		},
+		"android": {
+			"cache": false,
+			"persistent": true
+		},
+		"ios": {
+			"cache": false,
+			"persistent": true
+		}
+	}
 }
