@@ -28,7 +28,14 @@ Notifications.setNotificationHandler({
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
-const TABS = ["/", "/sessions", "/vote", "/proposals", "/archive"];
+const TABS = [
+  "/",
+  "/sessions",
+  "/vote",
+  "/proposals",
+  "/archive",
+  "/membership",
+];
 
 function tabIcon(name: IoniconsName) {
   function Icon({ color, size }: { color: string; size: number }) {
@@ -129,10 +136,17 @@ function SwipeTabNavigator() {
           name="archive"
           options={{ title: "Arkiv", tabBarIcon: tabIcon("archive-outline") }}
         />
+        <Tabs.Screen
+          name="membership"
+          options={{
+            title: "Info",
+            tabBarIcon: tabIcon("information-circle-outline"),
+          }}
+        />
       </Tabs>
 
-      {/* XAI floating button — top-left, always visible on every tab */}
-      {!showXAI && (
+      {/* XAI floating button — top-left, hidden on Hem to avoid covering star badge */}
+      {!showXAI && normPath !== "/" && (
         <TouchableOpacity
           style={[styles.xaiBtn, { top: insets.top + 10 }]}
           onPress={() => setShowXAI(true)}

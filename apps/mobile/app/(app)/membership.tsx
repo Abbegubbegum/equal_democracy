@@ -1,16 +1,23 @@
+import React from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Modal,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import QRCode from "react-native-qrcode-svg";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
+
+// TODO: byt ut mot riktiga App Store / Google Play-länkar när appen är publicerad
+const APP_URL = "https://vallentunaframat.se";
 
 const BENEFITS = [
   "Utökad rösträtt till en röst varje månad",
@@ -22,6 +29,7 @@ const BENEFITS = [
 export default function MembershipScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [showQR, setShowQR] = React.useState(false);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -41,7 +49,38 @@ export default function MembershipScreen() {
         <View style={styles.heroCard}>
           <Ionicons name="people" size={40} color={YELLOW} />
           <Text style={styles.heroTitle}>Vallentuna Framåt</Text>
-          <Text style={styles.heroSub}>Bli delägare i din kommun</Text>
+          <Text style={styles.heroSub}>Ditt lokala parti där du bestämmer</Text>
+        </View>
+
+        <View style={styles.rulesCard}>
+          <Text style={styles.rulesTitle}>Regler</Text>
+          <Text style={styles.rulesText}>
+            Du kan rösta fritt fram till valet, debattera och lämna förslag.
+            Skriv kortfattat och sakligt. XAI hjälper dig med formuleringarna.
+            {"\n\n"}Efter valet är rösträtten begränsad, vilket gör rösterna
+            mycket tyngre. Alla har då rätt att rösta i två frågor om året och
+            lämna ett förslag.
+          </Text>
+        </View>
+
+        <View style={styles.rulesCard}>
+          <Text style={styles.rulesTitle}>Lokalt engagemang</Text>
+          <Text style={styles.rulesText}>
+            Appen förutsätter att du är folkbokförd i Vallentuna. Verifiering
+            med BankID kommer snart.
+          </Text>
+        </View>
+
+        <View style={styles.founderBanner}>
+          <Ionicons name="gift-outline" size={20} color={YELLOW} />
+          <Text style={styles.founderText}>
+            <Text style={styles.founderBold}>Demokratipionjärer — </Text>
+            Vi är några som vill förbättra demokratin i Vallentuna. Den måste
+            bli bättre överallt, och någonstans ska man börja. Vi har inga
+            mandat ännu, men vi bygger partiet tillsammans. Vill du bli medlem?
+            Som tack täcker din avgift även 2027. Du betalar en gång, du är med
+            i två år.
+          </Text>
         </View>
 
         <View style={styles.priceCard}>
@@ -50,15 +89,6 @@ export default function MembershipScreen() {
             250 kr <Text style={styles.pricePer}>/år</Text>
           </Text>
           <Text style={styles.priceYears}>Täcker 2026 och 2027</Text>
-        </View>
-
-        <View style={styles.founderBanner}>
-          <Ionicons name="gift-outline" size={20} color={YELLOW} />
-          <Text style={styles.founderText}>
-            <Text style={styles.founderBold}>Grundarmedlem — </Text>
-            vi har inga mandat ännu, men vi bygger partiet tillsammans. Som tack
-            täcker din avgift även 2027. Du betalar en gång, du är med i två år.
-          </Text>
         </View>
 
         <View style={styles.section}>
@@ -71,20 +101,48 @@ export default function MembershipScreen() {
           ))}
         </View>
 
-        <View style={styles.bankidNotice}>
-          <Ionicons name="shield-checkmark-outline" size={20} color={BLUE} />
-          <Text style={styles.bankidText}>
-            Medlemskap kräver att du är folkbokförd i Vallentuna. Verifiering
-            med BankID kommer snart.
-          </Text>
-        </View>
-
         <TouchableOpacity style={styles.payBtn} activeOpacity={0.85} disabled>
           <Ionicons name="card-outline" size={20} color={BLUE} />
           <Text style={styles.payBtnText}>Betala med Swish</Text>
         </TouchableOpacity>
         <Text style={styles.comingSoon}>Betalning aktiveras snart</Text>
+
+        <TouchableOpacity
+          style={styles.shareBtn}
+          onPress={() => setShowQR(true)}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="qr-code-outline" size={20} color="#fff" />
+          <Text style={styles.shareBtnText}>Dela appen med en vän</Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      <Modal
+        visible={showQR}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowQR(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowQR(false)}>
+          <View style={styles.qrBackdrop}>
+            <TouchableWithoutFeedback>
+              <View style={styles.qrBox}>
+                <Text style={styles.qrTitle}>Scanna för att ladda ner</Text>
+                <View style={styles.qrCode}>
+                  <QRCode value={APP_URL} size={200} color={BLUE} />
+                </View>
+                <Text style={styles.qrHint}>Vallentuna Framåt</Text>
+                <TouchableOpacity
+                  onPress={() => setShowQR(false)}
+                  style={styles.qrClose}
+                >
+                  <Text style={styles.qrCloseText}>Stäng</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
@@ -116,6 +174,24 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   heroSub: { color: "rgba(255,255,255,0.7)", fontSize: 14 },
+
+  rulesCard: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 16,
+    padding: 20,
+    gap: 8,
+  },
+  rulesTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  rulesText: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 14,
+    lineHeight: 21,
+  },
 
   priceCard: {
     backgroundColor: YELLOW,
@@ -201,4 +277,41 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   founderBold: { fontWeight: "800", color: "#fff" },
+
+  shareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingVertical: 14,
+    borderRadius: 14,
+    gap: 10,
+    marginTop: 4,
+  },
+  shareBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+
+  qrBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qrBox: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 28,
+    alignItems: "center",
+    gap: 16,
+    marginHorizontal: 32,
+  },
+  qrTitle: { fontSize: 17, fontWeight: "800", color: BLUE },
+  qrCode: { padding: 12, backgroundColor: "#fff", borderRadius: 8 },
+  qrHint: { fontSize: 13, color: "#888" },
+  qrClose: {
+    backgroundColor: BLUE,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  qrCloseText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 });
