@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1018667064975",
+    "project_id": "vallentuna-framat",
+    "storage_bucket": "vallentuna-framat.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1018667064975:android:d3a4829269782ba1011afa",
+        "android_client_info": {
+          "package_name": "se.vallentunaframat.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAURVD4SzgoDDM9jWrQMLUjapmHpSXZ45w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,5 +1,8 @@
 import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 import { apiClient } from "../../lib/api";
+
+const IS_EXPO_GO = Constants.executionEnvironment === "storeClient";
 import { Platform } from "react-native";
 import { useRef, useState, useEffect } from "react";
 import { View, PanResponder, TouchableOpacity, StyleSheet } from "react-native";
@@ -57,6 +60,7 @@ function SwipeTabNavigator() {
   routerRef.current = router;
 
   useEffect(() => {
+    if (IS_EXPO_GO) return;
     const screenMap: Record<string, string> = {
       vote: "/vote",
       sessions: "/sessions",
@@ -198,28 +202,30 @@ export default function AppLayout() {
     startupDone.current = true;
 
     (async () => {
-      // Push token registration — only works in a real EAS build, not Expo Go
-      try {
-        if (Platform.OS === "android") {
-          await Notifications.setNotificationChannelAsync("default", {
-            name: "default",
-            importance: Notifications.AndroidImportance.MAX,
-          });
+      if (!IS_EXPO_GO) {
+        try {
+          if (Platform.OS === "android") {
+            await Notifications.setNotificationChannelAsync("default", {
+              name: "default",
+              importance: Notifications.AndroidImportance.MAX,
+            });
+          }
+          const { status: existing } =
+            await Notifications.getPermissionsAsync();
+          let status = existing;
+          if (existing !== "granted") {
+            ({ status } = await Notifications.requestPermissionsAsync());
+          }
+          if (status === "granted") {
+            const { data: token } = await Notifications.getExpoPushTokenAsync();
+            await apiClient("/api/mobile/push-token", {
+              method: "POST",
+              body: JSON.stringify({ token }),
+            });
+          }
+        } catch {
+          // Push registration failed — non-fatal
         }
-        const { status: existing } = await Notifications.getPermissionsAsync();
-        let status = existing;
-        if (existing !== "granted") {
-          ({ status } = await Notifications.requestPermissionsAsync());
-        }
-        if (status === "granted") {
-          const { data: token } = await Notifications.getExpoPushTokenAsync();
-          await apiClient("/api/mobile/push-token", {
-            method: "POST",
-            body: JSON.stringify({ token }),
-          });
-        }
-      } catch {
-        // Silently skip in Expo Go — requires a real EAS build with projectId
       }
 
       // Progressive onboarding
