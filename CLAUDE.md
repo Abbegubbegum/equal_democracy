@@ -85,22 +85,23 @@ apps/mobile/
 │   │   ├── _layout.tsx      # Redirects to (app)/ if already logged in
 │   │   └── login.tsx        # Two-step email → OTP login screen
 │   └── (app)/
-│       ├── _layout.tsx      # Bottom tab navigator (5 tabs) + auth guard + PanResponder horizontal swipe
+│       ├── _layout.tsx      # Bottom tab navigator (6 tabs) + auth guard + PanResponder horizontal swipe + Expo-Go-guarded push registration
 │       ├── index.tsx        # Hem — fixed blue hero with inline logo (clipped-rotated-square >> symbol) + scrollable party info cards
 │       ├── sessions.tsx     # Sessioner — TikTok-style full-screen vertical carousel of active sessions
 │       ├── vote.tsx         # Rösta — "voting"-type sessions: single question with Ja/Nej/Avstår + result bars
 │       ├── proposals.tsx    # Förslag — full-screen paginated citizen proposals with image backgrounds
 │       ├── archive.tsx      # Arkiv — closed sessions with yes/no vote bars
-│       └── membership.tsx   # Bli medlem — dummy membership/payment page (BankID + Swish integration pending)
+│       └── membership.tsx   # Info (tab) / Bli medlem (in-page) — dummy membership/payment page (BankID + Swish integration pending)
 ├── lib/
 │   ├── api.ts               # apiClient() — Bearer token injection + silent 401 refresh
 │   ├── auth-context.tsx     # AuthProvider + useAuth() hook
 │   ├── storage.ts           # Cross-platform storage: SecureStore (native) / localStorage (web)
 │   ├── stars.ts             # Local star counter (SecureStore) + one-time celebration flags
+│   ├── onboarding.ts        # Login counter + onboarding state (SecureStore): incrementLoginCount, getOnboardingState, markPromptShown, markProfileCompleted
 │   ├── XAIModal.tsx         # XAI chat sheet — sparkles button opens Claude-backed assistant
 │   ├── CelebrationModal.tsx # Spring-animated star reward overlay (reused across all 4 trigger screens)
-│   ├── SettingsModal.tsx    # Interest-area settings sheet — self-contained (reads/writes SecureStore internally); used on Hem and Bli medlem tabs
-│   └── ChevronsRight.tsx    # Custom >> logo component (no longer used — logo now rendered inline in index.tsx)
+│   ├── InterestsModal.tsx   # Progressive-onboarding prompt to pick interest areas (shown after 2nd/3rd login if profile not completed)
+│   └── SettingsModal.tsx    # Interest-area settings sheet — self-contained (reads/writes SecureStore internally); used on Hem and Info tabs
 ├── metro.config.js          # Monorepo-aware Metro config — required for pnpm workspace resolution
 └── .env                     # EXPO_PUBLIC_API_URL — must be LAN IP for physical devices
 ```
@@ -113,7 +114,7 @@ apps/mobile/
 
 **Storage:** Always use `lib/storage.ts` (`getItem`/`setItem`/`deleteItem`) instead of `expo-secure-store` directly — it handles the web fallback to localStorage automatically.
 
-**Navigation:** `(app)/_layout.tsx` uses Expo Router `<Tabs>` with five bottom tabs: Hem, Sessioner, Rösta, Förslag, Arkiv. Headers are hidden (`headerShown: false`); each screen manages its own safe-area top padding via `useSafeAreaInsets()`.
+**Navigation:** `(app)/_layout.tsx` uses Expo Router `<Tabs>` with six bottom tabs: Hem, Sessioner, Rösta, Förslag, Arkiv, Info (the membership screen — its in-page header still reads "Bli medlem"). Headers are hidden (`headerShown: false`); each screen manages its own safe-area top padding via `useSafeAreaInsets()`.
 
 **Horizontal swipe between tabs:** Implemented via `PanResponder` in `(app)/_layout.tsx` using `onMoveShouldSetPanResponderCapture` (capture phase, top-down) so it intercepts horizontal gestures before child scroll views. Drag right → previous tab, drag left → next tab. Wraps around. Uses `pathnameRef` / `routerRef` to avoid stale closures, and `router.navigate` (not `push`) to avoid stacking history.
 
@@ -125,13 +126,13 @@ apps/mobile/
 
 **XAI assistant (XAIModal.tsx):** A dark-blue circle with a sparkles icon floats at the top-left corner of every tab (rendered in `(app)/_layout.tsx` as an absolute overlay, z-index 100). Tapping it opens a bottom-sheet chat with the Claude API via `/api/mobile/xai`. Shows context-aware quick-action chips based on the current tab (different prompts for Hem, Sessioner, Rösta, Förslag, Arkiv) plus two common actions (write a comment, submit a proposal). Has a "Anmäl XAI" flag button (top-right of the sheet) that users can tap to report bad AI output. Uses `claude-haiku-4-5-20251001` with a 300-token limit for quick, concise replies. The button hides itself while the modal is open to avoid double-tap confusion.
 
-**Membership screen (membership.tsx):** Pushed from the Hem tab ("Klicka här" button). Shows member fee (250 kr/år covering both 2026 and 2027 — founding-member benefit) with a highlighted founding-member banner explaining the two-year deal. Lists four member benefits. Swish pay button is disabled. Pending: BankID verification (must confirm user is folkbokförd in Vallentuna, postal code 186xx via Signicat) + actual payment integration. BankID will be optional/voluntary — soft prompt earning bonus stars, hard-required one month before election.
+**Membership screen (membership.tsx):** Reachable via the **Info** bottom tab and from the Hem tab's "Klicka här" button. Shows member fee (250 kr/år covering both 2026 and 2027 — founding-member benefit) with a highlighted founding-member banner explaining the two-year deal. Lists four member benefits. Swish pay button is disabled. Pending: BankID verification (must confirm user is folkbokförd in Vallentuna, postal code 186xx via Signicat) + actual payment integration. BankID will be optional/voluntary — soft prompt earning bonus stars, hard-required one month before election.
 
 **Content moderation (web):** `POST /api/moderate` checks comment text via Claude Haiku before posting in `apps/web/pages/session/[id].tsx`. Returns `{ status: "ok"|"warn"|"flag", message }`. If warn/flag, shows an inline confirmation dialog with the AI's message; "flag" also shows legal notice. Fails open on error so Claude outages never block posting.
 
 **Star/gamification system (mobile):** Local-only star counter stored via `lib/stars.ts` (SecureStore key `"user_stars"`). Awards: first app open +1, set interests +2, rate a session proposal +3, vote on Rösta question +1, submit citizen proposal +5. One-time actions guarded by storage flags (`celebrated_first_visit`, `celebrated_interests_set`). Star count shown as a badge in the Hem hero (top-left). `lib/CelebrationModal.tsx` is a reusable spring-animated overlay used by all four trigger screens.
 
-**Settings modal (mobile):** `lib/SettingsModal.tsx` is a self-contained bottom-sheet that reads and writes interest preferences to SecureStore internally. Props: `visible`, `onClose`, `onSaved?`. The gear icon appears in the top-right of the blue hero on the **Hem** tab (`index.tsx`) and as a floating button on the **Bli medlem** tab (rendered in `(app)/_layout.tsx` when `normPath === "/membership"`). Exports `STORAGE_INTERESTS`, `STORAGE_INTERESTS_ONLY`, and `INTEREST_AREAS` for use elsewhere (e.g. filtering feeds by interests).
+**Settings modal (mobile):** `lib/SettingsModal.tsx` is a self-contained bottom-sheet that reads and writes interest preferences to SecureStore internally. Props: `visible`, `onClose`, `onSaved?`. The gear icon appears in the top-right of the blue hero on the **Hem** tab (`index.tsx`) and as a floating button on the **Info** tab (rendered in `(app)/_layout.tsx` when `normPath === "/membership"`). Exports `STORAGE_INTERESTS`, `STORAGE_INTERESTS_ONLY`, and `INTEREST_AREAS` for use elsewhere (e.g. filtering feeds by interests).
 
 **Admin button (mobile):** Inside `SettingsModal`, an "Admin" button is shown only when `user.isAdmin`. Opens `BASE_URL/admin` (super admin) or `BASE_URL/manage-sessions` (regular admin) in the device browser via `Linking.openURL`.
 
@@ -147,7 +148,7 @@ apps/mobile/
 
 **Environment:** Set `EXPO_PUBLIC_API_URL` in `apps/mobile/.env`. Use `http://10.0.2.2:3000` for Android emulator, your LAN IP for physical devices. `localhost` does NOT work on physical devices.
 
-**Push notifications (pending EAS build):** The server-side infrastructure is complete — `apps/web/lib/push-notifications.ts` sends to the Expo Push API, `POST /api/mobile/push-token` stores tokens, `User.expoPushToken` field exists, and `POST /api/admin/sessions` fires a push when a voting session is created. The mobile side (`expo-notifications`) is **not wired up in Expo Go** — `expo-notifications` cannot be installed reliably under OneDrive due to EPERM errors, and push tokens require a real EAS build anyway. Re-add the import and registration code in `(app)/_layout.tsx` and the badge-clear in `vote.tsx` when doing the first production build.
+**Push notifications:** Server-side: `apps/web/lib/push-notifications.ts` sends to the Expo Push API, `POST /api/mobile/push-token` stores tokens, `User.expoPushToken` field exists, and `POST /api/admin/sessions` fires a push when a voting session is created. Mobile side: `expo-notifications` is installed and the registration code lives in `(app)/_layout.tsx`, gated by `const IS_EXPO_GO = Constants.executionEnvironment === "storeClient"` — both the notification-tap listener and `getExpoPushTokenAsync()` are wrapped in `if (!IS_EXPO_GO)` blocks so Expo Go silently skips them (remote pushes were removed from Expo Go in SDK 53). In real EAS builds the guards flip off and pushes register automatically. `vote.tsx` calls `setBadgeCountAsync(0)` on focus to clear the badge (a local-only API that works in both Expo Go and EAS builds). Credentials needed before first EAS build: FCM V1 service-account JSON for Android (Firebase Console → Project settings → Service accounts) + APNs `.p8` for iOS — both uploaded via `eas credentials`. `google-services.json` lives at `apps/mobile/google-services.json` and is referenced via `android.googleServicesFile` in `app.json`.
 
 **OneDrive + pnpm symlinks:** Installing new packages under `apps/mobile/` can fail with `EPERM rename` because OneDrive locks files during sync. Pause OneDrive sync before running `pnpm add`. If a package still fails to resolve after install, run `pnpm install` from the repo root to repair the lockfile. Avoid packages requiring heavy native linking — `expo-image-picker` and `expo-image-manipulator` are fine (bundled in Expo Go).
 
