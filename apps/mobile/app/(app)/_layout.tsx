@@ -1,15 +1,27 @@
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
-import { apiClient } from "../../lib/api";
-
-const IS_EXPO_GO = Constants.executionEnvironment === "storeClient";
 import { Platform } from "react-native";
 import { useRef, useState, useEffect } from "react";
-import { View, PanResponder, TouchableOpacity, StyleSheet } from "react-native";
-import { Tabs, usePathname, useRouter, Redirect } from "expo-router";
-import { useAuth } from "../../lib/auth-context";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import {
+  usePathname,
+  useRouter,
+  withLayoutContext,
+  Redirect,
+} from "expo-router";
+import {
+  createMaterialTopTabNavigator,
+  type MaterialTopTabNavigationOptions,
+  type MaterialTopTabNavigationEventMap,
+} from "@react-navigation/material-top-tabs";
+import type {
+  ParamListBase,
+  TabNavigationState,
+} from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { apiClient } from "../../lib/api";
+import { useAuth } from "../../lib/auth-context";
 import XAIModal from "../../lib/XAIModal";
 import InterestsModal from "../../lib/InterestsModal";
 import { SettingsModal } from "../../lib/SettingsModal";
@@ -18,6 +30,8 @@ import {
   getOnboardingState,
   markPromptShown,
 } from "../../lib/onboarding";
+
+const IS_EXPO_GO = Constants.executionEnvironment === "storeClient";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -31,32 +45,94 @@ Notifications.setNotificationHandler({
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
-const TABS = [
-  "/",
-  "/sessions",
-  "/vote",
-  "/proposals",
-  "/archive",
-  "/membership",
-];
+const ACTIVE_COLOR = "#002d75";
+const INACTIVE_COLOR = "#aaa";
 
-function tabIcon(name: IoniconsName) {
-  function Icon({ color, size }: { color: string; size: number }) {
-    return <Ionicons name={name} size={size} color={color} />;
-  }
-  return Icon;
+const TAB_ICONS: Record<string, IoniconsName> = {
+  index: "home-outline",
+  sessions: "people-outline",
+  vote: "checkmark-circle-outline",
+  proposals: "bulb-outline",
+  archive: "archive-outline",
+  membership: "information-circle-outline",
+};
+
+const { Navigator } = createMaterialTopTabNavigator();
+
+const MaterialTopTabs = withLayoutContext<
+  MaterialTopTabNavigationOptions,
+  typeof Navigator,
+  TabNavigationState<ParamListBase>,
+  MaterialTopTabNavigationEventMap
+>(Navigator);
+
+type BottomBarProps = {
+  state: TabNavigationState<ParamListBase>;
+  descriptors: Record<string, { options: MaterialTopTabNavigationOptions }>;
+  navigation: {
+    emit: (event: {
+      type: "tabPress";
+      target: string;
+      canPreventDefault: true;
+    }) => { defaultPrevented: boolean };
+    navigate: (name: string) => void;
+  };
+  bottomPad: number;
+};
+
+function BottomBar({
+  state,
+  descriptors,
+  navigation,
+  bottomPad,
+}: BottomBarProps) {
+  return (
+    <View
+      style={[styles.bar, { height: 56 + bottomPad, paddingBottom: bottomPad }]}
+    >
+      {state.routes.map((route, index) => {
+        const focused = state.index === index;
+        const color = focused ? ACTIVE_COLOR : INACTIVE_COLOR;
+        const icon = TAB_ICONS[route.name] ?? "ellipse-outline";
+        const label =
+          (descriptors[route.key]?.options.title as string | undefined) ??
+          route.name;
+        return (
+          <TouchableOpacity
+            key={route.key}
+            style={styles.barItem}
+            onPress={() => {
+              const event = navigation.emit({
+                type: "tabPress",
+                target: route.key,
+                canPreventDefault: true,
+              });
+              if (!focused && !event.defaultPrevented) {
+                navigation.navigate(route.name);
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name={icon} size={22} color={color} />
+            <Text style={[styles.barLabel, { color }]}>{label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
 }
 
-function SwipeTabNavigator() {
+function TabNavigator() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const [showXAI, setShowXAI] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  const pathnameRef = useRef(pathname);
+  const bottomPad =
+    Platform.OS === "android" ? Math.max(insets.bottom, 12) : insets.bottom;
+
   const routerRef = useRef(router);
-  pathnameRef.current = pathname;
   routerRef.current = router;
 
   useEffect(() => {
@@ -78,76 +154,33 @@ function SwipeTabNavigator() {
     return () => sub.remove();
   }, []);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponderCapture: (_, { dx, dy }) =>
-        Math.abs(dx) > 15 && Math.abs(dx) > Math.abs(dy) * 2.5,
-      onPanResponderRelease: (_, { dx, vx }) => {
-        const p = pathnameRef.current.replace(/^\/\([^)]*\)/, "") || "/";
-        const idx = TABS.indexOf(p);
-        if (idx === -1) return;
-        if (dx > 50 || vx > 0.3) {
-          const prev = (idx - 1 + TABS.length) % TABS.length;
-          routerRef.current.navigate(TABS[prev] as any);
-        } else if (dx < -50 || vx < -0.3) {
-          const next = (idx + 1) % TABS.length;
-          routerRef.current.navigate(TABS[next] as any);
-        }
-      },
-    }),
-  ).current;
-
   // Normalise pathname (strip route-group prefix)
   const normPath = pathname.replace(/^\/\([^)]*\)/, "") || "/";
 
   return (
-    <View style={{ flex: 1 }} {...panResponder.panHandlers}>
-      <Tabs
+    <View style={{ flex: 1 }}>
+      <MaterialTopTabs
+        tabBarPosition="bottom"
         screenOptions={{
-          tabBarActiveTintColor: "#002d75",
-          tabBarInactiveTintColor: "#aaa",
-          tabBarStyle: { backgroundColor: "#fff", borderTopColor: "#e8e8e8" },
-          tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
-          headerShown: false,
+          swipeEnabled: true,
+          animationEnabled: true,
+          lazy: false,
         }}
+        tabBar={(props) => <BottomBar {...props} bottomPad={bottomPad} />}
       >
-        <Tabs.Screen
-          name="index"
-          options={{ title: "Hem", tabBarIcon: tabIcon("home-outline") }}
-        />
-        <Tabs.Screen
+        <MaterialTopTabs.Screen name="index" options={{ title: "Hem" }} />
+        <MaterialTopTabs.Screen
           name="sessions"
-          options={{
-            title: "Sessioner",
-            tabBarIcon: tabIcon("people-outline"),
-          }}
+          options={{ title: "Sessioner" }}
         />
-        <Tabs.Screen
-          name="vote"
-          options={{
-            title: "Rösta",
-            tabBarIcon: tabIcon("checkmark-circle-outline"),
-          }}
-        />
-        <Tabs.Screen
+        <MaterialTopTabs.Screen name="vote" options={{ title: "Rösta" }} />
+        <MaterialTopTabs.Screen
           name="proposals"
-          options={{ title: "Förslag", tabBarIcon: tabIcon("bulb-outline") }}
+          options={{ title: "Förslag" }}
         />
-        <Tabs.Screen
-          name="archive"
-          options={{ title: "Arkiv", tabBarIcon: tabIcon("archive-outline") }}
-        />
-        <Tabs.Screen
-          name="membership"
-          options={{
-            title: "Info",
-            tabBarIcon: tabIcon("information-circle-outline"),
-          }}
-        />
-      </Tabs>
+        <MaterialTopTabs.Screen name="archive" options={{ title: "Arkiv" }} />
+        <MaterialTopTabs.Screen name="membership" options={{ title: "Info" }} />
+      </MaterialTopTabs>
 
       {/* XAI floating button — top-left, hidden on Hem to avoid covering star badge */}
       {!showXAI && normPath !== "/" && (
@@ -248,7 +281,7 @@ export default function AppLayout() {
   if (!user) return <Redirect href="/(auth)/login" />;
   return (
     <>
-      <SwipeTabNavigator />
+      <TabNavigator />
       <InterestsModal
         visible={showInterests}
         onClose={() => setShowInterests(false)}
@@ -258,6 +291,23 @@ export default function AppLayout() {
 }
 
 const styles = StyleSheet.create({
+  bar: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    borderTopColor: "#e8e8e8",
+    borderTopWidth: 1,
+    paddingTop: 6,
+  },
+  barItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  barLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 2,
+  },
   gearBtn: {
     position: "absolute",
     right: 16,

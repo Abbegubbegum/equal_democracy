@@ -308,12 +308,12 @@ const styles = StyleSheet.create({
   },
   valueText: { flex: 1 },
   valueTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "700",
     color: BLUE,
-    marginBottom: 3,
+    marginBottom: 4,
   },
-  valueBody: { fontSize: 13, color: "#555", lineHeight: 18 },
+  valueBody: { fontSize: 15, color: "#555", lineHeight: 21 },
 
   aboutBox: {
     margin: 16,
@@ -324,11 +324,11 @@ const styles = StyleSheet.create({
   },
   aboutTitle: {
     color: YELLOW,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: "700",
     marginBottom: 8,
   },
-  aboutBody: { color: "rgba(255,255,255,0.85)", fontSize: 13, lineHeight: 20 },
+  aboutBody: { color: "rgba(255,255,255,0.85)", fontSize: 15, lineHeight: 22 },
 
   memberBox: {
     margin: 16,

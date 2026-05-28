@@ -8,7 +8,6 @@ import {
   Modal,
   TouchableWithoutFeedback,
 } from "react-native";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
@@ -27,19 +26,13 @@ const BENEFITS = [
 ];
 
 export default function MembershipScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [showQR, setShowQR] = React.useState(false);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Bli medlem</Text>
-        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView
@@ -150,9 +143,7 @@ export default function MembershipScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: BLUE },
   header: {
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
@@ -173,7 +164,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 1,
   },
-  heroSub: { color: "rgba(255,255,255,0.7)", fontSize: 14 },
+  heroSub: { color: "rgba(255,255,255,0.7)", fontSize: 15 },
 
   rulesCard: {
     backgroundColor: "rgba(255,255,255,0.08)",
@@ -189,8 +180,8 @@ const styles = StyleSheet.create({
   },
   rulesText: {
     color: "rgba(255,255,255,0.8)",
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 15,
+    lineHeight: 22,
   },
 
   priceCard: {
@@ -200,7 +191,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
   },
-  priceLabel: { color: BLUE, fontSize: 13, fontWeight: "600" },
+  priceLabel: { color: BLUE, fontSize: 14, fontWeight: "600" },
   price: { color: BLUE, fontSize: 36, fontWeight: "900" },
   pricePer: { fontSize: 18, fontWeight: "500" },
 
@@ -211,28 +202,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
     color: "#222",
     marginBottom: 4,
   },
   benefitRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  benefitText: { fontSize: 14, color: "#333", lineHeight: 20, flex: 1 },
-
-  bankidNotice: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderRadius: 12,
-    padding: 16,
-  },
-  bankidText: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 13,
-    lineHeight: 19,
-    flex: 1,
-  },
+  benefitText: { fontSize: 15, color: "#333", lineHeight: 22, flex: 1 },
 
   payBtn: {
     flexDirection: "row",
@@ -254,7 +230,7 @@ const styles = StyleSheet.create({
 
   priceYears: {
     color: BLUE,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
     opacity: 0.7,
     marginTop: 2,
@@ -272,8 +248,8 @@ const styles = StyleSheet.create({
   },
   founderText: {
     color: "rgba(255,255,255,0.85)",
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
     flex: 1,
   },
   founderBold: { fontWeight: "800", color: "#fff" },
@@ -306,7 +282,7 @@ const styles = StyleSheet.create({
   },
   qrTitle: { fontSize: 17, fontWeight: "800", color: BLUE },
   qrCode: { padding: 12, backgroundColor: "#fff", borderRadius: 8 },
-  qrHint: { fontSize: 13, color: "#888" },
+  qrHint: { fontSize: 14, color: "#888" },
   qrClose: {
     backgroundColor: BLUE,
     paddingHorizontal: 32,

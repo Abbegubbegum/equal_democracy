@@ -6,9 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Animated,
-  Dimensions,
-  StatusBar,
   Modal,
   TextInput,
   KeyboardAvoidingView,
@@ -17,13 +14,12 @@ import {
   Keyboard,
   Image,
 } from "react-native";
+import PagerView from "react-native-pager-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { apiClient } from "../../lib/api";
 import CelebrationModal from "../../lib/CelebrationModal";
 import { addStars } from "../../lib/stars";
-
-const { height: SCREEN_H } = Dimensions.get("window");
 
 interface ActiveSession {
   id: string;
@@ -293,113 +289,138 @@ function SubmitModal({
   );
 }
 
-function SessionBlock({
+function SessionPage({
   session,
   proposals,
-  heroHeight,
   onSubmitSuccess,
   onProposalUpdated,
-  onLayout,
   onCelebrate,
 }: {
   session: ActiveSession;
   proposals: Proposal[];
-  heroHeight: number;
   onSubmitSuccess: (p: Proposal) => void;
   onProposalUpdated: (id: string, patch: Partial<Proposal>) => void;
-  onLayout: (y: number) => void;
   onCelebrate: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   const [showSubmit, setShowSubmit] = useState(false);
-  const phase = session.phase;
-  const canSubmit = phase === "phase1";
+  const [scrolledOnce, setScrolledOnce] = useState(false);
+  const [viewportH, setViewportH] = useState(0);
+  const [contentH, setContentH] = useState(0);
+  const canSubmit = session.phase === "phase1";
+  const hasMoreBelow = contentH > viewportH + 4;
 
   return (
-    <View onLayout={(e) => onLayout(e.nativeEvent.layout.y)}>
-      {/* Hero area */}
-      <View style={[styles.heroContent, { height: heroHeight }]}>
-        <Text style={styles.sessionTitle}>{session.place}</Text>
+    <View style={styles.page}>
+      <Image
+        source={{ uri: resolveImage(session) }}
+        style={StyleSheet.absoluteFill}
+        resizeMode="cover"
+      />
+      <View style={styles.overlay} />
 
-        <Text style={styles.sessionDate}>
-          {new Date(session.startDate).toLocaleDateString("sv-SE", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
-        </Text>
+      <ScrollView
+        style={styles.pageScroll}
+        contentContainerStyle={{ paddingTop: insets.top + 64 }}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        nestedScrollEnabled
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          if (!scrolledOnce && e.nativeEvent.contentOffset.y > 4) {
+            setScrolledOnce(true);
+          }
+        }}
+        onContentSizeChange={(_, h) => setContentH(h)}
+        onLayout={(e) => setViewportH(e.nativeEvent.layout.height)}
+      >
+        {/* Title block — compact, sits near top of page */}
+        <View style={styles.heroContent}>
+          <Text style={styles.sessionTitle}>{session.place}</Text>
 
-        {session.showUserCount && (
-          <View style={styles.participantRow}>
-            <Ionicons
-              name="people-outline"
-              size={15}
-              color="rgba(255,255,255,0.8)"
-            />
-            <Text style={styles.participantText}>
-              {session.activeUsersCount} deltagare
-            </Text>
-          </View>
-        )}
+          <Text style={styles.sessionDate}>
+            {new Date(session.startDate).toLocaleDateString("sv-SE", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+          </Text>
 
-        {canSubmit && (
-          <TouchableOpacity
-            style={styles.enterButton}
-            onPress={() => setShowSubmit(true)}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="add" size={18} color="#002d75" />
-            <Text style={styles.enterButtonText}>Lägg ditt svar</Text>
-          </TouchableOpacity>
-        )}
+          {session.showUserCount && (
+            <View style={styles.participantRow}>
+              <Ionicons
+                name="people-outline"
+                size={15}
+                color="rgba(255,255,255,0.8)"
+              />
+              <Text style={styles.participantText}>
+                {session.activeUsersCount} deltagare
+              </Text>
+            </View>
+          )}
 
-        <View style={styles.scrollHint}>
+          {canSubmit && (
+            <TouchableOpacity
+              style={styles.enterButton}
+              onPress={() => setShowSubmit(true)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="add" size={18} color="#002d75" />
+              <Text style={styles.enterButtonText}>Lägg ditt svar</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Proposals — inline directly after title */}
+        <View style={styles.proposalsOverlay}>
+          <Text style={styles.proposalsSectionTitle}>
+            Förslag ({proposals.length})
+          </Text>
+          {proposals.length === 0 ? (
+            <View style={styles.emptyProposals}>
+              <Ionicons
+                name="document-outline"
+                size={40}
+                color="rgba(255,255,255,0.4)"
+              />
+              <Text style={styles.emptyProposalsText}>
+                {canSubmit
+                  ? "Inga förslag ännu — var den första!"
+                  : "Inga förslag"}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.proposalCardList}>
+              {proposals.map((p) => (
+                <ProposalCard
+                  key={p.id}
+                  proposal={p}
+                  sessionId={session.id}
+                  onRated={(id, userRating, averageRating, thumbsUpCount) =>
+                    onProposalUpdated(id, {
+                      userRating,
+                      averageRating,
+                      thumbsUpCount,
+                    })
+                  }
+                  onCelebrate={onCelebrate}
+                />
+              ))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Scroll affordance: subtle chevron at bottom of page, hides once user scrolls */}
+      {hasMoreBelow && !scrolledOnce && (
+        <View pointerEvents="none" style={styles.scrollAffordance}>
           <Ionicons
             name="chevron-down"
-            size={18}
-            color="rgba(255,255,255,0.5)"
+            size={22}
+            color="rgba(255,255,255,0.7)"
           />
-          <Text style={styles.scrollHintText}>Scrolla för att se förslag</Text>
         </View>
-      </View>
-
-      {/* Proposals overlay — floats over the image */}
-      <View style={styles.proposalsOverlay}>
-        <Text style={styles.proposalsSectionTitle}>
-          Förslag ({proposals.length})
-        </Text>
-        {proposals.length === 0 ? (
-          <View style={styles.emptyProposals}>
-            <Ionicons
-              name="document-outline"
-              size={40}
-              color="rgba(255,255,255,0.4)"
-            />
-            <Text style={styles.emptyProposalsText}>
-              {canSubmit
-                ? "Inga förslag ännu — var den första!"
-                : "Inga förslag"}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.proposalCardList}>
-            {proposals.map((p) => (
-              <ProposalCard
-                key={p.id}
-                proposal={p}
-                sessionId={session.id}
-                onRated={(id, userRating, averageRating, thumbsUpCount) =>
-                  onProposalUpdated(id, {
-                    userRating,
-                    averageRating,
-                    thumbsUpCount,
-                  })
-                }
-                onCelebrate={onCelebrate}
-              />
-            ))}
-          </View>
-        )}
-      </View>
+      )}
 
       {showSubmit && (
         <SubmitModal
@@ -424,33 +445,9 @@ export default function SessionsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [celebration, setCelebration] = useState(false);
-  // Double-buffer background: two always-mounted layers swap roles on each transition.
-  // Neither layer ever unmounts, so there is no source-reload flash.
-  const [uriA, setUriA] = useState(PLACEHOLDER_IMAGE);
-  const [uriB, setUriB] = useState(PLACEHOLDER_IMAGE);
-  // Refs track what URI each layer currently holds so we can detect no-op setUriA/B calls.
-  // When the standby layer already has the right URI, onLoad won't re-fire, so we
-  // trigger the animation directly instead of waiting for a callback that never comes.
-  const uriARef = useRef(PLACEHOLDER_IMAGE);
-  const uriBRef = useRef(PLACEHOLDER_IMAGE);
-  const translateA = useRef(new Animated.Value(0)).current;
-  const translateB = useRef(new Animated.Value(SCREEN_H)).current;
-  const currentLayer = useRef<"a" | "b">("a"); // which layer is currently at translateY=0
-  const displayBgIdxRef = useRef(0);
-  const isAnimatingBg = useRef(false);
-  const prevScrollY = useRef(0);
-  const pendingBgRef = useRef<{
-    newIdx: number;
-    scrolledDown: boolean;
-    standby: "a" | "b";
-  } | null>(null);
-
-  const scrollRef = useRef<ScrollView>(null);
-  const allOffsets = useRef<number[]>([]);
-  const initialScrollDone = useRef(false);
-  const isJumping = useRef(false);
-
-  const heroHeight = SCREEN_H - insets.bottom - (StatusBar.currentHeight ?? 0);
+  const [pageHeight, setPageHeight] = useState(0);
+  const pagerRef = useRef<PagerView>(null);
+  const isJumpingRef = useRef(false);
 
   useEffect(() => {
     load();
@@ -459,19 +456,9 @@ export default function SessionsScreen() {
   useEffect(() => {
     if (sessions.length === 0) return;
     sessions.forEach((s) => Image.prefetch(resolveImage(s)));
-    // Initialise layer A as the first background; layer B stays parked off-screen
-    const initialUri = resolveImage(sessions[0]);
-    uriARef.current = initialUri;
-    setUriA(initialUri);
-    currentLayer.current = "a";
-    displayBgIdxRef.current = 0;
-    translateA.setValue(0);
-    translateB.setValue(SCREEN_H);
-  }, [sessions, translateA, translateB]);
+  }, [sessions]);
 
   async function load() {
-    allOffsets.current = [];
-    initialScrollDone.current = false;
     setError(null);
     setLoading(true);
     try {
@@ -479,7 +466,6 @@ export default function SessionsScreen() {
         "/api/mobile/sessions/active",
       );
       setSessions(data);
-      // Fetch proposals for all sessions in parallel
       const entries = await Promise.all(
         data.map(async (s) => {
           try {
@@ -497,116 +483,6 @@ export default function SessionsScreen() {
       setError(e.message);
     } finally {
       setLoading(false);
-    }
-  }
-
-  function handleBlockLayout(index: number, y: number) {
-    allOffsets.current[index] = y;
-    // Once the first block of the middle copy is measured, scroll there silently
-    if (!initialScrollDone.current && index === sessions.length && y > 0) {
-      initialScrollDone.current = true;
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({ y, animated: false });
-      });
-    }
-  }
-
-  function triggerBgTransition(newIdx: number, scrolledDown: boolean) {
-    if (isAnimatingBg.current) return;
-    if (newIdx === displayBgIdxRef.current) return;
-    isAnimatingBg.current = true;
-
-    // The standby layer is whichever is NOT currently showing
-    const standby: "a" | "b" = currentLayer.current === "a" ? "b" : "a";
-    pendingBgRef.current = { newIdx, scrolledDown, standby };
-
-    // Park standby off-screen in the scroll direction, then update its URI.
-    // onLoad fires once the image is decoded; only then do we slide it in.
-    const slideFrom = scrolledDown ? SCREEN_H : -SCREEN_H;
-    const newUri = resolveImage(sessions[newIdx]);
-    const standbyCurrentUri =
-      standby === "b" ? uriBRef.current : uriARef.current;
-
-    if (standby === "b") {
-      translateB.setValue(slideFrom);
-      uriBRef.current = newUri;
-      setUriB(newUri);
-    } else {
-      translateA.setValue(slideFrom);
-      uriARef.current = newUri;
-      setUriA(newUri);
-    }
-
-    // If the standby layer already holds this URI, React won't re-render → onLoad
-    // won't fire. The image is already decoded (was shown before), so we can
-    // start the animation immediately.
-    if (standbyCurrentUri === newUri) {
-      onLayerLoad(standby);
-    }
-  }
-
-  function onLayerLoad(layer: "a" | "b") {
-    const pending = pendingBgRef.current;
-    // Ignore stale onLoad callbacks (e.g. initial load or wrong layer)
-    if (!pending || layer !== pending.standby) return;
-
-    const incomingTranslate = layer === "a" ? translateA : translateB;
-    const outgoingTranslate = layer === "a" ? translateB : translateA;
-
-    Animated.timing(incomingTranslate, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) {
-        // Outgoing is now completely hidden behind incoming (both at translateY=0).
-        // Reset outgoing off-screen — no visible change because it's covered.
-        outgoingTranslate.setValue(pending.scrolledDown ? -SCREEN_H : SCREEN_H);
-        currentLayer.current = layer;
-        displayBgIdxRef.current = pending.newIdx;
-      }
-      isAnimatingBg.current = false;
-      pendingBgRef.current = null;
-    });
-  }
-
-  function handleScroll(e: any) {
-    const y = e.nativeEvent.contentOffset.y;
-    const scrolledDown = y > prevScrollY.current;
-    prevScrollY.current = y;
-    const n = sessions.length;
-
-    // Determine which session block is in view and trigger bg transition
-    let bgi = 0;
-    for (let i = 0; i < allOffsets.current.length; i++) {
-      if (
-        allOffsets.current[i] != null &&
-        y >= allOffsets.current[i] - heroHeight * 0.4
-      )
-        bgi = i;
-    }
-    const newModulo = n > 0 ? bgi % n : 0;
-    if (!isJumping.current) triggerBgTransition(newModulo, scrolledDown);
-
-    // Infinite loop: jump from outer copies back to middle copy
-    if (isJumping.current || n <= 1) return;
-    const midStart = allOffsets.current[n];
-    const thirdStart = allOffsets.current[n * 2];
-    if (midStart == null || thirdStart == null) return;
-    const totalOneCopy = midStart;
-
-    if (y < midStart) {
-      isJumping.current = true;
-      scrollRef.current?.scrollTo({ y: y + totalOneCopy, animated: false });
-      setTimeout(() => {
-        isJumping.current = false;
-      }, 50);
-    } else if (y >= thirdStart) {
-      isJumping.current = true;
-      scrollRef.current?.scrollTo({ y: y - totalOneCopy, animated: false });
-      setTimeout(() => {
-        isJumping.current = false;
-      }, 50);
     }
   }
 
@@ -660,57 +536,58 @@ export default function SessionsScreen() {
     );
   }
 
-  const loopedSessions =
-    sessions.length > 1 ? [...sessions, ...sessions, ...sessions] : sessions;
-
   return (
-    <View style={styles.screenContainer}>
-      {/* Two always-mounted layers — no unmounting means no decode-flash */}
-      <Animated.Image
-        source={{ uri: uriA }}
-        style={[
-          StyleSheet.absoluteFill,
-          { transform: [{ translateY: translateA }] },
-        ]}
-        resizeMode="cover"
-        onLoad={() => onLayerLoad("a")}
-        onError={() => onLayerLoad("a")}
-      />
-      <Animated.Image
-        source={{ uri: uriB }}
-        style={[
-          StyleSheet.absoluteFill,
-          { transform: [{ translateY: translateB }] },
-        ]}
-        resizeMode="cover"
-        onLoad={() => onLayerLoad("b")}
-        onError={() => onLayerLoad("b")}
-      />
-      <View style={styles.overlay} />
-
-      <ScrollView
-        ref={scrollRef}
-        style={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-      >
-        {loopedSessions.map((session, index) => (
-          <SessionBlock
-            key={`${session.id}-${index}`}
-            session={session}
-            proposals={proposalsMap[session.id] ?? []}
-            heroHeight={heroHeight}
-            onSubmitSuccess={(p) => handleNewProposal(session.id, p)}
-            onProposalUpdated={(id, patch) =>
-              handleProposalUpdated(session.id, id, patch)
-            }
-            onLayout={(y) => handleBlockLayout(index, y)}
-            onCelebrate={() => setCelebration(true)}
-          />
-        ))}
-      </ScrollView>
+    <View
+      style={styles.screenContainer}
+      onLayout={(e) => setPageHeight(e.nativeEvent.layout.height)}
+    >
+      {pageHeight > 0 &&
+        (() => {
+          const n = sessions.length;
+          const looped =
+            n > 1 ? [...sessions, ...sessions, ...sessions] : sessions;
+          const initialPage = n > 1 ? n : 0; // start at first item of middle copy
+          return (
+            <PagerView
+              ref={pagerRef}
+              style={{ flex: 1 }}
+              orientation="vertical"
+              initialPage={initialPage}
+              offscreenPageLimit={1}
+              onPageSelected={(e) => {
+                if (n <= 1) return;
+                if (isJumpingRef.current) {
+                  isJumpingRef.current = false;
+                  return;
+                }
+                const pos = e.nativeEvent.position;
+                // Jump silently back to the matching slot in the middle copy
+                // whenever the user lands in the first or last copy.
+                if (pos < n) {
+                  isJumpingRef.current = true;
+                  pagerRef.current?.setPageWithoutAnimation(pos + n);
+                } else if (pos >= n * 2) {
+                  isJumpingRef.current = true;
+                  pagerRef.current?.setPageWithoutAnimation(pos - n);
+                }
+              }}
+            >
+              {looped.map((session, index) => (
+                <View key={`${session.id}-${index}`} style={{ flex: 1 }}>
+                  <SessionPage
+                    session={session}
+                    proposals={proposalsMap[session.id] ?? []}
+                    onSubmitSuccess={(p) => handleNewProposal(session.id, p)}
+                    onProposalUpdated={(id, patch) =>
+                      handleProposalUpdated(session.id, id, patch)
+                    }
+                    onCelebrate={() => setCelebration(true)}
+                  />
+                </View>
+              ))}
+            </PagerView>
+          );
+        })()}
 
       <CelebrationModal
         visible={celebration}
@@ -725,15 +602,15 @@ export default function SessionsScreen() {
 
 const styles = StyleSheet.create({
   screenContainer: { flex: 1 },
-  scroll: { flex: 1, backgroundColor: "transparent" },
+  page: { flex: 1 },
+  pageScroll: { flex: 1, backgroundColor: "transparent" },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.45)",
   },
   heroContent: {
-    justifyContent: "flex-end",
-    padding: 24,
-    paddingBottom: 32,
+    paddingHorizontal: 24,
+    paddingBottom: 16,
     gap: 10,
   },
   phaseBadge: {
@@ -765,13 +642,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   enterButtonText: { color: "#002d75", fontSize: 14, fontWeight: "800" },
-  scrollHint: {
-    flexDirection: "row",
+  scrollAffordance: {
+    position: "absolute",
+    bottom: 16,
+    left: 0,
+    right: 0,
     alignItems: "center",
-    gap: 4,
-    marginTop: 12,
   },
-  scrollHintText: { color: "rgba(255,255,255,0.45)", fontSize: 12 },
 
   // Proposals overlay (sits over the background image)
   proposalsOverlay: {

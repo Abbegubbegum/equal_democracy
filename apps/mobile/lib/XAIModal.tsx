@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  TouchableWithoutFeedback,
+  Pressable,
   Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -95,6 +95,77 @@ const COMMON_ACTIONS = [
 ];
 
 const GREETING = "Vad kan jag hjälpa dig med?";
+
+type MdToken =
+  | { type: "plain"; text: string }
+  | { type: "bold"; text: string }
+  | { type: "italic"; text: string }
+  | { type: "code"; text: string };
+
+function parseInline(text: string): MdToken[] {
+  const tokens: MdToken[] = [];
+  // **bold**, *italic*, `code` — italics and code don't cross newlines
+  const regex = /\*\*([^*]+?)\*\*|\*([^*\n]+?)\*|`([^`\n]+?)`/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > last) {
+      tokens.push({ type: "plain", text: text.slice(last, m.index) });
+    }
+    if (m[1] !== undefined) tokens.push({ type: "bold", text: m[1] });
+    else if (m[2] !== undefined) tokens.push({ type: "italic", text: m[2] });
+    else if (m[3] !== undefined) tokens.push({ type: "code", text: m[3] });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length)
+    tokens.push({ type: "plain", text: text.slice(last) });
+  return tokens;
+}
+
+function MarkdownText({
+  text,
+  baseStyle,
+}: {
+  text: string;
+  baseStyle: React.ComponentProps<typeof Text>["style"];
+}) {
+  const tokens = parseInline(text);
+  const mono = Platform.OS === "ios" ? "Menlo" : "monospace";
+  return (
+    <Text style={baseStyle}>
+      {tokens.map((t, i) => {
+        switch (t.type) {
+          case "bold":
+            return (
+              <Text key={i} style={{ fontWeight: "700" }}>
+                {t.text}
+              </Text>
+            );
+          case "italic":
+            return (
+              <Text key={i} style={{ fontStyle: "italic" }}>
+                {t.text}
+              </Text>
+            );
+          case "code":
+            return (
+              <Text
+                key={i}
+                style={{
+                  fontFamily: mono,
+                  backgroundColor: "rgba(0,0,0,0.07)",
+                }}
+              >
+                {t.text}
+              </Text>
+            );
+          default:
+            return <Text key={i}>{t.text}</Text>;
+        }
+      })}
+    </Text>
+  );
+}
 
 export default function XAIModal({
   visible,
@@ -194,160 +265,155 @@ export default function XAIModal({
       transparent
       onRequestClose={onClose}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={s.backdrop}>
-          <TouchableWithoutFeedback>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              style={s.kav}
-            >
-              <View style={[s.sheet, { paddingBottom: insets.bottom + 8 }]}>
-                {/* Header */}
-                <View style={s.handle} />
-                <View style={s.header}>
-                  <View style={s.headerLeft}>
-                    <View style={s.xaiDot}>
-                      <Ionicons name="sparkles" size={14} color={YELLOW} />
-                    </View>
-                    <Text style={s.headerTitle}>XAI</Text>
-                    <Text style={s.headerSub}>Din demokratiske assistent</Text>
-                  </View>
-                  <View style={s.headerRight}>
-                    <TouchableOpacity
-                      style={[s.reportBtn, reported && s.reportBtnSent]}
-                      onPress={report}
-                      disabled={reported}
-                      activeOpacity={0.75}
-                    >
-                      <Ionicons
-                        name={reportSent ? "checkmark-circle" : "flag-outline"}
-                        size={14}
-                        color={reported ? "#16a34a" : "#dc2626"}
-                      />
-                      <Text
-                        style={[s.reportText, reported && s.reportTextSent]}
-                      >
-                        {reportSent ? "Anmält" : "Anmäl XAI"}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={onClose}
-                      hitSlop={12}
-                      style={{ marginLeft: 8 }}
-                    >
-                      <Ionicons name="close" size={22} color="#666" />
-                    </TouchableOpacity>
-                  </View>
+      <View style={s.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={s.kav}
+          pointerEvents="box-none"
+        >
+          <View style={[s.sheet, { paddingBottom: insets.bottom + 8 }]}>
+            {/* Header */}
+            <View style={s.handle} />
+            <View style={s.header}>
+              <View style={s.headerLeft}>
+                <View style={s.xaiDot}>
+                  <Ionicons name="sparkles" size={14} color={YELLOW} />
                 </View>
-
-                {/* Messages */}
-                <ScrollView
-                  ref={scrollRef}
-                  style={s.messages}
-                  contentContainerStyle={s.messagesContent}
-                  showsVerticalScrollIndicator={false}
+                <Text style={s.headerTitle}>XAI</Text>
+                <Text style={s.headerSub}>Din demokratiske assistent</Text>
+              </View>
+              <View style={s.headerRight}>
+                <TouchableOpacity
+                  style={[s.reportBtn, reported && s.reportBtnSent]}
+                  onPress={report}
+                  disabled={reported}
+                  activeOpacity={0.75}
                 >
-                  {messages.map((m, i) => (
-                    <View
-                      key={i}
-                      style={[
-                        s.bubble,
-                        m.role === "user" ? s.bubbleUser : s.bubbleXAI,
-                      ]}
-                    >
-                      {m.role === "xai" && (
-                        <View style={s.bubbleIcon}>
-                          <Ionicons name="sparkles" size={11} color={YELLOW} />
-                        </View>
-                      )}
-                      <Text
-                        style={[
-                          s.bubbleText,
-                          m.role === "user" && s.bubbleTextUser,
-                        ]}
-                      >
-                        {m.text}
-                      </Text>
-                    </View>
-                  ))}
-                  {loading && (
-                    <View style={[s.bubble, s.bubbleXAI]}>
-                      <View style={s.bubbleIcon}>
-                        <Ionicons name="sparkles" size={11} color={YELLOW} />
-                      </View>
-                      <Animated.Text
-                        style={[
-                          s.bubbleText,
-                          {
-                            opacity: dotAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.3, 1],
-                            }),
-                          },
-                        ]}
-                      >
-                        ···
-                      </Animated.Text>
+                  <Ionicons
+                    name={reportSent ? "checkmark-circle" : "flag-outline"}
+                    size={14}
+                    color={reported ? "#16a34a" : "#dc2626"}
+                  />
+                  <Text style={[s.reportText, reported && s.reportTextSent]}>
+                    {reportSent ? "Anmält" : "Anmäl XAI"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={onClose}
+                  hitSlop={12}
+                  style={{ marginLeft: 8 }}
+                >
+                  <Ionicons name="close" size={22} color="#666" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Messages */}
+            <ScrollView
+              ref={scrollRef}
+              style={s.messages}
+              contentContainerStyle={s.messagesContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {messages.map((m, i) => (
+                <View
+                  key={i}
+                  style={[
+                    s.bubble,
+                    m.role === "user" ? s.bubbleUser : s.bubbleXAI,
+                  ]}
+                >
+                  {m.role === "xai" && (
+                    <View style={s.bubbleIcon}>
+                      <Ionicons name="sparkles" size={11} color={YELLOW} />
                     </View>
                   )}
-                </ScrollView>
-
-                {/* Quick actions */}
-                {messages.length <= 1 && (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={s.chips}
-                    contentContainerStyle={s.chipsContent}
-                  >
-                    {allActions.map((a) => (
-                      <TouchableOpacity
-                        key={a.label}
-                        style={s.chip}
-                        onPress={() => send(a.message)}
-                        activeOpacity={0.75}
-                      >
-                        <Text style={s.chipText}>{a.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                )}
-
-                {/* Input */}
-                <View style={s.inputRow}>
-                  <TextInput
-                    style={s.input}
-                    placeholder="Skriv din fråga…"
-                    placeholderTextColor="#aaa"
-                    value={input}
-                    onChangeText={setInput}
-                    maxLength={500}
-                    multiline
-                    returnKeyType="send"
-                    onSubmitEditing={() => send(input)}
-                    blurOnSubmit
-                  />
-                  <TouchableOpacity
-                    style={[
-                      s.sendBtn,
-                      (!input.trim() || loading) && s.sendBtnDisabled,
-                    ]}
-                    onPress={() => send(input)}
-                    disabled={!input.trim() || loading}
-                    activeOpacity={0.8}
-                  >
-                    {loading ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Ionicons name="arrow-up" size={18} color="#fff" />
-                    )}
-                  </TouchableOpacity>
+                  {m.role === "xai" ? (
+                    <MarkdownText text={m.text} baseStyle={s.bubbleText} />
+                  ) : (
+                    <Text style={[s.bubbleText, s.bubbleTextUser]}>
+                      {m.text}
+                    </Text>
+                  )}
                 </View>
-              </View>
-            </KeyboardAvoidingView>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
+              ))}
+              {loading && (
+                <View style={[s.bubble, s.bubbleXAI]}>
+                  <View style={s.bubbleIcon}>
+                    <Ionicons name="sparkles" size={11} color={YELLOW} />
+                  </View>
+                  <Animated.Text
+                    style={[
+                      s.bubbleText,
+                      {
+                        opacity: dotAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.3, 1],
+                        }),
+                      },
+                    ]}
+                  >
+                    ···
+                  </Animated.Text>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Quick actions */}
+            {messages.length <= 1 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={s.chips}
+                contentContainerStyle={s.chipsContent}
+              >
+                {allActions.map((a) => (
+                  <TouchableOpacity
+                    key={a.label}
+                    style={s.chip}
+                    onPress={() => send(a.message)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={s.chipText}>{a.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+
+            {/* Input */}
+            <View style={s.inputRow}>
+              <TextInput
+                style={s.input}
+                placeholder="Skriv din fråga…"
+                placeholderTextColor="#aaa"
+                value={input}
+                onChangeText={setInput}
+                maxLength={500}
+                multiline
+                returnKeyType="send"
+                onSubmitEditing={() => send(input)}
+                blurOnSubmit
+              />
+              <TouchableOpacity
+                style={[
+                  s.sendBtn,
+                  (!input.trim() || loading) && s.sendBtnDisabled,
+                ]}
+                onPress={() => send(input)}
+                disabled={!input.trim() || loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="arrow-up" size={18} color="#fff" />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -358,13 +424,13 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "flex-end",
   },
-  kav: { justifyContent: "flex-end" },
+  kav: { flex: 1, justifyContent: "flex-end" },
   sheet: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 10,
-    maxHeight: "82%",
+    height: "82%",
   },
   handle: {
     width: 40,
