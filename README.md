@@ -1,159 +1,76 @@
-# Turborepo starter
+# Equal Democracy — Jämlik Demokrati
 
-This Turborepo starter is maintained by the Turborepo core team.
+A democratic participation platform for Swedish municipalities. Citizens vote in sessions, allocate the municipal budget, submit citizen proposals (medborgarförslag), and follow council meetings — on the web and in a native mobile app.
 
-## Using this example
+🌐 **Production:** [www.vallentuna.app](https://www.vallentuna.app) (Vallentuna kommun)
 
-Run the following command:
+Built as a [Turborepo](https://turborepo.dev) monorepo with a Next.js backend/web app and an Expo React Native mobile app sharing a TypeScript types package.
 
-```sh
-npx create-turbo@latest
+---
+
+## Monorepo structure
+
+```
+equal_democracy/
+├── apps/
+│   ├── web/          # Next.js 15 app — pages, 70+ API routes, admin (primary app)
+│   └── mobile/       # Expo 54 + Expo Router app (JWT auth, push notifications)
+├── packages/
+│   ├── types/        # Shared TypeScript types (used by web + mobile)
+│   ├── ui/           # Shared budget-visualization components
+│   ├── eslint-config/
+│   └── typescript-config/
+├── turbo.json
+└── pnpm-workspace.yaml
 ```
 
-## What's inside?
+## Tech stack
 
-This Turborepo includes the following packages/apps:
+| Layer       | Technology                                                               |
+| ----------- | ------------------------------------------------------------------------ |
+| Web         | Next.js 15 (Pages Router) · React 19 · Tailwind CSS v4 · D3.js           |
+| Mobile      | Expo 54 · React Native 0.81 · Expo Router 6                              |
+| Database    | MongoDB Atlas via Mongoose                                               |
+| Auth        | NextAuth (email OTP, no passwords) · JWT for mobile                      |
+| Real-time   | Pusher                                                                   |
+| Email / SMS | Resend · Twilio                                                          |
+| AI          | Anthropic Claude (content moderation, PDF budget/agenda extraction, XAI) |
+| Storage     | Vercel Blob (user-uploaded images)                                       |
+| Hosting     | Vercel (web) · EAS (mobile builds)                                       |
 
-### Apps and Packages
+## Getting started
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+**Prerequisites:** Node ≥ 18, [pnpm](https://pnpm.io) 10.33.0
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo build
+```bash
+pnpm install            # install all workspaces
 ```
 
-Without global `turbo`, use your package manager:
+Create `apps/web/.env.local` (MongoDB, NextAuth, Resend, Pusher, Anthropic, Vercel Blob …) and
+`apps/mobile/.env` (`EXPO_PUBLIC_API_URL`). See the **Environment Variables** section of
+[CLAUDE.md](CLAUDE.md) for the full list.
 
-```sh
-cd my-turborepo
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+```bash
+pnpm dev                # web + mobile together
+pnpm dev:web            # web only        → http://localhost:3000
+pnpm dev:mobile         # mobile only     → scan the Expo QR code
+
+pnpm build              # build everything
+pnpm lint               # lint everything
+pnpm check-types        # type-check everything
+pnpm format             # Prettier-format
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+### Mobile notes
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+The Expo app runs in **Expo Go** for JS/UI iteration. Native-module features (push
+notifications) need a custom **EAS dev client** — build with
+`eas build --profile development --platform android`. Local native builds aren't
+supported on this setup; see [CLAUDE.md](CLAUDE.md) for why.
 
-```sh
-turbo build --filter=docs
-```
+## Documentation
 
-Without global `turbo`:
-
-```sh
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
-
-### Develop
-
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo dev
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
-```
-
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo dev --filter=web
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo link
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+- **[CLAUDE.md](CLAUDE.md)** — the authoritative reference: architecture, data model,
+  every route/page/package, and the project's working principles.
+- **[PRODUCTION_READINESS.md](PRODUCTION_READINESS.md)** — serverless/Vercel deploy
+  checklist and the patterns to avoid before shipping.
