@@ -15,9 +15,8 @@ export default async function handler(
 ) {
   if (req.method !== "POST") return res.status(405).end();
 
-  let user;
   try {
-    user = verifyBearerToken(req.headers.authorization);
+    verifyBearerToken(req.headers.authorization);
   } catch {
     return res.status(401).json({ error: "Unauthorized" });
   }
