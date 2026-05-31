@@ -10,8 +10,12 @@ export default async function handler(
 ) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const user = verifyBearerToken(req.headers.authorization);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  let user;
+  try {
+    user = verifyBearerToken(req.headers.authorization);
+  } catch {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
   const { interests } = req.body as { interests?: unknown };
   if (!Array.isArray(interests))

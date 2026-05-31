@@ -7,6 +7,7 @@ import {
   CitizenProposal,
   CitizenProposalRating,
 } from "../../../lib/models";
+import { ALL_CATEGORIES } from "@repo/types";
 import { csrfProtection } from "../../../lib/csrf";
 import { createLogger } from "../../../lib/logger";
 
@@ -38,9 +39,9 @@ export default async function handler(
         query.status = "active";
       }
 
-      // Filter by category
+      // Filter by category (string category name; matches array membership)
       if (category) {
-        query.categories = parseInt(String(category));
+        query.categories = String(category);
       }
 
       // Determine sort order
@@ -126,12 +127,13 @@ export default async function handler(
         });
       }
 
-      // Validate category numbers
+      // Validate categories against the allowed set
       for (const cat of categories) {
-        if (cat < 1 || cat > 7) {
-          return res.status(400).json({
-            message: "Invalid category. Must be 1-7",
-          });
+        if (
+          typeof cat !== "string" ||
+          !(ALL_CATEGORIES as readonly string[]).includes(cat)
+        ) {
+          return res.status(400).json({ message: "Invalid category" });
         }
       }
 

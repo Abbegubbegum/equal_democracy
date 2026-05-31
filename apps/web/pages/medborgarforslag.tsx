@@ -16,16 +16,7 @@ import { fetchWithCsrf } from "../lib/fetch-with-csrf";
 import { useTranslation } from "../lib/hooks/useTranslation";
 import { useConfig } from "../lib/contexts/ConfigContext";
 import usePusher from "../lib/hooks/usePusher";
-
-const CATEGORY_NAMES = {
-  1: "Bygga, bo och miljö",
-  2: "Fritid och kultur",
-  3: "Förskola och skola",
-  4: "Ändring av styrdokument",
-  5: "Näringsliv och arbete",
-  6: "Omsorg och hjälp",
-  7: "Övrigt kommun och politik",
-};
+import { ALL_CATEGORIES } from "@repo/types";
 
 export default function MedborgarforslagPage() {
   const { data: session } = useSession();
@@ -274,17 +265,13 @@ export default function MedborgarforslagPage() {
 
               <select
                 value={filterCategory || ""}
-                onChange={(e) =>
-                  setFilterCategory(
-                    e.target.value ? parseInt(e.target.value) : null,
-                  )
-                }
+                onChange={(e) => setFilterCategory(e.target.value || null)}
                 className="px-3 py-2 bg-white rounded-lg border text-sm"
               >
                 <option value="">Alla Kategorier</option>
-                {Object.entries(CATEGORY_NAMES).map(([num, name]) => (
-                  <option key={num} value={num}>
-                    {name}
+                {ALL_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
                   </option>
                 ))}
               </select>
@@ -382,12 +369,11 @@ export default function MedborgarforslagPage() {
                   Kategorier * (välj 1-3)
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {Object.entries(CATEGORY_NAMES).map(([num, name]) => {
-                    const cat = parseInt(num);
+                  {ALL_CATEGORIES.map((cat) => {
                     const isSelected = selectedCategories.includes(cat);
                     return (
                       <button
-                        key={num}
+                        key={cat}
                         type="button"
                         onClick={() => toggleCategory(cat)}
                         className={`px-3 py-2 rounded-lg text-sm transition-colors ${
@@ -396,7 +382,7 @@ export default function MedborgarforslagPage() {
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                         }`}
                       >
-                        {name}
+                        {cat}
                       </button>
                     );
                   })}
@@ -448,7 +434,7 @@ function ProposalCard({ proposal, onRate, session }) {
                   key={cat}
                   className="px-2 py-1 bg-primary-100 text-primary-800 text-xs rounded-full"
                 >
-                  {CATEGORY_NAMES[cat]}
+                  {cat}
                 </span>
               ))}
               {proposal.isOwn && (
