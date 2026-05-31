@@ -19,7 +19,8 @@ export interface User extends BaseDocument {
   userType: UserType;
   bankIdVerified: boolean;
   bankIdPersonalNumber?: string;
-  interestedCategories: number[];
+  interests: string[];
+  expoPushToken?: string;
   notificationPreference: NotificationPreference;
   phoneNumber?: string;
   lastCitizenVoteDate?: string;

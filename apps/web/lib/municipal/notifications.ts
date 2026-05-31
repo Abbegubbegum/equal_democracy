@@ -28,14 +28,21 @@ export async function sendMunicipalSessionNotifications(municipalSession) {
 
     const categoriesArray = Array.from(allCategories);
 
+    // User interests are stored as category-name strings (`User.interests`),
+    // while municipal items use numeric codes 1-7, so translate to names to
+    // match. NOTE: the numeric municipal taxonomy (CATEGORY_NAMES) and the new
+    // interest taxonomy (packages/types categories) only partially overlap —
+    // matching is best-effort until the two taxonomies are reconciled.
+    const categoryNames = categoriesArray.map((c) => getCategoryName(c));
+
     log.info("Sending notifications", {
       sessionName: municipalSession.name,
-      categories: categoriesArray,
+      categories: categoryNames,
     });
 
     // Find all users interested in these categories
     const interestedUsers = await User.find({
-      interestedCategories: { $in: categoriesArray },
+      interests: { $in: categoryNames },
       userType: { $in: ["member", "citizen"] }, // Only notify registered users
       notificationPreference: { $ne: "none" }, // Skip users who disabled notifications
     });
@@ -53,7 +60,9 @@ export async function sendMunicipalSessionNotifications(municipalSession) {
     for (const user of interestedUsers) {
       // Find which items match this user's interests
       const relevantItems = municipalSession.items.filter((item) =>
-        item.categories.some((cat) => user.interestedCategories.includes(cat)),
+        (item.categories || []).some((cat) =>
+          (user.interests || []).includes(getCategoryName(cat)),
+        ),
       );
 
       if (relevantItems.length === 0) continue;
@@ -96,7 +105,7 @@ ${itemsList}${moreText}
 
 Du kan debattera och rösta på dessa frågor på vallentuna.app
 
-Dina intresseområden: ${user.interestedCategories.map((c) => getCategoryName(c)).join(", ")}
+Dina intresseområden: ${(user.interests || []).join(", ")}
 
 Röstning för ${user.userType === "member" ? "medlemmar: 1 röst per möte" : "medborgare: 1 röst per år"}
 
@@ -196,7 +205,7 @@ export async function sendTestNotification(userId, type = "email") {
     throw new Error("User not found");
   }
 
-  const testMessage = `Detta är ett testmeddelande från Vallentuna Framåt. Dina intresseområden: ${user.interestedCategories.map((c) => getCategoryName(c)).join(", ")}`;
+  const testMessage = `Detta är ett testmeddelande från Vallentuna Framåt. Dina intresseområden: ${(user.interests || []).join(", ")}`;
 
   if (type === "email") {
     await sendEmail(
