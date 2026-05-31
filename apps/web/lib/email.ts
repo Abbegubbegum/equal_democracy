@@ -20,7 +20,7 @@ async function isOptedOut(email: string): Promise<boolean> {
 }
 
 function getBaseUrl(): string {
-  return process.env.NEXTAUTH_URL || "https://vallentuna.app";
+  return process.env.NEXTAUTH_URL || "https://www.vallentuna.app";
 }
 
 function unsubscribeFooterHtml(email: string, language = "sv"): string {

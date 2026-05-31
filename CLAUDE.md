@@ -443,6 +443,13 @@ Required in `apps/web/.env.local`:
 
 ```env
 # Auth
+# NEXTAUTH_URL is per-environment and must match the URL the browser hits — it's
+# the base for NextAuth callbacks AND for the links built into OTP/notification
+# emails (lib/email.ts getBaseUrl, fallback https://www.vallentuna.app). Local
+# dev: http://localhost:3000 (here in .env.local). Vercel Production scope:
+# https://www.vallentuna.app (www is canonical — apex 308-redirects). Don't set
+# one unscoped value for all Vercel environments. Mobile auth doesn't use it
+# (JWT signed with NEXTAUTH_SECRET).
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=<random>
 
