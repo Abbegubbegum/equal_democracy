@@ -88,12 +88,13 @@ Skapa `apps/mobile/eas.json`:
 
 ## 6. Push-notifikationer — servercertifikat
 
-### Android (FCM)
+### ✅ Android (FCM) — KLART
 
-1. Gå till [Firebase Console](https://console.firebase.google.com)
-2. Skapa projekt → Android-app → ladda ner `google-services.json`
-3. Lägg `google-services.json` i `apps/mobile/`
-4. Kör: `eas credentials` och följ guiden för Android
+1. ✅ Firebase-projekt skapat, `google-services.json` ligger i `apps/mobile/`
+2. ✅ FCM V1 service-account-nyckel uppladdad till EAS (Credentials → Android → FCM V1)
+3. ✅ Push-notiser verifierade end-to-end på Android (FCM-leverans, Expo push-verktyget och admin → röstningssession → notis)
+
+> API-nyckeln i `google-services.json` är Firebase Android-klientnyckeln (bakas in i appen, ofarlig att committa) — begränsad i Google Cloud Console. Den riktiga hemligheten är `…firebase-adminsdk….json` som bara finns i EAS, aldrig i repot.
 
 ### iOS (APNs)
 
@@ -164,9 +165,9 @@ eas build --profile production --platform ios
 - [x] Lägg till `expo-notifications`-plugin i `app.json`
 - [x] Återaktivera notis-koden i `_layout.tsx` och `vote.tsx`
 - [x] Skapa EAS-konto och kör `eas init` (project ID: 5420a366-1997-4cac-a9a3-44f96ed67292)
-- [ ] FCM-nyckel (Android-notiser)
-- [ ] Apple Developer-konto + APNs-nyckel (iOS-notiser)
-- [ ] Testbygge APK och verifiera på riktig Android-telefon
+- [x] FCM-nyckel (Android-notiser) — uppladdad till EAS, push verifierad end-to-end
+- [ ] Apple Developer-konto + APNs-nyckel (iOS-notiser) — väntar på företagets Apple-konto
+- [x] Dev-client-bygge (EAS) + push verifierad på Android-emulator (preview-APK på riktig telefon återstår)
 - [ ] Google Play-konto + publicering
 - [ ] Apple App Store-konto + publicering
 - [ ] Sekretesspolicy-sida (krävs av båda butikerna)

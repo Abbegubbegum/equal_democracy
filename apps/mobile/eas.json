@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 18.0.0"
+    "version": ">= 18.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -11,11 +12,19 @@
       }
     },
     "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.vallentuna.app"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.vallentuna.app"
+      },
       "android": {
         "buildType": "app-bundle"
       },
