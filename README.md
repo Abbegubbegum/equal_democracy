@@ -74,3 +74,4 @@ supported on this setup; see [CLAUDE.md](CLAUDE.md) for why.
   every route/page/package, and the project's working principles.
 - **[PRODUCTION_READINESS.md](PRODUCTION_READINESS.md)** — serverless/Vercel deploy
   checklist and the patterns to avoid before shipping.
+- **[CHANGELOG.md](CHANGELOG.md)** — release history (Semantic Versioning).
