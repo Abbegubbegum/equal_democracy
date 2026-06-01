@@ -14,7 +14,23 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "./auth-context";
 import { getItem, setItem } from "./storage";
-import { BASE_URL } from "./api";
+import { apiClient } from "./api";
+
+// Maps SettingsModal's short interest keys to the ALL_CATEGORIES strings
+// stored on User.interests in the DB and used for notification filtering.
+const INTEREST_TO_CATEGORIES: Record<string, string[]> = {
+  budget: ["Allmänt"],
+  barn: ["Skola & utbildning", "Barn & familj"],
+  arbete: ["Näringsliv & arbete"],
+  aldre: ["Äldreomsorg"],
+  politik: ["Allmänt"],
+  infra: ["Trafik & infrastruktur"],
+  kultur: ["Fritid & kultur"],
+  geo_central: ["Vallentuna centrum"],
+  geo_lindholmen: ["Lindholmen"],
+  geo_karsta: ["Kårsta"],
+  geo_karby: ["Karby", "Össeby-Garn"],
+};
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
@@ -85,6 +101,20 @@ export function SettingsModal({
   async function handleSave() {
     await setItem(STORAGE_INTERESTS, JSON.stringify(localInterests));
     await setItem(STORAGE_INTERESTS_ONLY, String(localOnly));
+    // Persist to DB — deduplicate since multiple keys can map to the same category
+    const dbInterests = [
+      ...new Set(
+        localInterests.flatMap((key) => INTEREST_TO_CATEGORIES[key] ?? []),
+      ),
+    ];
+    try {
+      await apiClient("/api/mobile/user/interests", {
+        method: "POST",
+        body: JSON.stringify({ interests: dbInterests }),
+      });
+    } catch {
+      // fail silently — local preferences still saved
+    }
     onClose();
     onSaved?.();
   }
