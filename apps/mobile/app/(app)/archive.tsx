@@ -54,7 +54,7 @@ export default function ArchiveScreen() {
   }
 
   function toggleExpand(id: string) {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+    setExpanded((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }));
   }
 
   if (loading) {
