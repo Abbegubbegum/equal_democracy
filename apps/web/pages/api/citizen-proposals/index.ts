@@ -32,11 +32,12 @@ export default async function handler(
 
       const query: Record<string, unknown> = {};
 
-      // Filter by status (default: active; "all" returns everything)
+      // Filter by status (default: show active + selected + submitted_as_motion;
+      // "all" returns everything including rejected/archived)
       if (status && status !== "all") {
         query.status = String(status);
       } else if (!status) {
-        query.status = "active";
+        query.status = { $in: ["active", "selected", "submitted_as_motion"] };
       }
 
       // Filter by category (string category name; matches array membership)
@@ -170,6 +171,7 @@ export default async function handler(
           title: proposal.title,
           description: proposal.description,
           categories: proposal.categories,
+          status: proposal.status,
           totalStars: proposal.totalStars,
           isOwn: true,
         },

@@ -128,6 +128,17 @@ function ProposalBlock({
             <Text style={styles.proposalTitle}>{proposal.title}</Text>
           </TouchableOpacity>
 
+          {proposal.status === "selected" && (
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusBadgeText}>⭐ Utvald</Text>
+            </View>
+          )}
+          {proposal.status === "submitted_as_motion" && (
+            <View style={[styles.statusBadge, styles.statusBadgeGreen]}>
+              <Text style={styles.statusBadgeText}>✅ Inlämnad som motion</Text>
+            </View>
+          )}
+
           {expanded && (
             <Text style={styles.proposalDescription}>
               {proposal.description}
@@ -736,6 +747,25 @@ const styles = StyleSheet.create({
   },
   expandBtn: { paddingVertical: 6 },
   expandHint: { fontSize: 19, color: YELLOW, fontWeight: "800" },
+  statusBadge: {
+    alignSelf: "flex-start",
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(245,166,35,0.25)",
+    borderWidth: 1,
+    borderColor: "rgba(245,166,35,0.6)",
+  },
+  statusBadgeGreen: {
+    backgroundColor: "rgba(34,197,94,0.2)",
+    borderColor: "rgba(34,197,94,0.5)",
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#fff",
+  },
 
   // Stars zone — fully separate from text card
   starsArea: {

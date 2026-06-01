@@ -120,9 +120,11 @@ export default async function handler(
     return res.status(405).json({ message: "Method not allowed" });
 
   try {
-    const proposals = await CitizenProposal.find({ status: "active" })
+    const proposals = await CitizenProposal.find({
+      status: { $in: ["active", "selected", "submitted_as_motion"] },
+    })
       .select(
-        "_id title description authorName imageUrl averageRating ratingCount createdAt",
+        "_id title description authorName imageUrl averageRating ratingCount status createdAt",
       )
       .sort({ averageRating: -1, ratingCount: -1, createdAt: -1 })
       .lean();
@@ -142,6 +144,7 @@ export default async function handler(
         title: p.title,
         description: p.description,
         imageUrl: (p as any).imageUrl ?? null,
+        status: p.status,
         averageRating: p.averageRating || 0,
         ratingCount: p.ratingCount || 0,
         userRating: ratingMap[p._id.toString()] || 0,

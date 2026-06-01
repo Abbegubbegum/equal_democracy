@@ -429,6 +429,16 @@ function ProposalCard({ proposal, onRate, session }) {
               {proposal.title}
             </h3>
             <div className="flex flex-wrap gap-2 mb-2">
+              {proposal.status === "selected" && (
+                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full font-semibold">
+                  ⭐ Utvald
+                </span>
+              )}
+              {proposal.status === "submitted_as_motion" && (
+                <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full font-semibold">
+                  ✅ Inlämnad som motion
+                </span>
+              )}
               {proposal.categories.map((cat) => (
                 <span
                   key={cat}
