@@ -14,7 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "./auth-context";
 import { getItem, setItem } from "./storage";
-import { apiClient } from "./api";
+import { apiClient, BASE_URL } from "./api";
 
 // Maps SettingsModal's short interest keys to the ALL_CATEGORIES strings
 // stored on User.interests in the DB and used for notification filtering.

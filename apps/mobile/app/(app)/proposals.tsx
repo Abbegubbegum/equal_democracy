@@ -28,6 +28,7 @@ interface CitizenProposal {
   title: string;
   description: string;
   imageUrl: string | null;
+  status?: string;
   averageRating: number;
   ratingCount: number;
   userRating: number;
