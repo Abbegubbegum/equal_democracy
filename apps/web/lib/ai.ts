@@ -80,7 +80,9 @@ Rules:
       messages: [{ role: "user", content: userMessage }],
     });
 
-    const text = (response.content[0] as any).text?.trim() ?? "[]";
+    const raw = (response.content[0] as any).text?.trim() ?? "[]";
+    // Claude sometimes wraps JSON in markdown code fences — strip them
+    const text = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
     const parsed: unknown = JSON.parse(text);
 
     if (!Array.isArray(parsed)) return [];
