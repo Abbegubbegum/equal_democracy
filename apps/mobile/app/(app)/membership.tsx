@@ -11,6 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
+import { useRouter } from "expo-router";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
@@ -27,6 +28,7 @@ const BENEFITS = [
 
 export default function MembershipScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [showQR, setShowQR] = React.useState(false);
 
   return (
@@ -107,6 +109,15 @@ export default function MembershipScreen() {
         >
           <Ionicons name="qr-code-outline" size={20} color="#fff" />
           <Text style={styles.shareBtnText}>Dela appen med en vän</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => router.push("/legal" as any)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.legalLink}>
+            Integritetspolicy & Användarvillkor
+          </Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -290,4 +301,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   qrCloseText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+
+  legalLink: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 12,
+    textAlign: "center",
+    textDecorationLine: "underline",
+    paddingVertical: 8,
+  },
 });

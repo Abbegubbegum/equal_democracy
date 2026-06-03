@@ -10,11 +10,13 @@ import {
   Platform,
 } from "react-native";
 import { useAuth } from "../../lib/auth-context";
+import { useRouter } from "expo-router";
 
 type Step = "email" | "code";
 
 export default function LoginScreen() {
   const { requestCode, login } = useAuth();
+  const router = useRouter();
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -120,6 +122,17 @@ export default function LoginScreen() {
         )}
 
         {error && <Text style={styles.error}>{error}</Text>}
+
+        <Text style={styles.legalText}>
+          Genom att logga in godkänner du våra{" "}
+          <Text
+            style={styles.legalLink}
+            onPress={() => router.push("/legal" as any)}
+          >
+            användarvillkor och integritetspolicy
+          </Text>
+          .
+        </Text>
       </View>
     </KeyboardAvoidingView>
   );
@@ -160,4 +173,6 @@ const styles = StyleSheet.create({
   linkButton: { alignItems: "center", paddingVertical: 4 },
   linkText: { color: "#555", fontSize: 14 },
   error: { color: "#c0392b", textAlign: "center", fontSize: 14 },
+  legalText: { color: "#999", fontSize: 12, textAlign: "center", marginTop: 8 },
+  legalLink: { color: "#002d75", textDecorationLine: "underline" },
 });

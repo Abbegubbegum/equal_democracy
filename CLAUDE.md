@@ -81,9 +81,10 @@ Built with Expo 54 + Expo Router v6 (file-based routing, same mental model as Ne
 apps/mobile/
 ├── app/
 │   ├── _layout.tsx          # Root layout: GestureHandler + SafeAreaProvider + AuthProvider
+│   ├── legal.tsx            # Integritetspolicy & Användarvillkor — native screen, linked from login and Info tab
 │   ├── (auth)/
 │   │   ├── _layout.tsx      # Redirects to (app)/ if already logged in
-│   │   └── login.tsx        # Two-step email → OTP login screen
+│   │   └── login.tsx        # Two-step email → OTP login screen; link to legal.tsx at bottom
 │   └── (app)/
 │       ├── _layout.tsx      # MaterialTopTabs (6 tabs, native horizontal swipe via react-native-pager-view) + custom BottomBar + auth guard + Expo-Go-guarded push registration
 │       ├── index.tsx        # Hem — fixed blue hero with inline logo (clipped-rotated-square >> symbol) + scrollable party info cards
@@ -91,7 +92,7 @@ apps/mobile/
 │       ├── vote.tsx         # Rösta — "voting"-type sessions: single question with Ja/Nej/Avstår + result bars
 │       ├── proposals.tsx    # Förslag — full-screen paginated citizen proposals with image backgrounds
 │       ├── archive.tsx      # Arkiv — closed sessions with yes/no vote bars
-│       └── membership.tsx   # Info (tab) / Bli medlem (in-page) — dummy membership/payment page (BankID + Swish integration pending)
+│       └── membership.tsx   # Info (tab) / Bli medlem (in-page) — membership/payment page (BankID + Swish pending); link to legal.tsx at bottom
 ├── lib/
 │   ├── api.ts               # apiClient() — Bearer token injection + silent 401 refresh
 │   ├── auth-context.tsx     # AuthProvider + useAuth() hook
@@ -401,25 +402,26 @@ Mobile API calls pass `Authorization: Bearer <accessToken>`. Use `verifyBearerTo
 
 ## Pages
 
-| Route                             | Page                                                          |
-| --------------------------------- | ------------------------------------------------------------- |
-| `/login`                          | Email OTP login                                               |
-| `/about`                          | About page                                                    |
-| `/session/[id]`                   | Voting session (phase1/phase2)                                |
-| `/session/survey/[id]`            | Survey voting                                                 |
-| `/[municipality]/[board]/`        | Municipality sessions                                         |
-| `/[municipality]/[board]/archive` | Municipality archive                                          |
-| `/archive`                        | Global archive                                                |
-| `/archive/[id]`                   | Specific archived session                                     |
-| `/budget/`                        | Budget landing → redirects to active                          |
-| `/budget/debate/[sessionId]`      | Budget debate                                                 |
-| `/budget/results/[sessionId]`     | Budget results                                                |
-| `/budget/admin/`                  | Budget admin                                                  |
-| `/medborgarforslag`               | Citizen proposals listing                                     |
-| `/admin/`                         | Super admin dashboard (sessions/users/proposals/results tabs) |
-| `/admin/municipal`                | Municipal session management                                  |
-| `/admin/survey`                   | Survey management                                             |
-| `/manage-sessions`                | Session admin (non-super admins)                              |
+| Route                             | Page                                                           |
+| --------------------------------- | -------------------------------------------------------------- |
+| `/login`                          | Email OTP login (link to /legal at bottom)                     |
+| `/about`                          | About page                                                     |
+| `/legal`                          | Integritetspolicy & Användarvillkor (GDPR, org.nr 802555-8852) |
+| `/session/[id]`                   | Voting session (phase1/phase2)                                 |
+| `/session/survey/[id]`            | Survey voting                                                  |
+| `/[municipality]/[board]/`        | Municipality sessions                                          |
+| `/[municipality]/[board]/archive` | Municipality archive                                           |
+| `/archive`                        | Global archive                                                 |
+| `/archive/[id]`                   | Specific archived session                                      |
+| `/budget/`                        | Budget landing → redirects to active                           |
+| `/budget/debate/[sessionId]`      | Budget debate                                                  |
+| `/budget/results/[sessionId]`     | Budget results                                                 |
+| `/budget/admin/`                  | Budget admin                                                   |
+| `/medborgarforslag`               | Citizen proposals listing                                      |
+| `/admin/`                         | Super admin dashboard (sessions/users/proposals/results tabs)  |
+| `/admin/municipal`                | Municipal session management                                   |
+| `/admin/survey`                   | Survey management                                              |
+| `/manage-sessions`                | Session admin (non-super admins)                               |
 
 ---
 

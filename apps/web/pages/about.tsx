@@ -10,18 +10,28 @@ export default function AboutPage() {
   useConfig();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
+    <div
+      className="min-h-screen"
+      style={{
+        background: "linear-gradient(to bottom right, #002d75, #001c55)",
+      }}
+    >
       {/* Header */}
-      <header className="bg-blue-600 text-white p-6 shadow-lg">
+      <header className="p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold">{t("about.title")}</h1>
-              <p className="text-blue-100 mt-2">{t("about.subtitle")}</p>
+              <h1 className="text-3xl font-bold text-white">
+                {t("about.title")}
+              </h1>
+              <p className="mt-2" style={{ color: "rgba(255,255,255,0.7)" }}>
+                {t("about.subtitle")}
+              </p>
             </div>
             <Link
               href="/"
-              className="px-4 py-2 bg-yellow-400 text-gray-900 hover:bg-yellow-500 rounded-lg font-medium"
+              className="px-4 py-2 rounded-lg font-medium"
+              style={{ backgroundColor: "#f5a623", color: "#002d75" }}
             >
               {t("common.backToStart")}
             </Link>
@@ -30,11 +40,14 @@ export default function AboutPage() {
       </header>
 
       {/* Content */}
-      <div className="max-w-4xl mx-auto p-6">
+      <div className="max-w-4xl mx-auto px-6 pb-12">
         <div className="bg-white rounded-2xl shadow-md p-8 space-y-6">
           {/* Introduction */}
           <section>
-            <h2 className="text-2xl font-bold text-blue-800 mb-4">
+            <h2
+              className="text-2xl font-bold mb-4"
+              style={{ color: "#002d75" }}
+            >
               {t("about.whatIs")}
             </h2>
             <p className="text-gray-700 leading-relaxed">
@@ -44,12 +57,18 @@ export default function AboutPage() {
 
           {/* How it works */}
           <section>
-            <h2 className="text-2xl font-bold text-blue-800 mb-4">
+            <h2
+              className="text-2xl font-bold mb-4"
+              style={{ color: "#002d75" }}
+            >
               {t("about.howItWorks")}
             </h2>
             <div className="space-y-4">
               <div className="flex gap-4">
-                <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center shrink-0 font-bold">
+                <div
+                  className="w-10 h-10 text-white rounded-full flex items-center justify-center shrink-0 font-bold"
+                  style={{ backgroundColor: "#002d75" }}
+                >
                   1
                 </div>
                 <div>
@@ -62,7 +81,10 @@ export default function AboutPage() {
                 </div>
               </div>
               <div className="flex gap-4">
-                <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center shrink-0 font-bold">
+                <div
+                  className="w-10 h-10 text-white rounded-full flex items-center justify-center shrink-0 font-bold"
+                  style={{ backgroundColor: "#002d75" }}
+                >
                   2
                 </div>
                 <div>
@@ -75,7 +97,10 @@ export default function AboutPage() {
                 </div>
               </div>
               <div className="flex gap-4">
-                <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center shrink-0 font-bold">
+                <div
+                  className="w-10 h-10 text-white rounded-full flex items-center justify-center shrink-0 font-bold"
+                  style={{ backgroundColor: "#002d75" }}
+                >
                   3
                 </div>
                 <div>
@@ -92,36 +117,64 @@ export default function AboutPage() {
 
           {/* Key features */}
           <section>
-            <h2 className="text-2xl font-bold text-blue-800 mb-4">
+            <h2
+              className="text-2xl font-bold mb-4"
+              style={{ color: "#002d75" }}
+            >
               {t("about.keyFeatures")}
             </h2>
             <ul className="space-y-3">
               <li className="flex gap-3">
-                <span className="text-blue-600 text-xl">✓</span>
+                <span className="text-xl" style={{ color: "#f5a623" }}>
+                  ✓
+                </span>
                 <span className="text-gray-700">{t("about.feature1")}</span>
               </li>
               <li className="flex gap-3">
-                <span className="text-blue-600 text-xl">✓</span>
+                <span className="text-xl" style={{ color: "#f5a623" }}>
+                  ✓
+                </span>
                 <span className="text-gray-700">{t("about.feature2")}</span>
               </li>
               <li className="flex gap-3">
-                <span className="text-blue-600 text-xl">✓</span>
+                <span className="text-xl" style={{ color: "#f5a623" }}>
+                  ✓
+                </span>
                 <span className="text-gray-700">{t("about.feature3")}</span>
               </li>
               <li className="flex gap-3">
-                <span className="text-blue-600 text-xl">✓</span>
+                <span className="text-xl" style={{ color: "#f5a623" }}>
+                  ✓
+                </span>
                 <span className="text-gray-700">{t("about.feature4")}</span>
               </li>
               <li className="flex gap-3">
-                <span className="text-blue-600 text-xl">✓</span>
+                <span className="text-xl" style={{ color: "#f5a623" }}>
+                  ✓
+                </span>
                 <span className="text-gray-700">{t("about.feature5")}</span>
               </li>
             </ul>
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <Link
+                href="/legal"
+                className="text-sm underline"
+                style={{ color: "#002d75" }}
+              >
+                Integritetspolicy &amp; Användarvillkor →
+              </Link>
+            </div>
           </section>
 
           {/* Call to action */}
-          <section className="bg-blue-50 rounded-xl p-6 mt-8">
-            <h2 className="text-2xl font-bold text-blue-800 mb-4">
+          <section
+            className="rounded-xl p-6 mt-8"
+            style={{ backgroundColor: "#f0f4ff" }}
+          >
+            <h2
+              className="text-2xl font-bold mb-4"
+              style={{ color: "#002d75" }}
+            >
               {t("about.getInvolved")}
             </h2>
             <p className="text-gray-700 mb-4">
@@ -130,7 +183,8 @@ export default function AboutPage() {
             {!session && (
               <button
                 onClick={() => router.push("/login")}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors"
+                className="text-white px-6 py-3 rounded-xl font-medium transition-colors"
+                style={{ backgroundColor: "#002d75" }}
               >
                 {t("about.joinNow")}
               </button>

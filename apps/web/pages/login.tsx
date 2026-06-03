@@ -258,6 +258,14 @@ export default function LoginPage() {
           >
             <Info className="w-4 h-4" /> {t("login.aboutLink")}
           </Link>
+          <div>
+            <Link
+              href="/legal"
+              className="text-xs text-gray-400 hover:text-gray-600 underline"
+            >
+              Integritetspolicy &amp; Användarvillkor
+            </Link>
+          </div>
         </div>
       </div>
     </div>
