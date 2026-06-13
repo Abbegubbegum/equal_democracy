@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/router";
@@ -381,7 +380,7 @@ export default function RaderaPage() {
   );
 }
 
-const cardStyle: CSSProperties = {
+const cardStyle = {
   background: "#fff",
   borderRadius: 16,
   padding: "2rem",
