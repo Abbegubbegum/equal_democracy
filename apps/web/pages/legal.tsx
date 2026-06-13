@@ -40,7 +40,7 @@ export default function LegalPage() {
               Integritetspolicy
             </h2>
             <p className="text-xs text-gray-400 mb-6">
-              Senast uppdaterad: 2 juni 2026
+              Senast uppdaterad: 14 juni 2026
             </p>
 
             <h3 className="font-bold text-gray-800 mt-6 mb-2">
@@ -85,6 +85,10 @@ export default function LegalPage() {
                     ["Push-notis-token", "Skicka aviseringar till din enhet"],
                     ["Telefonnummer", "SMS-notiser (valfritt)"],
                     ["IP-adress", "Säkerhet och felsökning"],
+                    [
+                      "Anonym användningsstatistik",
+                      "Förbättra appen (t.ex. antal appöppningar) – kan inte kopplas till dig",
+                    ],
                   ].map(([k, v]) => (
                     <tr key={k}>
                       <td className="px-4 py-2 font-medium text-gray-700">
@@ -109,7 +113,8 @@ export default function LegalPage() {
             <p className="text-gray-600 text-sm leading-relaxed">
               Vi behandlar dina uppgifter med stöd av{" "}
               <strong>berättigat intresse</strong> (demokratiskt deltagande i
-              lokalpolitiken) och <strong>samtycke</strong> (push-notiser, SMS).
+              lokalpolitiken samt anonym användningsstatistik för att förbättra
+              appen) och <strong>samtycke</strong> (push-notiser, SMS).
             </p>
 
             <h3 className="font-bold text-gray-800 mt-6 mb-2">
@@ -139,8 +144,8 @@ export default function LegalPage() {
                 <strong>Resend</strong> — utskick av inloggningskoder via e-post
               </li>
               <li>
-                <strong>Expo / Expo Push API</strong> — push-notiser till
-                mobilappen
+                <strong>Expo</strong> — push-notiser (Expo Push API) samt anonym
+                användningsstatistik för mobilappen (Expo Insights)
               </li>
               <li>
                 <strong>Anthropic (Claude)</strong> — AI-moderering av

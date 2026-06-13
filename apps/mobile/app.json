@@ -39,7 +39,8 @@
           "color": "#002d75"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-insights"
     ],
     "extra": {
       "router": {},

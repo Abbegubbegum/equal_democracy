@@ -64,7 +64,7 @@ export default function LegalScreen() {
       >
         {/* ── INTEGRITETSPOLICY ── */}
         <Section title="Integritetspolicy" />
-        <Text style={styles.updated}>Senast uppdaterad: 2 juni 2026</Text>
+        <Text style={styles.updated}>Senast uppdaterad: 14 juni 2026</Text>
 
         <H>1. Personuppgiftsansvarig</H>
         <P>
@@ -103,6 +103,10 @@ export default function LegalScreen() {
           />
           <TableRow label="Telefonnummer" value="SMS-notiser (valfritt)" />
           <TableRow label="IP-adress" value="Säkerhet och felsökning" />
+          <TableRow
+            label="Anonym användningsstatistik"
+            value="Förbättra appen – kan inte kopplas till dig"
+          />
         </View>
         <P>
           Vi samlar <Text style={styles.bold}>inte</Text> in personnummer i
@@ -114,8 +118,8 @@ export default function LegalScreen() {
         <P>
           Vi behandlar dina uppgifter med stöd av{" "}
           <Text style={styles.bold}>berättigat intresse</Text> (demokratiskt
-          deltagande) och <Text style={styles.bold}>samtycke</Text>{" "}
-          (push-notiser, SMS).
+          deltagande samt anonym användningsstatistik för att förbättra appen)
+          och <Text style={styles.bold}>samtycke</Text> (push-notiser, SMS).
         </P>
 
         <H>4. Hur länge sparar vi uppgifterna</H>
@@ -128,7 +132,10 @@ export default function LegalScreen() {
         <Li>MongoDB Atlas — databaslagring</Li>
         <Li>Vercel — webbhotell och API</Li>
         <Li>Resend — utskick av inloggningskoder via e-post</Li>
-        <Li>Expo / Expo Push API — push-notiser till mobilappen</Li>
+        <Li>
+          Expo — push-notiser (Expo Push API) samt anonym användningsstatistik
+          (Expo Insights)
+        </Li>
         <Li>Anthropic (Claude) — AI-moderering av kommentarer och förslag</Li>
         <Li>Twilio — SMS-notiser (om du valt det)</Li>
 
