@@ -38,7 +38,8 @@
         {
           "color": "#002d75"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "router": {},

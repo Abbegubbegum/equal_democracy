@@ -81,9 +81,10 @@ Built with Expo 54 + Expo Router v6 (file-based routing, same mental model as Ne
 apps/mobile/
 ├── app/
 │   ├── _layout.tsx          # Root layout: GestureHandler + SafeAreaProvider + AuthProvider
+│   ├── legal.tsx            # Integritetspolicy & Användarvillkor — native screen, linked from login and Info tab
 │   ├── (auth)/
 │   │   ├── _layout.tsx      # Redirects to (app)/ if already logged in
-│   │   └── login.tsx        # Two-step email → OTP login screen
+│   │   └── login.tsx        # Two-step email → OTP login screen; link to legal.tsx at bottom
 │   └── (app)/
 │       ├── _layout.tsx      # MaterialTopTabs (6 tabs, native horizontal swipe via react-native-pager-view) + custom BottomBar + auth guard + Expo-Go-guarded push registration
 │       ├── index.tsx        # Hem — fixed blue hero with inline logo (clipped-rotated-square >> symbol) + scrollable party info cards
@@ -91,7 +92,7 @@ apps/mobile/
 │       ├── vote.tsx         # Rösta — "voting"-type sessions: single question with Ja/Nej/Avstår + result bars
 │       ├── proposals.tsx    # Förslag — full-screen paginated citizen proposals with image backgrounds
 │       ├── archive.tsx      # Arkiv — closed sessions with yes/no vote bars
-│       └── membership.tsx   # Info (tab) / Bli medlem (in-page) — dummy membership/payment page (BankID + Swish integration pending)
+│       └── membership.tsx   # Info (tab) / Bli medlem (in-page) — membership/payment page (BankID + Swish pending); link to legal.tsx at bottom
 ├── lib/
 │   ├── api.ts               # apiClient() — Bearer token injection + silent 401 refresh
 │   ├── auth-context.tsx     # AuthProvider + useAuth() hook
@@ -114,9 +115,9 @@ apps/mobile/
 
 **Storage:** Always use `lib/storage.ts` (`getItem`/`setItem`/`deleteItem`) instead of `expo-secure-store` directly — it handles the web fallback to localStorage automatically.
 
-**Navigation:** `(app)/_layout.tsx` composes `@react-navigation/material-top-tabs` via `withLayoutContext` from expo-router, configured with `tabBarPosition="bottom"` and a custom `<BottomBar />` (`tabBar` prop) that renders the six tabs (Hem, Sessioner, Rösta, Förslag, Arkiv, Info) with the existing icon/label/active-tint design. The underlying `react-native-pager-view` gives native, content-tracking horizontal swipe between tabs — drag with finger and the screen content slides under you, snap is velocity-aware. Tabs do NOT wrap around (stops at Hem and Info, matching standard mobile app behavior). Don't switch back to expo-router's `<Tabs>` — under SDK 54 + Expo Go new architecture, that variant's bottom-tab bar fails to render at all on Android emulators.
+**Navigation:** `(app)/_layout.tsx` composes `@react-navigation/material-top-tabs` via `withLayoutContext` from expo-router, configured with `tabBarPosition="bottom"` and a custom `<BottomBar />` (`tabBar` prop) that renders five visible tabs (Hem, Sessioner, Rösta, Förslag, Info) with the existing icon/label/active-tint design. The `archive` screen still exists in the navigator (so deep links and notification routing work) but is filtered out of the `BottomBar` render via `state.routes.filter((r) => r.name !== "archive")`. The underlying `react-native-pager-view` gives native, content-tracking horizontal swipe between tabs — drag with finger and the screen content slides under you, snap is velocity-aware. Tabs do NOT wrap around (stops at Hem and Info, matching standard mobile app behavior). Don't switch back to expo-router's `<Tabs>` — under SDK 54 + Expo Go new architecture, that variant's bottom-tab bar fails to render at all on Android emulators.
 
-**Why custom `<BottomBar />` instead of the default top-tabs bar:** The default material-top-tabs bar is a horizontal scrollable strip with an animated indicator under the active label — wrong shape for a bottom nav. The custom component renders state-driven `<TouchableOpacity>` tabs reading `state.routes` / `state.index` / `descriptors[].options.title` from props, plus an icon mapping in `TAB_ICONS`. Tap handler emits a `tabPress` event (so pager-view can react), then calls `navigation.navigate(route.name)` only if not focused.
+**Why custom `<BottomBar />` instead of the default top-tabs bar:** The default material-top-tabs bar is a horizontal scrollable strip with an animated indicator under the active label — wrong shape for a bottom nav. The custom component renders state-driven `<TouchableOpacity>` tabs reading `state.routes` / `state.index` / `descriptors[].options.title` from props, plus an icon mapping in `TAB_ICONS`. Tap handler emits a `tabPress` event (so pager-view can react), then calls `navigation.navigate(route.name)` only if not focused. To hide a tab from the bar without removing the screen, filter it by `route.name` in the `BottomBar` render — do NOT use `tabBarButton: () => null` (that's a bottom-tabs option that doesn't exist on `MaterialTopTabNavigationOptions` and will cause a type error).
 
 **Navigation guards:** `(auth)/_layout.tsx` redirects logged-in users to the app. `(app)/_layout.tsx` redirects unauthenticated users to login. Both check `useAuth()`.
 
@@ -153,6 +154,8 @@ apps/mobile/
 **Environment:** Set `EXPO_PUBLIC_API_URL` in `apps/mobile/.env`. Use `http://10.0.2.2:3000` for Android emulator, your LAN IP for physical devices. `localhost` does NOT work on physical devices.
 
 **Push notifications:** Server-side: `apps/web/lib/push-notifications.ts` sends to the Expo Push API, `POST /api/mobile/push-token` stores tokens, `User.expoPushToken` field exists, and `POST /api/admin/sessions` fires a push when a voting session is created. Mobile side: `expo-notifications` is installed and the registration code lives in `(app)/_layout.tsx`, gated by `const IS_EXPO_GO = Constants.executionEnvironment === "storeClient"` — both the notification-tap listener and `getExpoPushTokenAsync()` are wrapped in `if (!IS_EXPO_GO)` blocks so Expo Go silently skips them (remote pushes were removed from Expo Go in SDK 53). In real EAS builds the guards flip off and pushes register automatically. `vote.tsx` calls `setBadgeCountAsync(0)` on focus to clear the badge (a local-only API that works in both Expo Go and EAS builds). The FCM V1 service-account JSON for Android is uploaded to EAS project Credentials (Android → FCM V1), so push **delivery** to Android works; the APNs `.p8` for iOS is still pending. `google-services.json` lives at `apps/mobile/google-services.json` and is referenced via `android.googleServicesFile` in `app.json`; its embedded `AIzaSy…` value is the Firebase Android **client** API key (ships inside the APK, safe to commit — GitHub secret-scanning flags the pattern but it's low-severity; restrict it in GCP Console → APIs & Services → Credentials by package `se.vallentunaframat.app` + SHA-1). The real secret is the separate `…firebase-adminsdk….json` service-account key used for FCM V1 — never commit it; it lives only in EAS.
+
+**EAS production builds:** Package name `se.vallentunaframat.app`, owner `vallentuna-framat`. Production AAB (versionCode 4) is uploaded to Google Play Console under internal testing. iOS TestFlight build is pending (requires Apple Developer account). Build command: `npx eas-cli build --profile production --platform android` from `apps/mobile`.
 
 **EAS dev-client builds (push + native testing):** Push notifications and any other native-module feature can't be exercised in Expo Go — build a custom dev client via EAS. `eas.json` has a `development` profile (`developmentClient: true`, `distribution: internal`, APK) and `expo-dev-client` is a dependency. Build from `apps/mobile`: `npx eas-cli build --profile development --platform android`; install with `npx eas-cli build:run --platform android --latest`; then run Metro with `npx expo start --dev-client`. **Local Android native builds (`expo run:android` / `gradlew`) are NOT viable on this machine** — the repo's long OneDrive path + pnpm's deep `.pnpm/<hash>` nesting + New-Arch Fabric codegen (CMake mirrors the absolute source path into each object path) push generated paths past Windows' 260-char `MAX_PATH`, and the JBR JVM / NDK ninja don't honor long paths. Always use EAS for native builds. Caveat: `android/` is gitignored but EAS **still bundles the local `apps/mobile/android/` folder** and prebuilds non-destructively, so stray edits in the generated `android/` (e.g. a `buildDir` relocation) leak into the cloud build and cause baffling Kotlin `Unresolved reference` failures — delete `apps/mobile/android` before an EAS build so prebuild regenerates it pristine.
 
@@ -227,6 +230,8 @@ apps/web/
 | `hooks/usePusher.ts`            | Client Pusher subscriber + presence channel (`activeUserCount`)                                              |
 | `hooks/useLazySound.ts`         | Audio playback hook                                                                                          |
 | `locales/[sv,en,sr,es,de].ts`   | Translation strings (5 languages)                                                                            |
+
+**Municipality whitelist:** `pages/[municipality]/index.tsx`, `pages/[municipality]/[board]/index.tsx`, and `pages/[municipality]/[board]/archive.tsx` all export a `getServerSideProps` that returns `{ notFound: true }` for any municipality not in `VALID_MUNICIPALITIES = ["vallentuna"]`. This prevents the dynamic catch-all from matching arbitrary slugs like `/legal` or `/api`. When adding a new municipality, add its lowercase slug to this constant in all three files.
 
 ### Components (`apps/web/components/budget/`)
 
@@ -401,25 +406,26 @@ Mobile API calls pass `Authorization: Bearer <accessToken>`. Use `verifyBearerTo
 
 ## Pages
 
-| Route                             | Page                                                          |
-| --------------------------------- | ------------------------------------------------------------- |
-| `/login`                          | Email OTP login                                               |
-| `/about`                          | About page                                                    |
-| `/session/[id]`                   | Voting session (phase1/phase2)                                |
-| `/session/survey/[id]`            | Survey voting                                                 |
-| `/[municipality]/[board]/`        | Municipality sessions                                         |
-| `/[municipality]/[board]/archive` | Municipality archive                                          |
-| `/archive`                        | Global archive                                                |
-| `/archive/[id]`                   | Specific archived session                                     |
-| `/budget/`                        | Budget landing → redirects to active                          |
-| `/budget/debate/[sessionId]`      | Budget debate                                                 |
-| `/budget/results/[sessionId]`     | Budget results                                                |
-| `/budget/admin/`                  | Budget admin                                                  |
-| `/medborgarforslag`               | Citizen proposals listing                                     |
-| `/admin/`                         | Super admin dashboard (sessions/users/proposals/results tabs) |
-| `/admin/municipal`                | Municipal session management                                  |
-| `/admin/survey`                   | Survey management                                             |
-| `/manage-sessions`                | Session admin (non-super admins)                              |
+| Route                             | Page                                                           |
+| --------------------------------- | -------------------------------------------------------------- |
+| `/login`                          | Email OTP login (link to /legal at bottom)                     |
+| `/about`                          | About page — dark blue gradient matching login; amber accents  |
+| `/legal`                          | Integritetspolicy & Användarvillkor (GDPR, org.nr 802555-8852) |
+| `/session/[id]`                   | Voting session (phase1/phase2)                                 |
+| `/session/survey/[id]`            | Survey voting                                                  |
+| `/[municipality]/[board]/`        | Municipality sessions                                          |
+| `/[municipality]/[board]/archive` | Municipality archive                                           |
+| `/archive`                        | Global archive                                                 |
+| `/archive/[id]`                   | Specific archived session                                      |
+| `/budget/`                        | Budget landing → redirects to active                           |
+| `/budget/debate/[sessionId]`      | Budget debate                                                  |
+| `/budget/results/[sessionId]`     | Budget results                                                 |
+| `/budget/admin/`                  | Budget admin                                                   |
+| `/medborgarforslag`               | Citizen proposals listing                                      |
+| `/admin/`                         | Super admin dashboard (sessions/users/proposals/results tabs)  |
+| `/admin/municipal`                | Municipal session management                                   |
+| `/admin/survey`                   | Survey management                                              |
+| `/manage-sessions`                | Session admin (non-super admins)                               |
 
 ---
 

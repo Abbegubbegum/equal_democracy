@@ -147,7 +147,7 @@ export default function ArchivePage() {
                   {budgetSessions.map((budgetSession) => (
                     <Link
                       key={budgetSession._id}
-                      href={`/budget/${budgetSession.sessionId}`}
+                      href={`/budget/results/${budgetSession.sessionId}`}
                       className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow"
                     >
                       <h3 className="font-semibold text-lg mb-1">
@@ -238,8 +238,15 @@ export default function ArchivePage() {
                         avslutade ärenden
                       </div>
                       <Link
-                        href={`/${municipalSession.municipality.toLowerCase()}/${municipalSession.meetingType
+                        href={`/${municipalSession.municipality
                           .toLowerCase()
+                          .replace(/å/g, "a")
+                          .replace(/ä/g, "a")
+                          .replace(/ö/g, "o")}/${municipalSession.meetingType
+                          .toLowerCase()
+                          .replace(/å/g, "a")
+                          .replace(/ä/g, "a")
+                          .replace(/ö/g, "o")
                           .replace(/ /g, "-")}/archive`}
                         className="mt-2 inline-block px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
                       >
@@ -286,9 +293,10 @@ export default function ArchivePage() {
               ) : (
                 <div className="grid gap-4">
                   {citizenProposals.map((proposal) => (
-                    <div
+                    <Link
                       key={proposal._id}
-                      className="bg-white rounded-lg shadow p-4"
+                      href="/medborgarforslag"
+                      className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow block"
                     >
                       <h3 className="font-semibold text-lg mb-2">
                         {proposal.title}
@@ -300,7 +308,7 @@ export default function ArchivePage() {
                         <Award className="w-4 h-4 text-yellow-500" />
                         {proposal.totalStars} stjärnor
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               )}
