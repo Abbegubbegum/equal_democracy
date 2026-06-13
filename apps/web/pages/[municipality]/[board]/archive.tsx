@@ -4,6 +4,14 @@ import { Calendar, TrendingUp, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { useTranslation } from "../../../lib/hooks/useTranslation";
 
+export async function getServerSideProps({ params }) {
+  const VALID_MUNICIPALITIES = ["vallentuna"];
+  if (!VALID_MUNICIPALITIES.includes(params.municipality)) {
+    return { notFound: true };
+  }
+  return { props: {} };
+}
+
 const CATEGORY_NAMES = {
   1: "Bygga, bo och miljö",
   2: "Fritid och kultur",

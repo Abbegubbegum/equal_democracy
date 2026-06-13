@@ -178,7 +178,10 @@ function TabNavigator() {
           name="proposals"
           options={{ title: "Förslag" }}
         />
-        <MaterialTopTabs.Screen name="archive" options={{ title: "Arkiv" }} />
+        <MaterialTopTabs.Screen
+          name="archive"
+          options={{ title: "Arkiv", tabBarButton: () => null }}
+        />
         <MaterialTopTabs.Screen name="membership" options={{ title: "Info" }} />
       </MaterialTopTabs>
 

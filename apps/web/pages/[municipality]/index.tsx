@@ -5,6 +5,15 @@ import { Building2, Users, Calendar } from "lucide-react";
 import Link from "next/link";
 import { useTranslation } from "../../lib/hooks/useTranslation";
 
+const VALID_MUNICIPALITIES = ["vallentuna"];
+
+export async function getServerSideProps({ params }) {
+  if (!VALID_MUNICIPALITIES.includes(params.municipality)) {
+    return { notFound: true };
+  }
+  return { props: {} };
+}
+
 const BOARD_INFO = {
   kommunfullmaktige: {
     name: "Kommunfullmäktige",
