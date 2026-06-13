@@ -485,6 +485,15 @@ TWILIO_FROM_PHONE=
 
 # Blob storage (Vercel Blob — required in production; for local dev only if you want uploads to work)
 BLOB_READ_WRITE_TOKEN=
+
+# Google Play review bypass (optional — set only while an app review is pending)
+# A single whitelisted email logs in with a fixed code instead of a real OTP,
+# so Google Play reviewers can get past the email/OTP login wall. Honored by
+# /api/auth/request-code (skips the email) and /api/mobile/auth/verify-code
+# (accepts the fixed code). The test account is an ordinary member, no admin
+# rights. Unset either var to disable instantly.
+REVIEW_TEST_EMAIL=
+REVIEW_TEST_CODE=
 ```
 
 ---

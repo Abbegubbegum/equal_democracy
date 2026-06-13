@@ -32,31 +32,45 @@ export default async function handler(
   try {
     await connectDB();
 
-    const rec = await LoginCode.findOne({
-      email,
-      expiresAt: { $gt: new Date() },
-    });
+    // Google Play review bypass: a single whitelisted test email logs in with
+    // a fixed code, skipping the OTP lookup entirely. Both env vars must be set
+    // and match; unsetting either disables it. The test account is an ordinary
+    // member with no admin rights (created below like any other user).
+    const reviewEmail = process.env.REVIEW_TEST_EMAIL?.toLowerCase();
+    const reviewCode = process.env.REVIEW_TEST_CODE;
+    const isReviewBypass =
+      !!reviewEmail &&
+      !!reviewCode &&
+      email === reviewEmail &&
+      code === reviewCode;
 
-    if (!rec) {
-      return res.status(401).json({ message: "Code is invalid or expired" });
-    }
+    if (!isReviewBypass) {
+      const rec = await LoginCode.findOne({
+        email,
+        expiresAt: { $gt: new Date() },
+      });
 
-    if (rec.attempts >= 5) {
+      if (!rec) {
+        return res.status(401).json({ message: "Code is invalid or expired" });
+      }
+
+      if (rec.attempts >= 5) {
+        await LoginCode.deleteMany({ email });
+        return res
+          .status(401)
+          .json({ message: "Too many failed attempts, request a new code" });
+      }
+
+      const ok = await bcrypt.compare(code, rec.codeHash);
+      if (!ok) {
+        rec.attempts += 1;
+        await rec.save();
+        return res.status(401).json({ message: "Code is invalid" });
+      }
+
+      // Consume the code
       await LoginCode.deleteMany({ email });
-      return res
-        .status(401)
-        .json({ message: "Too many failed attempts, request a new code" });
     }
-
-    const ok = await bcrypt.compare(code, rec.codeHash);
-    if (!ok) {
-      rec.attempts += 1;
-      await rec.save();
-      return res.status(401).json({ message: "Code is invalid" });
-    }
-
-    // Consume the code
-    await LoginCode.deleteMany({ email });
 
     let user = await User.findOne({ email });
     if (!user) {
