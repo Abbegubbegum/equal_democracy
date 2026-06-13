@@ -21,6 +21,15 @@ export default async function handler(
   const { email } = req.body || {};
   if (!email) return res.status(400).json({ message: "Email is required" });
 
+  // Google Play review bypass: a single whitelisted test email never receives
+  // a real OTP email — it logs in with a fixed code instead (checked in
+  // /api/mobile/auth/verify-code). Env-controlled so it can be disabled
+  // instantly by unsetting REVIEW_TEST_EMAIL.
+  const reviewEmail = process.env.REVIEW_TEST_EMAIL?.toLowerCase();
+  if (reviewEmail && email.toLowerCase() === reviewEmail) {
+    return res.status(200).json({ ok: true, alreadySent: false });
+  }
+
   await connectDB();
 
   // Delete any stale (expired) codes
