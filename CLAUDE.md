@@ -401,31 +401,33 @@ Mobile API calls pass `Authorization: Bearer <accessToken>`. Use `verifyBearerTo
 - `POST /api/check-session-timeout`
 - `POST /api/pusher/auth`
 - `POST /api/unsubscribe`
+- `DELETE /api/account/delete` — GDPR right-to-erasure: deletes all user data (proposals, comments, votes, ratings, citizen proposals + blob images, budget votes/arguments, login codes) then deletes the User record. Requires active NextAuth session.
 
 ---
 
 ## Pages
 
-| Route                             | Page                                                           |
-| --------------------------------- | -------------------------------------------------------------- |
-| `/login`                          | Email OTP login (link to /legal at bottom)                     |
-| `/about`                          | About page — dark blue gradient matching login; amber accents  |
-| `/legal`                          | Integritetspolicy & Användarvillkor (GDPR, org.nr 802555-8852) |
-| `/session/[id]`                   | Voting session (phase1/phase2)                                 |
-| `/session/survey/[id]`            | Survey voting                                                  |
-| `/[municipality]/[board]/`        | Municipality sessions                                          |
-| `/[municipality]/[board]/archive` | Municipality archive                                           |
-| `/archive`                        | Global archive                                                 |
-| `/archive/[id]`                   | Specific archived session                                      |
-| `/budget/`                        | Budget landing → redirects to active                           |
-| `/budget/debate/[sessionId]`      | Budget debate                                                  |
-| `/budget/results/[sessionId]`     | Budget results                                                 |
-| `/budget/admin/`                  | Budget admin                                                   |
-| `/medborgarforslag`               | Citizen proposals listing                                      |
-| `/admin/`                         | Super admin dashboard (sessions/users/proposals/results tabs)  |
-| `/admin/municipal`                | Municipal session management                                   |
-| `/admin/survey`                   | Survey management                                              |
-| `/manage-sessions`                | Session admin (non-super admins)                               |
+| Route                             | Page                                                                                                  |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `/login`                          | Email OTP login (link to /legal at bottom)                                                            |
+| `/about`                          | About page — dark blue gradient matching login; amber accents                                         |
+| `/legal`                          | Integritetspolicy & Användarvillkor (GDPR, org.nr 802555-8852)                                        |
+| `/radera`                         | GDPR account deletion — 3-step flow (info → confirm email → done), calls `DELETE /api/account/delete` |
+| `/session/[id]`                   | Voting session (phase1/phase2)                                                                        |
+| `/session/survey/[id]`            | Survey voting                                                                                         |
+| `/[municipality]/[board]/`        | Municipality sessions                                                                                 |
+| `/[municipality]/[board]/archive` | Municipality archive                                                                                  |
+| `/archive`                        | Global archive                                                                                        |
+| `/archive/[id]`                   | Specific archived session                                                                             |
+| `/budget/`                        | Budget landing → redirects to active                                                                  |
+| `/budget/debate/[sessionId]`      | Budget debate                                                                                         |
+| `/budget/results/[sessionId]`     | Budget results                                                                                        |
+| `/budget/admin/`                  | Budget admin                                                                                          |
+| `/medborgarforslag`               | Citizen proposals listing                                                                             |
+| `/admin/`                         | Super admin dashboard (sessions/users/proposals/results tabs)                                         |
+| `/admin/municipal`                | Municipal session management                                                                          |
+| `/admin/survey`                   | Survey management                                                                                     |
+| `/manage-sessions`                | Session admin (non-super admins)                                                                      |
 
 ---
 
