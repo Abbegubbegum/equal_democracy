@@ -114,6 +114,19 @@ export default function MembershipScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={styles.archiveBtn}
+          onPress={() => router.push("/archive" as any)}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name="archive-outline"
+            size={18}
+            color="rgba(255,255,255,0.7)"
+          />
+          <Text style={styles.archiveBtnText}>Visa arkiv</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           onPress={() => router.push("/legal" as any)}
           activeOpacity={0.7}
         >
@@ -303,6 +316,22 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   qrCloseText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+
+  archiveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  archiveBtnText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 14,
+    fontWeight: "600",
+  },
 
   legalLink: {
     color: "rgba(255,255,255,0.4)",

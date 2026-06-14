@@ -9,7 +9,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { apiClient } from "../../lib/api";
+import { useRouter } from "expo-router";
+import { apiClient } from "../lib/api";
+import { useAuth } from "../lib/auth-context";
 
 interface TopProposal {
   title: string;
@@ -29,14 +31,20 @@ interface ArchivedSession {
 
 export default function ArchiveScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { user, isLoading } = useAuth();
   const [sessions, setSessions] = useState<ArchivedSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    load();
-  }, []);
+    if (!isLoading && !user) {
+      router.replace("/(auth)/login");
+      return;
+    }
+    if (user) load();
+  }, [user, isLoading]);
 
   async function load() {
     setLoading(true);
@@ -57,7 +65,7 @@ export default function ArchiveScreen() {
     setExpanded((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }));
   }
 
-  if (loading) {
+  if (isLoading || (loading && sessions.length === 0)) {
     return (
       <View style={[styles.center, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={BLUE} />
@@ -78,6 +86,12 @@ export default function ArchiveScreen() {
   if (sessions.length === 0) {
     return (
       <View style={[styles.center, { paddingTop: insets.top }]}>
+        <TouchableOpacity
+          style={[styles.backBtn, { top: insets.top + 10 }]}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="chevron-back" size={22} color={BLUE} />
+        </TouchableOpacity>
         <Ionicons name="archive-outline" size={56} color="#ccc" />
         <Text style={styles.emptyTitle}>Inga avslutade sessioner</Text>
         <Text style={styles.emptyText}>
@@ -96,7 +110,16 @@ export default function ArchiveScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.pageTitle}>Arkiv</Text>
+      <View style={styles.titleRow}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => router.back()}
+          hitSlop={8}
+        >
+          <Ionicons name="chevron-back" size={22} color={BLUE} />
+        </TouchableOpacity>
+        <Text style={styles.pageTitle}>Arkiv</Text>
+      </View>
 
       {sessions.map((session) => {
         const isOpen = expanded[session.id] ?? true;
@@ -122,10 +145,7 @@ export default function ArchiveScreen() {
                   {session.endDate
                     ? ` – ${new Date(session.endDate).toLocaleDateString(
                         "sv-SE",
-                        {
-                          day: "numeric",
-                          month: "short",
-                        },
+                        { day: "numeric", month: "short" },
                       )}`
                     : ""}
                 </Text>
@@ -207,13 +227,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
 
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    gap: 8,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,45,117,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   pageTitle: {
     fontSize: 24,
     fontWeight: "900",
     color: BLUE,
-    marginBottom: 16,
     letterSpacing: 0.5,
-    paddingLeft: 64,
   },
 
   sessionCard: {

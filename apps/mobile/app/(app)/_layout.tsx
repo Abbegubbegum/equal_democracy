@@ -53,7 +53,6 @@ const TAB_ICONS: Record<string, IoniconsName> = {
   sessions: "people-outline",
   vote: "checkmark-circle-outline",
   proposals: "bulb-outline",
-  archive: "archive-outline",
   membership: "information-circle-outline",
 };
 
@@ -143,7 +142,7 @@ function TabNavigator() {
       vote: "/vote",
       sessions: "/sessions",
       proposals: "/proposals",
-      archive: "/archive",
+      archive: "/archive", // pushed as a standalone screen (not a tab)
     };
     const sub = Notifications.addNotificationResponseReceivedListener(
       (response) => {
@@ -180,7 +179,6 @@ function TabNavigator() {
           name="proposals"
           options={{ title: "Förslag" }}
         />
-        <MaterialTopTabs.Screen name="archive" options={{ title: "Arkiv" }} />
         <MaterialTopTabs.Screen name="membership" options={{ title: "Info" }} />
       </MaterialTopTabs>
 
