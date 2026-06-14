@@ -5,6 +5,10 @@ node_modules
 .pnp
 .pnp.js
 
+# This repo uses pnpm — npm/yarn lockfiles are never wanted
+package-lock.json
+yarn.lock
+
 # Local env files
 .env
 .env.local

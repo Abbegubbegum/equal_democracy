@@ -163,7 +163,7 @@ apps/mobile/
 
 **Package version drift (SDK 54):** If you see `expo-notifications@55.x` or any other wildly-wrong version in `apps/mobile/package.json`, run `pnpm expo install --check` from `apps/mobile` and accept all suggested fixes. SDK 54 expects `expo-notifications@~0.32.x`, `expo-image-picker@~17.x`, `expo-image-manipulator@~14.x`, etc. A mismatched `expo-notifications` will crash `(app)/_layout.tsx` at module-import time (the file calls `Notifications.setNotificationHandler` at the top), which manifests as the entire tab layout silently failing to render — the symptom looks like "tab bar disappeared" but is actually a JS exception you may not see in Metro unless you look closely.
 
-**Testing with Expo Go:** Scan the QR code shown in the Metro terminal after running `pnpm dev:mobile`. Shake the device to get the reload menu. Press `r` in the Metro terminal to force reload. Expo Go is fine for JS/UI iteration, but push notifications and other native-module features require the EAS dev client (see **EAS dev-client builds** above).
+**Testing with Expo Go:** Scan the QR code shown in the Metro terminal after running `pnpm dev:mobile`. Shake the device to get the reload menu. Press `r` in the Metro terminal to force reload. Expo Go is fine for JS/UI iteration, but push notifications and other native-module features require the EAS dev client (see **EAS dev-client builds** above). The mobile `dev` script is `expo start --go` (forces Expo Go) — because `expo-dev-client` is installed, plain `expo start` would default to dev-client mode and refuse to launch without a custom build. To deliberately run a dev client instead, use `expo start --dev-client` (the `start` script keeps the unflagged `expo start`).
 
 ---
 
