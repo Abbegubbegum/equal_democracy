@@ -96,7 +96,7 @@ apps/mobile/
 ├── lib/
 │   ├── api.ts               # apiClient() — Bearer token injection + silent 401 refresh
 │   ├── auth-context.tsx     # AuthProvider + useAuth() hook
-│   ├── storage.ts           # Cross-platform storage: SecureStore (native) / localStorage (web)
+│   ├── storage.ts           # Key-value storage backed by expo-secure-store (encrypted, native-only)
 │   ├── stars.ts             # Local star counter (SecureStore) + one-time celebration flags
 │   ├── onboarding.ts        # Login counter + onboarding state (SecureStore): incrementLoginCount, getOnboardingState, markPromptShown, markProfileCompleted
 │   ├── XAIModal.tsx         # XAI chat sheet — sparkles button opens Claude-backed assistant
@@ -109,11 +109,11 @@ apps/mobile/
 
 ### Key Patterns
 
-**Auth:** Uses JWT tokens (not NextAuth cookies). Tokens stored via `lib/storage.ts` (SecureStore on native, localStorage on web). `useAuth()` exposes `user`, `isLoading`, `requestCode(email)`, `login(email, code)`, `logout()`.
+**Auth:** Uses JWT tokens (not NextAuth cookies). Tokens stored via `lib/storage.ts` (expo-secure-store). `useAuth()` exposes `user`, `isLoading`, `requestCode(email)`, `login(email, code)`, `logout()`.
 
 **API calls:** Use `apiClient<T>(path, options)` from `lib/api.ts`. It reads the access token from storage, attaches `Authorization: Bearer`, and silently refreshes on 401 before retrying once.
 
-**Storage:** Always use `lib/storage.ts` (`getItem`/`setItem`/`deleteItem`) instead of `expo-secure-store` directly — it handles the web fallback to localStorage automatically.
+**Storage:** Use `lib/storage.ts` (`getItem`/`setItem`/`deleteItem`) — a thin async wrapper over `expo-secure-store`. The app is native-only (no Expo web target).
 
 **Navigation:** `(app)/_layout.tsx` composes `@react-navigation/material-top-tabs` via `withLayoutContext` from expo-router, configured with `tabBarPosition="bottom"` and a custom `<BottomBar />` (`tabBar` prop) that renders five visible tabs (Hem, Sessioner, Rösta, Förslag, Info) with the existing icon/label/active-tint design. The `archive` screen still exists in the navigator (so deep links and notification routing work) but is filtered out of the `BottomBar` render via `state.routes.filter((r) => r.name !== "archive")`. The underlying `react-native-pager-view` gives native, content-tracking horizontal swipe between tabs — drag with finger and the screen content slides under you, snap is velocity-aware. Tabs do NOT wrap around (stops at Hem and Info, matching standard mobile app behavior). Don't switch back to expo-router's `<Tabs>` — under SDK 54 + Expo Go new architecture, that variant's bottom-tab bar fails to render at all on Android emulators.
 
@@ -148,8 +148,6 @@ apps/mobile/
 **Citizen proposals image upload:** `proposals.tsx` picks images via `expo-image-picker`, compresses to max 1200 px / 75% JPEG quality via `expo-image-manipulator`, then uploads with raw `fetch` + `FormData` (NOT `apiClient`) so React Native can set the correct `multipart/form-data; boundary=…` header automatically. `apiClient` would override Content-Type with `application/json` and break the upload.
 
 **Monorepo + Metro:** `metro.config.js` is required — without it, pnpm's symlinked `node_modules` causes Metro module resolution failures. Always keep it in sync if the monorepo structure changes.
-
-**CORS (web emulator only):** `apps/web/middleware.ts` adds CORS headers for `localhost:8081` and `localhost:19006`. Native builds are unaffected. Add production origins via `ALLOWED_ORIGINS` env var (comma-separated) in `apps/web/.env.local`.
 
 **Environment:** Set `EXPO_PUBLIC_API_URL` in `apps/mobile/.env`. Use `http://10.0.2.2:3000` for Android emulator, your LAN IP for physical devices. `localhost` does NOT work on physical devices.
 
