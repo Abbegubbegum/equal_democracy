@@ -407,27 +407,28 @@ Mobile API calls pass `Authorization: Bearer <accessToken>`. Use `verifyBearerTo
 
 ## Pages
 
-| Route                             | Page                                                                                                  |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `/login`                          | Email OTP login (link to /legal at bottom)                                                            |
-| `/about`                          | About page — dark blue gradient matching login; amber accents                                         |
-| `/legal`                          | Integritetspolicy & Användarvillkor (GDPR, org.nr 802555-8852)                                        |
-| `/radera`                         | GDPR account deletion — 3-step flow (info → confirm email → done), calls `DELETE /api/account/delete` |
-| `/session/[id]`                   | Voting session (phase1/phase2)                                                                        |
-| `/session/survey/[id]`            | Survey voting                                                                                         |
-| `/[municipality]/[board]/`        | Municipality sessions                                                                                 |
-| `/[municipality]/[board]/archive` | Municipality archive                                                                                  |
-| `/archive`                        | Global archive                                                                                        |
-| `/archive/[id]`                   | Specific archived session                                                                             |
-| `/budget/`                        | Budget landing → redirects to active                                                                  |
-| `/budget/debate/[sessionId]`      | Budget debate                                                                                         |
-| `/budget/results/[sessionId]`     | Budget results                                                                                        |
-| `/budget/admin/`                  | Budget admin                                                                                          |
-| `/medborgarforslag`               | Citizen proposals listing                                                                             |
-| `/admin/`                         | Super admin dashboard (sessions/users/proposals/results tabs)                                         |
-| `/admin/municipal`                | Municipal session management                                                                          |
-| `/admin/survey`                   | Survey management                                                                                     |
-| `/manage-sessions`                | Session admin (non-super admins)                                                                      |
+| Route                             | Page                                                                                                                                                                                                                                   |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/login`                          | Email OTP login (link to /legal at bottom)                                                                                                                                                                                             |
+| `/about`                          | About page — dark blue gradient matching login; amber accents                                                                                                                                                                          |
+| `/app`                            | App download redirect (target of the in-app "Dela appen med en vän" QR). UA-redirects Android → Play; renders a landing with store buttons for iOS/desktop. Store URLs are constants at the top of the file — update as tracks go live |
+| `/legal`                          | Integritetspolicy & Användarvillkor (GDPR, org.nr 802555-8852)                                                                                                                                                                         |
+| `/radera`                         | GDPR account deletion — 3-step flow (info → confirm email → done), calls `DELETE /api/account/delete`                                                                                                                                  |
+| `/session/[id]`                   | Voting session (phase1/phase2)                                                                                                                                                                                                         |
+| `/session/survey/[id]`            | Survey voting                                                                                                                                                                                                                          |
+| `/[municipality]/[board]/`        | Municipality sessions                                                                                                                                                                                                                  |
+| `/[municipality]/[board]/archive` | Municipality archive                                                                                                                                                                                                                   |
+| `/archive`                        | Global archive                                                                                                                                                                                                                         |
+| `/archive/[id]`                   | Specific archived session                                                                                                                                                                                                              |
+| `/budget/`                        | Budget landing → redirects to active                                                                                                                                                                                                   |
+| `/budget/debate/[sessionId]`      | Budget debate                                                                                                                                                                                                                          |
+| `/budget/results/[sessionId]`     | Budget results                                                                                                                                                                                                                         |
+| `/budget/admin/`                  | Budget admin                                                                                                                                                                                                                           |
+| `/medborgarforslag`               | Citizen proposals listing                                                                                                                                                                                                              |
+| `/admin/`                         | Super admin dashboard (sessions/users/proposals/results tabs)                                                                                                                                                                          |
+| `/admin/municipal`                | Municipal session management                                                                                                                                                                                                           |
+| `/admin/survey`                   | Survey management                                                                                                                                                                                                                      |
+| `/manage-sessions`                | Session admin (non-super admins)                                                                                                                                                                                                       |
 
 ---
 

@@ -16,8 +16,10 @@ import { useRouter } from "expo-router";
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
 
-// TODO: byt ut mot riktiga App Store / Google Play-länkar när appen är publicerad
-const APP_URL = "https://vallentunaframat.se";
+// QR-koden i appen pekar på en sida vi själva styr (apps/web/pages/app.tsx).
+// Den sidan vidarebefordrar Android → Google Play och iOS → App Store, så vi
+// kan ändra var nedladdningen hamnar utan att bygga om appen.
+const APP_URL = "https://www.vallentuna.app/app";
 
 const BENEFITS = [
   "Utökad rösträtt till en röst varje månad",
