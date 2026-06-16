@@ -113,7 +113,7 @@ export default function LoginPage() {
     <div
       className="min-h-screen flex flex-col items-center justify-center p-6"
       style={{
-        background: `linear-gradient(to bottom right, ${BLUE}, ${DARK_BLUE})`,
+        background: AMBER,
       }}
     >
       {/* Logo */}
