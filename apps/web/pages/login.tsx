@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/router";
 import Link from "next/link";
-import { ChevronsRight, Info } from "lucide-react";
+import Image from "next/image";
+import { Info } from "lucide-react";
 import { useTranslation } from "../lib/hooks/useTranslation";
 import { useConfig } from "../lib/contexts/ConfigContext";
 
@@ -113,21 +114,18 @@ export default function LoginPage() {
     <div
       className="min-h-screen flex flex-col items-center justify-center p-6"
       style={{
-        background: AMBER,
+        background: `linear-gradient(to bottom right, ${BLUE}, ${DARK_BLUE})`,
       }}
     >
       {/* Logo */}
       <div className="flex flex-row items-center justify-center gap-3 mb-8">
-        <div
-          className="w-16 h-16 rounded-full flex items-center justify-center shrink-0"
-          style={{ backgroundColor: AMBER }}
-        >
-          <ChevronsRight
-            className="w-11 h-11"
-            strokeWidth={3}
-            style={{ color: DARK_BLUE }}
-          />
-        </div>
+        <Image
+          src="/app-icon.png"
+          alt="Vallentuna Framåt"
+          width={72}
+          height={72}
+          className="rounded-2xl"
+        />
         <div className="text-left text-white">
           <div className="text-3xl font-black tracking-widest leading-tight">
             VALLENTUNA
