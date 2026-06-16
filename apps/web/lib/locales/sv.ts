@@ -324,16 +324,16 @@ export const sv = {
     changeEmail: "Byt e-postadress",
     newHere: "Ny här?",
     createAccount: "Skapa konto",
-    aboutLink: "Om Jämlik Demokrati",
+    aboutLink: "Om Vallentuna Framåt",
   },
 
   // About page
   about: {
-    title: "Om Jämlik Demokrati",
+    title: "Om Vallentuna Framåt",
     subtitle: "Ett demokratiskt verktyg för medborgardeltagande",
-    whatIs: "Vad är Jämlik Demokrati?",
+    whatIs: "Vad är Vallentuna Framåt?",
     introduction:
-      "Jämlik Demokrati är en plattform för demokratiskt beslutsfattande där alla medborgare har lika mycket att säga till om. Systemet använder begränsad rösträtt och algoritmisk rangordning för att säkerställa att de bästa idéerna kommer fram.",
+      "Vallentuna Framåt är ett lokalt parti och en plattform för demokratiskt beslutsfattande där alla medborgare har lika mycket att säga till om. Systemet använder begränsad rösträtt och algoritmisk rangordning för att säkerställa att de bästa idéerna kommer fram.",
     howItWorks: "Hur fungerar det?",
     phase1Title: "Fas 1: Idégenerering och Betygsättning",
     phase1Description:

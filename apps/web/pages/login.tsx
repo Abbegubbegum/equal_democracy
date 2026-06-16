@@ -105,75 +105,105 @@ export default function LoginPage() {
     }
   }
 
+  const AMBER = "#f5a623";
+  const BLUE = "#002d75";
+  const DARK_BLUE = "#001c55";
+
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center p-6"
       style={{
-        background: "linear-gradient(to bottom right, #002d75, #001c55)",
+        background: `linear-gradient(to bottom right, ${BLUE}, ${DARK_BLUE})`,
       }}
     >
-      <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 space-y-6">
-        <div className="text-center space-y-2">
-          <div className="flex flex-row items-center justify-center gap-3">
-            <div
-              className="w-20 h-20 rounded-full flex items-center justify-center shrink-0"
-              style={{ backgroundColor: "#f8b60e" }}
-            >
-              <ChevronsRight
-                className="w-14 h-14"
-                strokeWidth={3}
-                style={{ color: "#001c55" }}
-              />
-            </div>
-            <h1 className="text-left" style={{ color: "#001c55" }}>
-              <div className="text-3xl font-black tracking-widest leading-tight">
-                VALLENTUNA
-              </div>
-              <div className="text-xl font-medium -mt-1">Framåt</div>
-            </h1>
-          </div>
-          <p className="text-lg text-gray-600">{t("login.subtitle")}</p>
+      {/* Logo */}
+      <div className="flex flex-row items-center justify-center gap-3 mb-8">
+        <div
+          className="w-16 h-16 rounded-full flex items-center justify-center shrink-0"
+          style={{ backgroundColor: AMBER }}
+        >
+          <ChevronsRight
+            className="w-11 h-11"
+            strokeWidth={3}
+            style={{ color: DARK_BLUE }}
+          />
         </div>
+        <div className="text-left text-white">
+          <div className="text-3xl font-black tracking-widest leading-tight">
+            VALLENTUNA
+          </div>
+          <div className="text-xl font-medium -mt-1">Framåt</div>
+        </div>
+      </div>
+
+      {/* Card */}
+      <div
+        className="max-w-md w-full rounded-3xl shadow-2xl p-8 space-y-6"
+        style={{
+          backgroundColor: "rgba(255,255,255,0.07)",
+          border: "1px solid rgba(255,255,255,0.15)",
+        }}
+      >
+        <p
+          className="text-center"
+          style={{ color: "rgba(255,255,255,0.7)", fontSize: 15 }}
+        >
+          {t("login.subtitle")}
+        </p>
 
         {step === "email" && (
           <form onSubmit={requestCode} className="space-y-4">
             {error && (
-              <div className="bg-red-50 border-2 border-red-200 rounded-xl p-3 text-red-700 text-sm">
+              <div
+                className="rounded-xl p-3 text-sm"
+                style={{
+                  backgroundColor: "rgba(239,68,68,0.15)",
+                  color: "#fca5a5",
+                  border: "1px solid rgba(239,68,68,0.3)",
+                }}
+              >
                 {error}
               </div>
             )}
             {info && (
-              <div className="bg-green-50 border-2 border-green-200 rounded-xl p-3 text-green-700 text-sm">
+              <div
+                className="rounded-xl p-3 text-sm"
+                style={{
+                  backgroundColor: "rgba(34,197,94,0.15)",
+                  color: "#86efac",
+                  border: "1px solid rgba(34,197,94,0.3)",
+                }}
+              >
                 {info}
               </div>
             )}
-
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                className="block text-sm font-medium mb-2"
+                style={{ color: "rgba(255,255,255,0.8)" }}
+              >
                 {t("login.email")}
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-[#002d75] focus:outline-none text-lg"
+                className="w-full px-4 py-3 rounded-xl text-lg focus:outline-none"
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.12)",
+                  border: "2px solid rgba(255,255,255,0.2)",
+                  color: "#fff",
+                }}
                 placeholder={t("login.emailPlaceholder")}
                 required
                 autoFocus
               />
             </div>
-
             <button
               type="submit"
               disabled={loading}
-              className="w-full disabled:bg-gray-300 text-white font-semibold py-4 rounded-xl transition-colors text-lg shadow-lg"
-              style={{ backgroundColor: "#002d75" }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.backgroundColor = "#001c55")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.backgroundColor = "#002d75")
-              }
+              className="w-full font-bold py-4 rounded-xl text-lg transition-opacity disabled:opacity-40"
+              style={{ backgroundColor: AMBER, color: DARK_BLUE }}
             >
               {loading ? t("login.sending") : t("login.sendCode")}
             </button>
@@ -183,13 +213,22 @@ export default function LoginPage() {
         {step === "code" && (
           <form onSubmit={verifyCode} className="space-y-4">
             {error && (
-              <div className="bg-red-50 border-2 border-red-200 rounded-xl p-3 text-red-700 text-sm">
+              <div
+                className="rounded-xl p-3 text-sm"
+                style={{
+                  backgroundColor: "rgba(239,68,68,0.15)",
+                  color: "#fca5a5",
+                  border: "1px solid rgba(239,68,68,0.3)",
+                }}
+              >
                 {error}
               </div>
             )}
-
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                className="block text-sm font-medium mb-2"
+                style={{ color: "rgba(255,255,255,0.8)" }}
+              >
                 {t("login.code")}
               </label>
               <input
@@ -198,38 +237,43 @@ export default function LoginPage() {
                 maxLength={6}
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                className="w-full tracking-widest text-center text-2xl px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-[#002d75] focus:outline-none"
+                className="w-full tracking-widest text-center text-2xl px-4 py-3 rounded-xl focus:outline-none"
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.12)",
+                  border: "2px solid rgba(255,255,255,0.2)",
+                  color: "#fff",
+                }}
                 placeholder="••••••"
                 required
                 autoFocus
               />
-              <p className="text-xs text-gray-500 mt-2">
+              <p
+                className="text-xs mt-2"
+                style={{ color: "rgba(255,255,255,0.5)" }}
+              >
                 {t("login.codeSentTo")}{" "}
-                <span className="font-medium">{email}</span>
+                <span className="font-medium text-white">{email}</span>
               </p>
             </div>
-
             <button
               type="submit"
               disabled={loading || code.length !== 6}
-              className="w-full disabled:bg-gray-300 text-white font-semibold py-4 rounded-xl transition-colors text-lg shadow-lg"
-              style={{ backgroundColor: "#002d75" }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.backgroundColor = "#001c55")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.backgroundColor = "#002d75")
-              }
+              className="w-full font-bold py-4 rounded-xl text-lg transition-opacity disabled:opacity-40"
+              style={{ backgroundColor: AMBER, color: DARK_BLUE }}
             >
               {loading ? t("login.verifying") : t("login.login")}
             </button>
-
             <button
               type="button"
               onClick={resendCode}
               disabled={loading || resendCooldown > 0}
-              className="w-full font-medium disabled:text-gray-400"
-              style={resendCooldown > 0 ? {} : { color: "#002d75" }}
+              className="w-full font-medium py-2"
+              style={{
+                color:
+                  resendCooldown > 0
+                    ? "rgba(255,255,255,0.3)"
+                    : "rgba(255,255,255,0.7)",
+              }}
             >
               {resendCooldown > 0
                 ? t("login.resendIn").replace(
@@ -238,30 +282,30 @@ export default function LoginPage() {
                   )
                 : t("login.resendCode")}
             </button>
-
             <button
               type="button"
               onClick={() => setStep("email")}
-              className="w-full font-medium"
-              style={{ color: "#002d75" }}
+              className="w-full font-medium py-2"
+              style={{ color: "rgba(255,255,255,0.7)" }}
             >
               {t("login.changeEmail")}
             </button>
           </form>
         )}
 
-        <div className="text-center space-y-3">
+        <div className="text-center space-y-3 pt-2">
           <Link
             href="/about"
             className="inline-flex items-center gap-2 font-medium"
-            style={{ color: "#002d75" }}
+            style={{ color: AMBER }}
           >
             <Info className="w-4 h-4" /> {t("login.aboutLink")}
           </Link>
           <div>
             <Link
               href="/legal"
-              className="text-xs text-gray-400 hover:text-gray-600 underline"
+              className="text-xs underline"
+              style={{ color: "rgba(255,255,255,0.35)" }}
             >
               Integritetspolicy &amp; Användarvillkor
             </Link>
