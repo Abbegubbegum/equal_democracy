@@ -9,27 +9,27 @@ const YELLOW = "#f5a623";
 const FAQS = [
   {
     q: "Hur loggar jag in?",
-    a: "Du loggar in med din e-postadress. Vi skickar en engangskod till din inkorg som du anger i appen. Inget losenord behovs.",
+    a: "Du loggar in med din e-postadress. Vi skickar en engångskod till din inkorg som du anger i appen. Inget lösenord behövs.",
   },
   {
-    q: "Vem kan anvanda appen?",
-    a: "Appen ar oppna for alla som vill foljamed i Vallentuna Framats arbete. For att rosta och lamna forslag behover du vara registrerad anvandare.",
+    q: "Vem kan använda appen?",
+    a: "Appen är öppen för alla som vill följa med i Vallentuna Framåts arbete. För att rösta och lämna förslag behöver du vara registrerad användare.",
   },
   {
     q: "Hur raderar jag mitt konto?",
     a: "Du kan radera ditt konto och all din data via vallentuna.app/radera. All personlig information tas bort permanent.",
   },
   {
-    q: "Jag fick ingen inloggningskod. Vad gor jag?",
-    a: "Kontrollera skrapposten i din e-post. Om koden fortfarande saknas kan du begara en ny kod i appen. Koden galler i 10 minuter.",
+    q: "Jag fick ingen inloggningskod. Vad gör jag?",
+    a: "Kontrollera skräpposten i din e-post. Om koden fortfarande saknas kan du begära en ny kod i appen. Koden gäller i 10 minuter.",
   },
   {
-    q: "Hur lamnar jag ett medborgarforslag?",
-    a: "Oppna fliken Forslag i appen och tryck pa plusknappen. Du kan skriva en titel, beskrivning och lagga till en bild.",
+    q: "Hur lämnar jag ett medborgarförslag?",
+    a: "Öppna fliken Förslag i appen och tryck på plusknappen. Du kan skriva en titel, beskrivning och lägga till en bild.",
   },
   {
-    q: "Vad hander med mina roster?",
-    a: "Dina roster lagras anonymt i var databas och anvands for att rakna samman resultatet. Vi säljer aldrig din data till tredje part.",
+    q: "Vad händer med mina röster?",
+    a: "Dina röster lagras anonymt i vår databas och används för att räkna samman resultatet. Vi säljer aldrig din data till tredje part.",
   },
 ];
 
@@ -75,7 +75,7 @@ export default function SupportPage() {
           <p
             style={{ color: "rgba(255,255,255,0.65)", fontSize: 16, margin: 0 }}
           >
-            Vallentuna Framat
+            Vallentuna Framåt
           </p>
         </div>
 
@@ -109,8 +109,8 @@ export default function SupportPage() {
             </h2>
           </div>
           <p style={{ color: "#555", lineHeight: 1.6, margin: "0 0 1rem" }}>
-            Har du fragor, tekniska problem eller vill ge feedback? Hör av dig
-            till oss via e-post sa svarar vi inom 2 vardagar.
+            Har du frågor, tekniska problem eller vill ge feedback? Hör av dig
+            till oss via e-post så svarar vi inom 2 vardagar.
           </p>
           <a
             href="mailto:kontakt@vallentunaframat.se"
@@ -147,7 +147,7 @@ export default function SupportPage() {
                 margin: 0,
               }}
             >
-              Vanliga fragor
+              Vanliga frågor
             </h2>
           </div>
           {FAQS.map((faq, i) => (
@@ -240,7 +240,7 @@ export default function SupportPage() {
                 textDecoration: "none",
               }}
             >
-              Integritetspolicy och Anvandarvillkor
+              Integritetspolicy och Användarvillkor
             </Link>
           </div>
         </div>
@@ -253,7 +253,7 @@ export default function SupportPage() {
             marginTop: "2rem",
           }}
         >
-          Vallentuna Framat, org.nr 802555-8852
+          Vallentuna Framåt, org.nr 802555-8852
         </p>
       </div>
     </div>
