@@ -77,7 +77,7 @@ export function SettingsModal({
   onSaved?: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [localInterests, setLocalInterests] = useState<string[]>(["budget"]);
   const [localOnly, setLocalOnly] = useState(true);
 
@@ -237,6 +237,18 @@ export function SettingsModal({
                   />
                   <Text style={st.saveBtnText}>Spara inställningar</Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={st.logoutBtn}
+                  onPress={() => {
+                    onClose();
+                    logout();
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="log-out-outline" size={20} color="#dc2626" />
+                  <Text style={st.logoutBtnText}>Logga ut</Text>
+                </TouchableOpacity>
               </ScrollView>
             </View>
           </TouchableWithoutFeedback>
@@ -358,4 +370,16 @@ const st = StyleSheet.create({
     marginTop: 8,
   },
   adminBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#fca5a5",
+    borderRadius: 14,
+    paddingVertical: 14,
+    gap: 8,
+    marginTop: 8,
+  },
+  logoutBtnText: { color: "#dc2626", fontSize: 16, fontWeight: "700" },
 });
