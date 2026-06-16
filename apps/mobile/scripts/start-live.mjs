@@ -14,13 +14,12 @@ const LIVE_API_URL = "https://www.vallentuna.app";
 
 console.log(`\n▶ Starting Expo Go against LIVE backend: ${LIVE_API_URL}\n`);
 
-const child = spawn(
-  process.platform === "win32" ? "npx.cmd" : "npx",
-  ["expo", "start", "--go", "-c"],
-  {
-    stdio: "inherit",
-    env: { ...process.env, EXPO_PUBLIC_API_URL: LIVE_API_URL },
-  },
-);
+// `shell: true` is required on Windows: since Node's CVE-2024-27980 patch,
+// spawning a `.cmd` (npx.cmd) without a shell throws EINVAL.
+const child = spawn("npx", ["expo", "start", "--go", "-c"], {
+  stdio: "inherit",
+  shell: true,
+  env: { ...process.env, EXPO_PUBLIC_API_URL: LIVE_API_URL },
+});
 
 child.on("exit", (code) => process.exit(code ?? 0));
