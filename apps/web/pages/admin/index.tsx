@@ -15,6 +15,8 @@ import {
   Sparkles,
   Lightbulb,
   ImagePlus,
+  FileEdit,
+  Pencil,
 } from "lucide-react";
 import { fetchWithCsrf } from "../../lib/fetch-with-csrf";
 import { useTranslation } from "../../lib/hooks/useTranslation";
@@ -125,10 +127,10 @@ export default function AdminPage() {
             onClick={() => setTab("settings")}
           />
           <Tab
-            label="Förslag"
-            icon={<Lightbulb className="w-4 h-4" />}
-            active={tab === "citizen-proposals"}
-            onClick={() => setTab("citizen-proposals")}
+            label="Innehåll"
+            icon={<FileEdit className="w-4 h-4" />}
+            active={tab === "content"}
+            onClick={() => setTab("content")}
           />
           <Tab
             label="Clean"
@@ -145,7 +147,7 @@ export default function AdminPage() {
         {tab === "email" && <EmailPanel />}
         {tab === "settings" && <SettingsPanel isSuperAdmin={true} />}
         {tab === "users" && <UsersPanel />}
-        {tab === "citizen-proposals" && <CitizenProposalsPanel />}
+        {tab === "content" && <ContentPanel />}
         {tab === "clean" && <CleanPanel />}
       </main>
     </div>
@@ -1518,12 +1520,54 @@ const STATUS_COLOR: Record<CPStatus, string> = {
   rejected: "bg-red-100 text-red-700",
 };
 
+function ContentPanel() {
+  const [contentType, setContentType] = useState<"citizen" | "session">(
+    "citizen",
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={() => setContentType("citizen")}
+          className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+            contentType === "citizen"
+              ? "bg-slate-800 text-white border-slate-800"
+              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          Medborgarförslag
+        </button>
+        <button
+          onClick={() => setContentType("session")}
+          className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+            contentType === "session"
+              ? "bg-slate-800 text-white border-slate-800"
+              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          Förslag i sessioner
+        </button>
+      </div>
+      {contentType === "citizen" ? (
+        <CitizenProposalsPanel />
+      ) : (
+        <SessionProposalsPanel />
+      )}
+    </div>
+  );
+}
+
 function CitizenProposalsPanel() {
   const [proposals, setProposals] = useState<CitizenProposalItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<CPStatus | "all">("all");
   const [updating, setUpdating] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [savingText, setSavingText] = useState(false);
 
   useEffect(() => {
     load();
@@ -1552,6 +1596,51 @@ function CitizenProposalsPanel() {
       );
     } finally {
       setUpdating(null);
+    }
+  }
+
+  function startEditText(p: CitizenProposalItem) {
+    setEditingId(p._id);
+    setEditTitle(p.title);
+    setEditDescription(p.description);
+  }
+
+  function cancelEditText() {
+    setEditingId(null);
+  }
+
+  async function saveEditText(id: string) {
+    if (!editTitle.trim() || !editDescription.trim()) return;
+    setSavingText(true);
+    try {
+      const res = await fetchWithCsrf("/api/admin/citizen-proposals", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          title: editTitle.trim(),
+          description: editDescription.trim(),
+        }),
+      });
+      if (res.ok) {
+        setProposals((prev) =>
+          prev.map((p) =>
+            p._id === id
+              ? {
+                  ...p,
+                  title: editTitle.trim(),
+                  description: editDescription.trim(),
+                }
+              : p,
+          ),
+        );
+        setEditingId(null);
+      } else {
+        const error = await res.json().catch(() => null);
+        alert(error?.error || "Kunde inte spara ändringarna");
+      }
+    } finally {
+      setSavingText(false);
     }
   }
 
@@ -1702,12 +1791,57 @@ function CitizenProposalsPanel() {
                     </span>
                   )}
                 </div>
-                <p className="font-semibold text-slate-800 text-sm">
-                  {p.title}
-                </p>
-                <p className="text-slate-500 text-xs line-clamp-2">
-                  {p.description}
-                </p>
+                {editingId === p._id ? (
+                  <div className="space-y-2">
+                    <input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      maxLength={200}
+                      className="w-full px-2 py-1 rounded border border-slate-300 text-sm font-semibold text-slate-800"
+                      placeholder="Titel"
+                    />
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      maxLength={2000}
+                      rows={3}
+                      className="w-full px-2 py-1 rounded border border-slate-300 text-xs text-slate-600"
+                      placeholder="Beskrivning"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => saveEditText(p._id)}
+                        disabled={savingText}
+                        className="px-3 py-1 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
+                      >
+                        {savingText ? "Sparar…" : "Spara"}
+                      </button>
+                      <button
+                        onClick={cancelEditText}
+                        disabled={savingText}
+                        className="px-3 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold disabled:opacity-50 transition-colors"
+                      >
+                        Avbryt
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="font-semibold text-slate-800 text-sm">
+                      {p.title}
+                    </p>
+                    <p className="text-slate-500 text-xs line-clamp-2">
+                      {p.description}
+                    </p>
+                    <button
+                      onClick={() => startEditText(p)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      Redigera text
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Actions */}
@@ -1736,6 +1870,317 @@ function CitizenProposalsPanel() {
                       className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
                     >
                       Utvald
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+type SPStatus = "active" | "top3" | "archived";
+
+interface SessionProposalItem {
+  id: string;
+  sessionId: string | null;
+  sessionPlace: string | null;
+  title: string;
+  problem: string;
+  solution: string;
+  status: SPStatus;
+  thumbsUpCount: number;
+  averageRating: number;
+  authorName: string;
+  createdAt: string;
+}
+
+const SP_STATUS_LABEL: Record<SPStatus, string> = {
+  active: "Aktiv",
+  top3: "Topp 3",
+  archived: "Arkiverad",
+};
+
+const SP_STATUS_COLOR: Record<SPStatus, string> = {
+  active: "bg-green-100 text-green-800",
+  top3: "bg-blue-100 text-blue-800",
+  archived: "bg-gray-100 text-gray-600",
+};
+
+function SessionProposalsPanel() {
+  const [proposals, setProposals] = useState<SessionProposalItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<SPStatus | "all">("all");
+  const [updating, setUpdating] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editProblem, setEditProblem] = useState("");
+  const [editSolution, setEditSolution] = useState("");
+  const [savingText, setSavingText] = useState(false);
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/proposals");
+      if (res.ok) setProposals(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function setStatus(id: string, status: SPStatus) {
+    setUpdating(id);
+    try {
+      await fetchWithCsrf("/api/admin/proposals", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, updates: { status } }),
+      });
+      setProposals((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, status } : p)),
+      );
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  function startEditText(p: SessionProposalItem) {
+    setEditingId(p.id);
+    setEditTitle(p.title);
+    setEditProblem(p.problem);
+    setEditSolution(p.solution);
+  }
+
+  function cancelEditText() {
+    setEditingId(null);
+  }
+
+  async function saveEditText(id: string) {
+    if (!editTitle.trim()) return;
+    setSavingText(true);
+    try {
+      const res = await fetchWithCsrf("/api/admin/proposals", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          updates: {
+            title: editTitle.trim(),
+            problem: editProblem.trim(),
+            solution: editSolution.trim(),
+          },
+        }),
+      });
+      if (res.ok) {
+        setProposals((prev) =>
+          prev.map((p) =>
+            p.id === id
+              ? {
+                  ...p,
+                  title: editTitle.trim(),
+                  problem: editProblem.trim(),
+                  solution: editSolution.trim(),
+                }
+              : p,
+          ),
+        );
+        setEditingId(null);
+      } else {
+        const error = await res.json().catch(() => null);
+        alert(error?.message || "Kunde inte spara ändringarna");
+      }
+    } finally {
+      setSavingText(false);
+    }
+  }
+
+  const visible =
+    filter === "all" ? proposals : proposals.filter((p) => p.status === filter);
+  const counts = proposals.reduce(
+    (acc, p) => {
+      acc[p.status] = (acc[p.status] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  return (
+    <section className="bg-white rounded-2xl shadow p-6 space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+            <Lightbulb className="w-5 h-5 text-yellow-600" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">
+              Förslag i sessioner
+            </h2>
+            <p className="text-sm text-slate-500">
+              {proposals.length} förslag totalt
+            </p>
+          </div>
+        </div>
+
+        {/* Filter tabs */}
+        <div className="flex gap-2 flex-wrap">
+          {(["all", "active", "top3", "archived"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                filter === s
+                  ? "bg-slate-800 text-white border-slate-800"
+                  : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              {s === "all" ? "Alla" : SP_STATUS_LABEL[s]}
+              {s !== "all" && counts[s] ? ` (${counts[s]})` : ""}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-center text-slate-500 py-8">Laddar…</div>
+      ) : visible.length === 0 ? (
+        <div className="text-center text-slate-400 py-8">
+          Inga förslag i denna kategori.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {visible.map((p) => (
+            <div
+              key={p.id}
+              className="border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row gap-4"
+            >
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-start gap-2 flex-wrap">
+                  <span
+                    className={`px-2 py-0.5 rounded text-xs font-semibold ${SP_STATUS_COLOR[p.status]}`}
+                  >
+                    {SP_STATUS_LABEL[p.status]}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {new Date(p.createdAt).toLocaleDateString("sv-SE")}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    av {p.authorName}
+                  </span>
+                  {p.sessionPlace && (
+                    <span className="text-xs text-slate-400">
+                      · {p.sessionPlace}
+                    </span>
+                  )}
+                  {p.thumbsUpCount > 0 && (
+                    <span className="text-xs text-amber-600">
+                      ★ {p.averageRating.toFixed(1)} ({p.thumbsUpCount})
+                    </span>
+                  )}
+                </div>
+
+                {editingId === p.id ? (
+                  <div className="space-y-2">
+                    <input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      maxLength={200}
+                      className="w-full px-2 py-1 rounded border border-slate-300 text-sm font-semibold text-slate-800"
+                      placeholder="Titel"
+                    />
+                    <textarea
+                      value={editProblem}
+                      onChange={(e) => setEditProblem(e.target.value)}
+                      maxLength={1000}
+                      rows={2}
+                      className="w-full px-2 py-1 rounded border border-slate-300 text-xs text-slate-600"
+                      placeholder="Problem"
+                    />
+                    <textarea
+                      value={editSolution}
+                      onChange={(e) => setEditSolution(e.target.value)}
+                      maxLength={1000}
+                      rows={2}
+                      className="w-full px-2 py-1 rounded border border-slate-300 text-xs text-slate-600"
+                      placeholder="Lösning"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => saveEditText(p.id)}
+                        disabled={savingText}
+                        className="px-3 py-1 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
+                      >
+                        {savingText ? "Sparar…" : "Spara"}
+                      </button>
+                      <button
+                        onClick={cancelEditText}
+                        disabled={savingText}
+                        className="px-3 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold disabled:opacity-50 transition-colors"
+                      >
+                        Avbryt
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="font-semibold text-slate-800 text-sm">
+                      {p.title}
+                    </p>
+                    {p.problem && (
+                      <p className="text-slate-500 text-xs line-clamp-2">
+                        <span className="font-semibold">Problem:</span>{" "}
+                        {p.problem}
+                      </p>
+                    )}
+                    {p.solution && (
+                      <p className="text-slate-500 text-xs line-clamp-2">
+                        <span className="font-semibold">Lösning:</span>{" "}
+                        {p.solution}
+                      </p>
+                    )}
+                    <button
+                      onClick={() => startEditText(p)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      Redigera text
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-col gap-2 flex-shrink-0">
+                {p.status !== "active" && (
+                  <button
+                    onClick={() => setStatus(p.id, "active")}
+                    disabled={updating === p.id}
+                    className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
+                  >
+                    Återställ
+                  </button>
+                )}
+                {p.status === "active" && (
+                  <>
+                    <button
+                      onClick={() => setStatus(p.id, "archived")}
+                      disabled={updating === p.id}
+                      className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold disabled:opacity-50 transition-colors"
+                    >
+                      Arkivera
+                    </button>
+                    <button
+                      onClick={() => setStatus(p.id, "top3")}
+                      disabled={updating === p.id}
+                      className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
+                    >
+                      Topp 3
                     </button>
                   </>
                 )}

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAdmin } from "@/lib/admin";
+import { csrfProtection } from "@/lib/csrf";
 import connectDB from "@/lib/mongodb";
 import { CitizenProposal } from "@/lib/models";
 
@@ -18,6 +19,8 @@ export default async function handler(
   const session = await requireAdmin(req, res);
   if (!session) return;
 
+  if (!csrfProtection(req, res)) return;
+
   await connectDB();
 
   if (req.method === "GET") {
@@ -32,11 +35,39 @@ export default async function handler(
   }
 
   if (req.method === "PATCH") {
-    const { id, status } = req.body;
-    if (!id || !ALLOWED_STATUSES.includes(status)) {
-      return res.status(400).json({ error: "Invalid id or status" });
+    const { id, status, title, description } = req.body;
+    if (!id) return res.status(400).json({ error: "Missing id" });
+
+    const $set: Record<string, string> = {};
+    if (status !== undefined) {
+      if (!ALLOWED_STATUSES.includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+      $set.status = status;
     }
-    await CitizenProposal.findByIdAndUpdate(id, { status });
+    if (title !== undefined) {
+      if (typeof title !== "string" || !title.trim()) {
+        return res.status(400).json({ error: "Title cannot be empty" });
+      }
+      $set.title = title.trim();
+    }
+    if (description !== undefined) {
+      if (typeof description !== "string" || !description.trim()) {
+        return res.status(400).json({ error: "Description cannot be empty" });
+      }
+      $set.description = description.trim();
+    }
+    if (Object.keys($set).length === 0) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
+
+    try {
+      await CitizenProposal.findByIdAndUpdate(id, $set, {
+        runValidators: true,
+      });
+    } catch (e: any) {
+      return res.status(400).json({ error: e.message || "Update failed" });
+    }
     return res.status(200).json({ ok: true });
   }
 
