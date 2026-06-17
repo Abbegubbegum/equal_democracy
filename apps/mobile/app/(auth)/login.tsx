@@ -171,7 +171,7 @@ export default function LoginScreen() {
         </View>
 
         <Text style={styles.legalText}>
-          Genom att logga in godkänner du våra{" "}
+          Genom att logga in godkänner du våra{"\n"}
           <Text
             style={styles.legalLink}
             onPress={() => router.push("/legal" as any)}
