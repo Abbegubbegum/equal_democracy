@@ -1,7 +1,7 @@
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useState, useEffect, useCallback } from "react";
-import { ChevronsRight, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useTranslation } from "../lib/hooks/useTranslation";
 import { useConfig } from "../lib/contexts/ConfigContext";
 
@@ -93,7 +93,6 @@ export default function HomePage() {
 
   // Get theme colors
   const primaryColor = theme.colors.primary[600] || "#002d75";
-  const accentColor = theme.colors.accent[400] || "#f8b60e";
   const primaryDark = theme.colors.primary[800] || "#001c55";
 
   if (view === "apply-admin") {
@@ -125,16 +124,11 @@ export default function HomePage() {
               className="flex flex-row items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
               title="Om Vallentuna Framåt"
             >
-              <div
-                className="w-14 h-14 rounded-full flex items-center justify-center shrink-0"
-                style={{ backgroundColor: accentColor }}
-              >
-                <ChevronsRight
-                  className="w-11 h-11"
-                  strokeWidth={3}
-                  style={{ color: primaryDark }}
-                />
-              </div>
+              <img
+                src="/app-icon-tight.svg"
+                alt=""
+                className="h-12 w-auto shrink-0"
+              />
               <div className="text-left">
                 <div className="text-xl sm:text-2xl font-black tracking-widest leading-tight">
                   VALLENTUNA
