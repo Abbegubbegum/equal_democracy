@@ -14,6 +14,7 @@ import {
   FileText,
   Sparkles,
   Lightbulb,
+  ImagePlus,
 } from "lucide-react";
 import { fetchWithCsrf } from "../../lib/fetch-with-csrf";
 import { useTranslation } from "../../lib/hooks/useTranslation";
@@ -1522,6 +1523,7 @@ function CitizenProposalsPanel() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<CPStatus | "all">("all");
   const [updating, setUpdating] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState<string | null>(null);
 
   useEffect(() => {
     load();
@@ -1550,6 +1552,32 @@ function CitizenProposalsPanel() {
       );
     } finally {
       setUpdating(null);
+    }
+  }
+
+  async function uploadImage(id: string, file: File) {
+    setImageUploading(id);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("proposalId", id);
+      const res = await fetch("/api/admin/citizen-proposal-image", {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        const { imageUrl } = await res.json();
+        setProposals((prev) =>
+          prev.map((p) => (p._id === id ? { ...p, imageUrl } : p)),
+        );
+      } else {
+        const error = await res.json().catch(() => null);
+        alert(error?.message || "Kunde inte ladda upp bilden");
+      }
+    } catch {
+      alert("Uppladdning misslyckades");
+    } finally {
+      setImageUploading(null);
     }
   }
 
@@ -1621,13 +1649,40 @@ function CitizenProposalsPanel() {
               key={p._id}
               className="border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row gap-4"
             >
-              {p.imageUrl && (
-                <img
-                  src={p.imageUrl.startsWith("http") ? p.imageUrl : p.imageUrl}
-                  alt=""
-                  className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
-                />
-              )}
+              <div className="flex-shrink-0 space-y-1">
+                {p.imageUrl && (
+                  <img
+                    src={p.imageUrl}
+                    alt=""
+                    className="w-20 h-20 rounded-lg object-cover"
+                  />
+                )}
+                <label
+                  className={`flex items-center justify-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                    imageUploading === p._id
+                      ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400"
+                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <ImagePlus className="w-3.5 h-3.5" />
+                  {imageUploading === p._id
+                    ? "Laddar upp…"
+                    : p.imageUrl
+                      ? "Byt bild"
+                      : "Lägg till bild"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={imageUploading === p._id}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadImage(p._id, file);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
               <div className="flex-1 min-w-0 space-y-1">
                 <div className="flex items-start gap-2 flex-wrap">
                   <span
