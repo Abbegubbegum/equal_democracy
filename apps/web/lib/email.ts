@@ -83,7 +83,6 @@ export async function sendLoginCode(
       <p>${t(language, "email.loginCode.ignoreIfNotRequested")}</p>
     </div>
   `;
-  console.log("SEND!");
   await resend.emails.send({
     to: email,
     from: FROM_ADDRESS,
