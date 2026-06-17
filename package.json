@@ -7,6 +7,7 @@
     "dev": "turbo run dev",
     "dev:web": "turbo run dev --filter=web",
     "dev:mobile": "turbo run dev --filter=mobile",
+    "dev:web:live": "pnpm --filter web dev:live",
     "dev:mobile:live": "pnpm --filter mobile dev:live",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",

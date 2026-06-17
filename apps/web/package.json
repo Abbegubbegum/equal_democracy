@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack --port 3000",
+    "dev:live": "node scripts/start-live.mjs",
     "build": "next build --turbopack",
     "start": "next start",
     "check-types": "tsc --noEmit",
