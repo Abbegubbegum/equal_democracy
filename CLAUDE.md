@@ -84,7 +84,7 @@ apps/mobile/
 │   ├── legal.tsx            # Integritetspolicy & Användarvillkor — native screen, linked from login and Info tab
 │   ├── (auth)/
 │   │   ├── _layout.tsx      # Redirects to (app)/ if already logged in
-│   │   └── login.tsx        # Two-step email → OTP login screen; link to legal.tsx at bottom
+│   │   └── login.tsx        # Two-step email → OTP login screen. Blue (#002d75) background, "VALLENTUNA Framåt" title in white, amber SVG icon (AppIcon component via react-native-svg, same paths as app-icon-transparent.svg), semi-transparent card, amber "Skicka kod"/"Logga in" button, all UI text in Swedish; link to legal.tsx at bottom
 │   └── (app)/
 │       ├── _layout.tsx      # MaterialTopTabs (6 tabs, native horizontal swipe via react-native-pager-view) + custom BottomBar + auth guard + Expo-Go-guarded push registration
 │       ├── index.tsx        # Hem — fixed blue hero with inline logo (clipped-rotated-square >> symbol) + scrollable party info cards
@@ -194,7 +194,7 @@ apps/web/
 ├── components/
 │   └── budget/                 # Budget visualization components
 ├── lib/                        # All utility/helper code
-├── public/                     # Static assets only — user uploads go to Vercel Blob (session-images/, citizen-proposal-images/ prefixes)
+├── public/                     # Static assets only — user uploads go to Vercel Blob (session-images/, citizen-proposal-images/ prefixes). app-icon-transparent.svg: amber >> arrows on transparent bg, used on login page; app-icon.png: full icon with blue bg (keep as fallback)
 ├── styles/                     # Global CSS (Tailwind v4)
 ├── types/                      # Local TypeScript types
 └── scripts/                    # DB migration + utility scripts
@@ -409,7 +409,7 @@ Mobile API calls pass `Authorization: Bearer <accessToken>`. Use `verifyBearerTo
 
 | Route                             | Page                                                                                                                                                                                                                                   |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/login`                          | Email OTP login (link to /legal at bottom)                                                                                                                                                                                             |
+| `/login`                          | Email OTP login. Dark blue gradient background, `app-icon-transparent.svg` (amber `>>` arrows, no background) + "VALLENTUNA Framåt" title, semi-transparent card, amber buttons, white inputs. Link to /legal at bottom.               |
 | `/about`                          | About page — dark blue gradient matching login; amber accents                                                                                                                                                                          |
 | `/app`                            | App download redirect (target of the in-app "Dela appen med en vän" QR). UA-redirects Android → Play; renders a landing with store buttons for iOS/desktop. Store URLs are constants at the top of the file — update as tracks go live |
 | `/legal`                          | Integritetspolicy & Användarvillkor (GDPR, org.nr 802555-8852)                                                                                                                                                                         |
