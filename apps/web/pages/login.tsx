@@ -120,11 +120,10 @@ export default function LoginPage() {
       {/* Logo */}
       <div className="flex flex-row items-center justify-center gap-3 mb-8">
         <Image
-          src="/app-icon.png"
+          src="/app-icon-transparent.svg"
           alt="Vallentuna Framåt"
           width={72}
           height={72}
-          className="rounded-2xl"
         />
         <div className="text-left text-white">
           <div className="text-3xl font-black tracking-widest leading-tight">
