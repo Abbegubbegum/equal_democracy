@@ -366,7 +366,7 @@ function SubmitModal({
                         <>
                           <Ionicons name="sparkles" size={13} color={BLUE} />
                           <Text style={styles.suggestBtnText}>
-                            XAI föreslår
+                            MAJ föreslår
                           </Text>
                         </>
                       )}

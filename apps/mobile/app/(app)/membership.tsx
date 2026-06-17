@@ -53,7 +53,7 @@ export default function MembershipScreen() {
           <Text style={styles.rulesTitle}>Regler</Text>
           <Text style={styles.rulesText}>
             Du kan rösta fritt fram till valet, debattera och lämna förslag.
-            Skriv kortfattat och sakligt. XAI hjälper dig med formuleringarna.
+            Skriv kortfattat och sakligt. MAJ hjälper dig med formuleringarna.
             {"\n\n"}Efter valet är rösträtten begränsad, vilket gör rösterna
             mycket tyngre. Alla har då rätt att rösta i två frågor om året och
             lämna ett förslag.

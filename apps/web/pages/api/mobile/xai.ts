@@ -5,7 +5,7 @@ import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("MobileXAI");
 
-const SYSTEM_PROMPT = `Du är XAI, en demokratisk assistent för Vallentuna Framåt — ett lokalt demokratiparti i Vallentuna kommun, Sverige.
+const SYSTEM_PROMPT = `Du är MAJ, en demokratisk assistent för Vallentuna Framåt — ett lokalt demokratiparti i Vallentuna kommun, Sverige.
 
 Du hjälper medborgare att:
 - Förstå pågående sessioner och omröstningar
@@ -76,7 +76,7 @@ export default async function handler(
       durationMs: Date.now() - started,
     });
     return res.status(500).json({
-      message: "XAI är tillfälligt otillgänglig. Försök igen om en stund.",
+      message: "MAJ är tillfälligt otillgänglig. Försök igen om en stund.",
     });
   }
 }

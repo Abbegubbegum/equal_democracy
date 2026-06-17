@@ -36,8 +36,8 @@ const TAB_LABEL: Record<string, string> = {
 const QUICK_ACTIONS: Record<string, { label: string; message: string }[]> = {
   "/": [
     {
-      label: "Vad är XAI?",
-      message: "Vad är XAI och hur fungerar det i appen?",
+      label: "Vad är MAJ?",
+      message: "Vad är MAJ och hur fungerar det i appen?",
     },
     {
       label: "Förklara appen",
@@ -280,7 +280,7 @@ export default function XAIModal({
                 <View style={s.xaiDot}>
                   <Ionicons name="sparkles" size={14} color={YELLOW} />
                 </View>
-                <Text style={s.headerTitle}>XAI</Text>
+                <Text style={s.headerTitle}>MAJ</Text>
                 <Text style={s.headerSub}>Din demokratiske assistent</Text>
               </View>
               <View style={s.headerRight}>
@@ -296,7 +296,7 @@ export default function XAIModal({
                     color={reported ? "#16a34a" : "#dc2626"}
                   />
                   <Text style={[s.reportText, reported && s.reportTextSent]}>
-                    {reportSent ? "Anmält" : "Anmäl XAI"}
+                    {reportSent ? "Anmält" : "Anmäl MAJ"}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity

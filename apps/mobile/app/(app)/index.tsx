@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import Svg, { Path } from "react-native-svg";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -45,8 +46,8 @@ const VALUES = [
   },
   {
     icon: "sparkles" as const,
-    title: "XAI",
-    text: "XAI är en betjänt som hjälper dig att göra rätt, men det är du som bestämmer. Gör XAI något konstigt så finns det en anmälningsknapp. Tryck så granskar vi den.\n\nVarje år lämnar XAI en demokratirapport som mäter maktkoncentrationen i lokalpartiet. Vi vill inte ha någon mäktig ledare utan mäktiga medborgare.",
+    title: "MAJ",
+    text: "MAJ är en AI-betjänt som hjälper dig att göra rätt, men det är du som bestämmer. Gör MAJ något konstigt så finns det en anmälningsknapp. Tryck så granskar vi den.\n\nVarje år lämnar MAJ en demokratirapport som mäter maktkoncentrationen i lokalpartiet. Vi vill inte ha någon mäktig ledare utan mäktiga medborgare.",
   },
 ];
 
@@ -55,6 +56,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [heroHeight, setHeroHeight] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [sloganWidth, setSloganWidth] = useState(0);
   const [starCount, setStarCount] = useState(0);
   const [celebration, setCelebration] = useState<{
     title: string;
@@ -170,16 +172,28 @@ export default function HomeScreen() {
           <Text style={styles.starBadgeText}>{starCount}</Text>
         </View>
 
-        <View style={styles.logoIcon}>
-          <View style={styles.logoArrowWrap}>
-            <View style={styles.logoArrowSquare} />
-          </View>
-          <View style={[styles.logoArrowWrap, { marginLeft: -7 }]}>
-            <View style={styles.logoArrowSquare} />
-          </View>
-        </View>
+        <Svg
+          width={sloganWidth || 90}
+          height={Math.round(((sloganWidth || 90) * 499) / 650)}
+          viewBox="185 259 650 499"
+          style={{ marginBottom: 8 }}
+        >
+          <Path
+            d="M 200,306 L 200,718 Q 200,768 241,739 L 519,541 Q 560,512 519,483 L 241,285 Q 200,256 200,306 Z"
+            fill={YELLOW}
+          />
+          <Path
+            d="M 480,306 L 480,718 Q 480,768 521,739 L 799,541 Q 840,512 799,483 L 521,285 Q 480,256 480,306 Z"
+            fill={YELLOW}
+          />
+        </Svg>
         <Text style={styles.partyName}>VALLENTUNA</Text>
-        <Text style={styles.partySlogan}>Framåt</Text>
+        <Text
+          style={styles.partySlogan}
+          onLayout={(e) => setSloganWidth(e.nativeEvent.layout.width)}
+        >
+          Framåt
+        </Text>
         <Text style={styles.heroSub}>mot en fri och rättvis demokrati</Text>
       </View>
 
@@ -239,31 +253,6 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   starBadgeText: { color: "#fff", fontSize: 13, fontWeight: "700" },
-  logoIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 16,
-    backgroundColor: BLUE,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  logoArrowWrap: {
-    width: 21,
-    height: 40,
-    overflow: "hidden",
-  },
-  logoArrowSquare: {
-    width: 28,
-    height: 28,
-    backgroundColor: YELLOW,
-    borderRadius: 5,
-    position: "absolute",
-    left: -14,
-    top: 6,
-    transform: [{ rotate: "45deg" }],
-  },
   partyName: {
     color: "#fff",
     fontSize: 26,
