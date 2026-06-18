@@ -7,6 +7,9 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
 import { Session } from "../../../lib/models";
+import { createLogger } from "../../../lib/logger";
+
+const log = createLogger("AdminSessionImage");
 
 export const config = { api: { bodyParser: false } };
 
@@ -28,7 +31,20 @@ export default async function handler(
     filter: ({ mimetype }) => !!mimetype?.startsWith("image/"),
   });
 
-  const [fields, files] = await form.parse(req);
+  let fields: formidable.Fields;
+  let files: formidable.Files;
+  try {
+    [fields, files] = await form.parse(req);
+  } catch (err: any) {
+    if (err?.code === 1009 || err?.code === 1016) {
+      return res.status(413).json({
+        message: "Bilden är för stor, försök spara i mindre format (max 5 MB).",
+      });
+    }
+    log.error("Formidable parse failed", { error: err?.message });
+    return res.status(400).json({ message: "Kunde inte läsa bilden." });
+  }
+
   const sessionId = Array.isArray(fields.sessionId)
     ? fields.sessionId[0]
     : fields.sessionId;
@@ -38,29 +54,48 @@ export default async function handler(
     return res.status(400).json({ message: "Missing image or sessionId" });
   }
 
-  await connectDB();
+  try {
+    await connectDB();
 
-  const ext = path.extname(file.originalFilename ?? ".jpg") || ".jpg";
-  const blobPath = `session-images/${sessionId}-${Date.now()}${ext}`;
-  const buffer = await fs.promises.readFile(file.filepath);
+    const ext = path.extname(file.originalFilename ?? ".jpg") || ".jpg";
+    const blobPath = `session-images/${sessionId}-${Date.now()}${ext}`;
+    const buffer = await fs.promises.readFile(file.filepath);
 
-  const { url } = await put(blobPath, buffer, {
-    access: "public",
-    contentType: file.mimetype ?? "image/jpeg",
-  });
+    const { url } = await put(blobPath, buffer, {
+      access: "public",
+      contentType: file.mimetype ?? "image/jpeg",
+    });
 
-  // Clean up the temp file formidable wrote to /tmp.
-  fs.promises.unlink(file.filepath).catch(() => {});
+    // Clean up the temp file formidable wrote to /tmp.
+    fs.promises.unlink(file.filepath).catch(() => {});
 
-  // Remove the previous blob for this session so we don't accumulate orphans.
-  const existing = await Session.findById(sessionId).select("imageUrl").lean<{
-    imageUrl?: string | null;
-  } | null>();
-  if (existing?.imageUrl && existing.imageUrl.startsWith("http")) {
-    del(existing.imageUrl).catch(() => {});
+    // Remove the previous blob for this session so we don't accumulate orphans.
+    const existing = await Session.findById(sessionId)
+      .select("imageUrl")
+      .lean<{ imageUrl?: string | null } | null>();
+    if (existing?.imageUrl && existing.imageUrl.startsWith("http")) {
+      del(existing.imageUrl).catch(() => {});
+    }
+
+    const updated = await Session.findByIdAndUpdate(
+      sessionId,
+      { imageUrl: url },
+      { new: true },
+    );
+    if (!updated) {
+      log.error("Session not found after blob upload", { sessionId });
+      return res.status(404).json({ message: "Sessionen hittades inte." });
+    }
+
+    return res.status(200).json({ imageUrl: url });
+  } catch (err: any) {
+    log.error("Session image upload failed", {
+      sessionId,
+      error: err?.message,
+      stack: err?.stack,
+    });
+    return res.status(500).json({
+      message: `Uppladdning misslyckades: ${err?.message || "okänt fel"}`,
+    });
   }
-
-  await Session.findByIdAndUpdate(sessionId, { imageUrl: url });
-
-  return res.status(200).json({ imageUrl: url });
 }

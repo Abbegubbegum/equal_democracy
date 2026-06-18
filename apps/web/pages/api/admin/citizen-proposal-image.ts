@@ -6,6 +6,9 @@ import { put, del } from "@vercel/blob";
 import { requireAdmin } from "@/lib/admin";
 import connectDB from "@/lib/mongodb";
 import { CitizenProposal } from "@/lib/models";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("AdminCitizenProposalImage");
 
 export const config = { api: { bodyParser: false } };
 
@@ -47,28 +50,49 @@ export default async function handler(
     return res.status(400).json({ message: "Missing image or proposalId" });
   }
 
-  await connectDB();
+  try {
+    await connectDB();
 
-  const ext = path.extname(file.originalFilename ?? ".jpg") || ".jpg";
-  const blobPath = `citizen-proposal-images/${proposalId}-${Date.now()}${ext}`;
-  const buffer = await fs.promises.readFile(file.filepath);
+    const ext = path.extname(file.originalFilename ?? ".jpg") || ".jpg";
+    const blobPath = `citizen-proposal-images/${proposalId}-${Date.now()}${ext}`;
+    const buffer = await fs.promises.readFile(file.filepath);
 
-  const { url } = await put(blobPath, buffer, {
-    access: "public",
-    contentType: file.mimetype ?? "image/jpeg",
-  });
+    const { url } = await put(blobPath, buffer, {
+      access: "public",
+      contentType: file.mimetype ?? "image/jpeg",
+    });
 
-  fs.promises.unlink(file.filepath).catch(() => {});
+    fs.promises.unlink(file.filepath).catch(() => {});
 
-  // Remove the previous blob for this proposal so we don't accumulate orphans.
-  const existing = await CitizenProposal.findById(proposalId)
-    .select("imageUrl")
-    .lean<{ imageUrl?: string | null } | null>();
-  if (existing?.imageUrl && existing.imageUrl.startsWith("http")) {
-    del(existing.imageUrl).catch(() => {});
+    // Remove the previous blob for this proposal so we don't accumulate orphans.
+    const existing = await CitizenProposal.findById(proposalId)
+      .select("imageUrl")
+      .lean<{ imageUrl?: string | null } | null>();
+    if (existing?.imageUrl && existing.imageUrl.startsWith("http")) {
+      del(existing.imageUrl).catch(() => {});
+    }
+
+    const updated = await CitizenProposal.findByIdAndUpdate(
+      proposalId,
+      { imageUrl: url },
+      { new: true },
+    );
+    if (!updated) {
+      log.error("CitizenProposal not found after blob upload", {
+        proposalId,
+      });
+      return res.status(404).json({ message: "Förslaget hittades inte." });
+    }
+
+    return res.status(200).json({ imageUrl: url });
+  } catch (err: any) {
+    log.error("Citizen proposal image upload failed", {
+      proposalId,
+      error: err?.message,
+      stack: err?.stack,
+    });
+    return res.status(500).json({
+      message: `Uppladdning misslyckades: ${err?.message || "okänt fel"}`,
+    });
   }
-
-  await CitizenProposal.findByIdAndUpdate(proposalId, { imageUrl: url });
-
-  return res.status(200).json({ imageUrl: url });
 }
