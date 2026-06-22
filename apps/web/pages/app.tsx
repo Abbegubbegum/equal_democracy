@@ -7,9 +7,9 @@ import Link from "next/link";
 // where users land only ever requires editing/redeploying this file.
 const PLAY_URL =
   "https://play.google.com/store/apps/details?id=se.vallentunaframat.app";
-// iOS is not live yet (TestFlight pending). Set this to the App Store URL
-// once published, and the iOS branch below will start redirecting.
-const APP_STORE_URL = "";
+// App Store URL — no region prefix so Apple routes each visitor to their own
+// storefront. App ID 6781031191.
+const APP_STORE_URL = "https://apps.apple.com/app/id6781031191";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
