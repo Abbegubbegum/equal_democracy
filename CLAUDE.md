@@ -169,6 +169,8 @@ apps/mobile/
 
 **Testing with Expo Go:** Scan the QR code shown in the Metro terminal after running `pnpm dev:mobile`. Shake the device to get the reload menu. Press `r` in the Metro terminal to force reload. Expo Go is fine for JS/UI iteration, but push notifications and other native-module features require the EAS dev client (see **EAS dev-client builds** above). The mobile `dev` script is `expo start --go` (forces Expo Go) — because `expo-dev-client` is installed, plain `expo start` would default to dev-client mode and refuse to launch without a custom build. To deliberately run a dev client instead, use `expo start --dev-client` (the `start` script keeps the unflagged `expo start`).
 
+**No web target — don't press `w`:** This Expo app is native-only. `react-native-web`, `react-dom`, and `@expo/metro-runtime` were removed as dependencies (and the `web` script + `app.json` web block were deleted) because `react-native-pager-view` ships no web implementation and never worked here. Pressing `w` in the Metro terminal (or running an old `pnpm web` from muscle memory) triggers a web bundle attempt that fails with `ERROR Importing native-only module "react-native/Libraries/Utilities/codegenNativeCommands"` — this is expected, not a regression. Use Expo Go on a real device/emulator (`a`/`i` in the terminal, or scan the QR code) instead.
+
 ---
 
 ## apps/web — Main Application
