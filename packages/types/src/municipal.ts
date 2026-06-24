@@ -19,7 +19,11 @@ export interface MunicipalItem {
   originalNumber?: string;
   title?: string;
   description?: string;
-  categories?: number[];
+  categories?: string[];
+  imageUrl?: string | null;
+  totalStars?: number;
+  ratingCount?: number;
+  averageRating?: number;
   proposalId?: string;
   sessionId?: string;
   initialArguments?: MunicipalItemArgument[];
@@ -44,13 +48,14 @@ export interface MunicipalSession extends BaseDocument {
 export interface CitizenProposal extends BaseDocument {
   title: string;
   description: string;
-  categories: number[];
+  categories: string[];
   authorId: string;
   authorName: string;
   status: CitizenProposalStatus;
   totalStars: number;
   ratingCount: number;
   averageRating: number;
+  imageUrl?: string | null;
   selectedForMunicipalSession?: string;
   selectedAt?: string;
   submittedAsMotionAt?: string;
@@ -59,6 +64,13 @@ export interface CitizenProposal extends BaseDocument {
 
 export interface CitizenProposalRating extends BaseDocument {
   proposalId: string;
+  userId: string;
+  rating: number;
+}
+
+export interface MunicipalItemRating extends BaseDocument {
+  municipalSessionId: string;
+  itemId: string;
   userId: string;
   rating: number;
 }

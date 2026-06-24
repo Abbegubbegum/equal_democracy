@@ -25,14 +25,14 @@ export default async function handler(
 
     const [activeSessions, pastSessions] = await Promise.all([
       Session.find({ status: "active", sessionType: "voting" })
-        .select("_id place imageUrl startDate createdAt status")
+        .select("_id place imageUrl startDate createdAt status categories")
         .sort({ createdAt: -1 })
         .lean(),
       Session.find({
         status: { $in: ["closed", "archived"] },
         sessionType: "voting",
       })
-        .select("_id place imageUrl startDate createdAt status")
+        .select("_id place imageUrl startDate createdAt status categories")
         .sort({ createdAt: -1 })
         .lean(),
     ]);
@@ -62,6 +62,7 @@ export default async function handler(
         imageUrl: (s as any).imageUrl ?? null,
         isActive: s.status === "active",
         startDate: s.startDate,
+        categories: (s as any).categories ?? [],
         voteCounts: {
           ja: votes.filter((v) => v.choice === "ja").length,
           nej: votes.filter((v) => v.choice === "nej").length,

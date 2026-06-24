@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import { Wallet, List, Settings } from "lucide-react";
+import { Wallet, List, Settings, ImagePlus, Tags } from "lucide-react";
+import { ALL_CATEGORIES } from "@repo/types";
 import { fetchWithCsrf } from "../../../lib/fetch-with-csrf";
+import MyQuestionsSubNav from "../../../components/admin/MyQuestionsSubNav";
 
 export default function BudgetAdminPage() {
   const { data: session, status } = useSession();
@@ -83,15 +85,17 @@ export default function BudgetAdminPage() {
             </div>
           </div>
           <button
-            onClick={() => router.push("/budget")}
+            onClick={() => router.push("/admin/my-questions")}
             className={`px-4 py-2 bg-white hover:bg-gray-100 ${themeColors.textDark} font-medium rounded-lg transition-colors shadow-sm`}
           >
-            To Budget
+            Tillbaka till Mina frågor
           </button>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto p-6 space-y-6">
+        <MyQuestionsSubNav active="budget" />
+
         <nav className="flex gap-2 flex-wrap">
           <Tab
             label="Sessions"
@@ -135,6 +139,7 @@ function SessionsPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingCategoriesFor, setEditingCategoriesFor] = useState(null);
 
   useEffect(() => {
     fetchSessions();
@@ -240,12 +245,22 @@ function SessionsPanel() {
           </p>
         ) : (
           sessions.map((session) => (
-            <SessionCard
-              key={session._id}
-              session={session}
-              onStatusChange={handleStatusChange}
-              onDelete={handleDelete}
-            />
+            <div key={session._id}>
+              <SessionCard
+                session={session}
+                onStatusChange={handleStatusChange}
+                onDelete={handleDelete}
+                onToggleCategories={() =>
+                  setEditingCategoriesFor((prev) =>
+                    prev === session.sessionId ? null : session.sessionId,
+                  )
+                }
+                categoriesOpen={editingCategoriesFor === session.sessionId}
+              />
+              {editingCategoriesFor === session.sessionId && (
+                <CategoryEditor session={session} onSaved={fetchSessions} />
+              )}
+            </div>
           ))
         )}
       </div>
@@ -253,7 +268,13 @@ function SessionsPanel() {
   );
 }
 
-function SessionCard({ session, onStatusChange, onDelete }) {
+function SessionCard({
+  session,
+  onStatusChange,
+  onDelete,
+  onToggleCategories,
+  categoriesOpen,
+}) {
   const router = useRouter();
   const statusColors = {
     draft: "bg-gray-100 text-gray-700",
@@ -295,6 +316,13 @@ function SessionCard({ session, onStatusChange, onDelete }) {
           </p>
         </div>
         <div className="flex flex-col gap-2">
+          <button
+            onClick={onToggleCategories}
+            className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm rounded-lg transition-colors flex items-center gap-1.5"
+          >
+            <Tags className="w-3.5 h-3.5" />
+            {categoriesOpen ? "Dölj kategorier" : "Redigera kategorier"}
+          </button>
           {session.status === "draft" && (
             <button
               onClick={() => onStatusChange(session, "active")}
@@ -328,6 +356,187 @@ function SessionCard({ session, onStatusChange, onDelete }) {
             </button>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CategoryEditor({ session, onSaved }) {
+  const [categories, setCategories] = useState(
+    () => session.categories?.map((c) => ({ ...c })) || [],
+  );
+  const [saving, setSaving] = useState(false);
+  const [imageUploading, setImageUploading] = useState(null);
+  const [error, setError] = useState("");
+
+  function updateCategory(id, field, value) {
+    setCategories((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, [field]: value } : c)),
+    );
+  }
+
+  function toggleTag(id, tag) {
+    setCategories((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c;
+        const tags = c.tags || [];
+        return {
+          ...c,
+          tags: tags.includes(tag)
+            ? tags.filter((t) => t !== tag)
+            : [...tags, tag],
+        };
+      }),
+    );
+  }
+
+  async function uploadImage(categoryId, file) {
+    setImageUploading(categoryId);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("sessionId", session.sessionId);
+      formData.append("categoryId", categoryId);
+      const res = await fetch("/api/admin/budget-category-image", {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        const { imageUrl } = await res.json();
+        updateCategory(categoryId, "imageUrl", imageUrl);
+      } else {
+        const data = await res.json().catch(() => null);
+        alert(data?.message || "Kunde inte ladda upp bilden");
+      }
+    } catch {
+      alert("Uppladdning misslyckades");
+    } finally {
+      setImageUploading(null);
+    }
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetchWithCsrf("/api/budget/sessions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: session.sessionId,
+          categories,
+        }),
+      });
+      if (res.ok) {
+        onSaved();
+      } else {
+        const data = await res.json().catch(() => null);
+        setError(data?.message || "Kunde inte spara kategorierna");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 mb-4 p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+      {categories.map((c) => (
+        <div
+          key={c.id}
+          className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col sm:flex-row gap-3"
+        >
+          <div className="flex-shrink-0 space-y-1">
+            {c.imageUrl && (
+              <img
+                src={c.imageUrl}
+                alt=""
+                className="w-16 h-16 rounded-lg object-cover"
+              />
+            )}
+            <label
+              className={`flex items-center justify-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                imageUploading === c.id
+                  ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400"
+                  : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <ImagePlus className="w-3.5 h-3.5" />
+              {imageUploading === c.id
+                ? "Laddar upp…"
+                : c.imageUrl
+                  ? "Byt bild"
+                  : "Lägg till bild"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={imageUploading === c.id}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) uploadImage(c.id, file);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            {c.ratingCount > 0 && (
+              <p className="text-xs text-amber-600">
+                ★ {c.averageRating.toFixed(1)} ({c.ratingCount})
+              </p>
+            )}
+          </div>
+          <div className="flex-1 space-y-2">
+            <div className="flex gap-2">
+              <input
+                value={c.name}
+                onChange={(e) => updateCategory(c.id, "name", e.target.value)}
+                className="flex-1 px-2 py-1 rounded border border-slate-300 text-sm font-semibold"
+                placeholder="Namn"
+              />
+              <input
+                type="number"
+                value={c.defaultAmount}
+                onChange={(e) =>
+                  updateCategory(c.id, "defaultAmount", Number(e.target.value))
+                }
+                className="w-32 px-2 py-1 rounded border border-slate-300 text-sm"
+                placeholder="Belopp (kr)"
+              />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {ALL_CATEGORIES.map((tag) => {
+                const active = (c.tags || []).includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => toggleTag(c.id, tag)}
+                    className={`px-2 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                      active
+                        ? "bg-emerald-700 text-white border-emerald-700"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ))}
+      <div className="flex gap-2">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          {saving ? "Sparar…" : "Spara kategorier"}
+        </button>
       </div>
     </div>
   );

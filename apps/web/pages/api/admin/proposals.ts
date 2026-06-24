@@ -51,6 +51,8 @@ export default async function handler(
           status: p.status,
           thumbsUpCount: p.thumbsUpCount,
           averageRating: p.averageRating,
+          categories: p.categories || [],
+          imageUrl: p.imageUrl || null,
           authorId: p.authorId?.toString?.() || null,
           authorName: p.authorName,
           createdAt: p.createdAt,
@@ -69,6 +71,7 @@ export default async function handler(
         "estimatedCost",
         "status",
         "thumbsUpCount",
+        "categories",
       ];
       const $set = Object.fromEntries(
         Object.entries(updates).filter(([k]) => allowed.includes(k)),

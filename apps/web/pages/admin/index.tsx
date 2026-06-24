@@ -9,7 +9,6 @@ import {
   Trophy,
   Mail,
   PlusCircle,
-  Wallet,
   BarChart3,
   FileText,
   Sparkles,
@@ -17,15 +16,15 @@ import {
   ImagePlus,
   FileEdit,
   Pencil,
+  ChevronDown,
 } from "lucide-react";
+import { ALL_CATEGORIES } from "@repo/types";
 import { fetchWithCsrf } from "../../lib/fetch-with-csrf";
-import { useTranslation } from "../../lib/hooks/useTranslation";
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { t } = useTranslation();
-  const [tab, setTab] = useState("sessions");
+  const [tab, setTab] = useState("content");
 
   useEffect(() => {
     if (status === "loading") return;
@@ -65,82 +64,28 @@ export default function AdminPage() {
       </header>
 
       <main className="max-w-6xl mx-auto p-6 space-y-6">
-        <nav className="flex gap-2 flex-wrap">
+        <nav className="flex gap-2 flex-wrap items-center">
           <Tab
-            label="Sessions"
-            icon={<Calendar className="w-4 h-4" />}
-            active={tab === "sessions"}
-            onClick={() => setTab("sessions")}
-          />
-          <Tab
-            label="Kallelser"
+            label="Mina frågor"
             icon={<FileText className="w-4 h-4" />}
-            active={tab === "municipal"}
-            onClick={() => router.push("/admin/municipal")}
+            active={false}
+            onClick={() => router.push("/admin/my-questions")}
           />
           <Tab
-            label="Budget Admin"
-            icon={<Wallet className="w-4 h-4" />}
-            active={tab === "budget"}
-            onClick={() => router.push("/budget/admin")}
+            label="Rösta"
+            icon={<Calendar className="w-4 h-4" />}
+            active={false}
+            onClick={() => router.push("/manage-sessions")}
           />
           <Tab
-            label="Survey"
-            icon={<BarChart3 className="w-4 h-4" />}
-            active={tab === "survey"}
-            onClick={() => router.push("/admin/survey")}
-          />
-          <Tab
-            label="Top Proposals"
-            icon={<Trophy className="w-4 h-4" />}
-            active={tab === "top-proposals"}
-            onClick={() => setTab("top-proposals")}
-          />
-          <Tab
-            label="Admin Applications"
-            icon={<Shield className="w-4 h-4" />}
-            active={tab === "admin-applications"}
-            onClick={() => setTab("admin-applications")}
-          />
-          <Tab
-            label="Session Requests"
-            icon={<PlusCircle className="w-4 h-4" />}
-            active={tab === "session-requests"}
-            onClick={() => setTab("session-requests")}
-          />
-          <Tab
-            label="Email"
-            icon={<Mail className="w-4 h-4" />}
-            active={tab === "email"}
-            onClick={() => setTab("email")}
-          />
-          <Tab
-            label="Users"
-            icon={<Users className="w-4 h-4" />}
-            active={tab === "users"}
-            onClick={() => setTab("users")}
-          />
-          <Tab
-            label="Settings"
-            icon={<Settings className="w-4 h-4" />}
-            active={tab === "settings"}
-            onClick={() => setTab("settings")}
-          />
-          <Tab
-            label="Innehåll"
+            label="Förslag"
             icon={<FileEdit className="w-4 h-4" />}
             active={tab === "content"}
             onClick={() => setTab("content")}
           />
-          <Tab
-            label="Clean"
-            icon={<Sparkles className="w-4 h-4" />}
-            active={tab === "clean"}
-            onClick={() => setTab("clean")}
-          />
+          <MoreMenu tab={tab} setTab={setTab} router={router} />
         </nav>
 
-        {tab === "sessions" && <SessionsPanel t={t} />}
         {tab === "top-proposals" && <TopProposalsPanel />}
         {tab === "admin-applications" && <AdminApplicationsPanel />}
         {tab === "session-requests" && <SessionRequestsPanel />}
@@ -167,6 +112,61 @@ function Tab({ label, icon, active, onClick }) {
       {icon}
       {label}
     </button>
+  );
+}
+
+const MORE_ITEMS = [
+  { key: "top-proposals", label: "Top Proposals", icon: Trophy },
+  { key: "admin-applications", label: "Admin Applications", icon: Shield },
+  { key: "session-requests", label: "Session Requests", icon: PlusCircle },
+  { key: "email", label: "Email", icon: Mail },
+  { key: "users", label: "Users", icon: Users },
+  { key: "settings", label: "Settings", icon: Settings },
+  { key: "survey", label: "Survey", icon: BarChart3, route: "/admin/survey" },
+  { key: "clean", label: "Clean", icon: Sparkles },
+];
+
+function MoreMenu({ tab, setTab, router }) {
+  const [open, setOpen] = useState(false);
+  const active = MORE_ITEMS.some((item) => item.key === tab);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`px-4 py-2 rounded-xl border text-sm font-medium flex items-center gap-2 ${
+          active
+            ? "bg-white border-slate-300 shadow"
+            : "bg-slate-100 border-slate-200 hover:bg-white"
+        }`}
+      >
+        Mer
+        <ChevronDown className="w-4 h-4" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute z-20 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+            {MORE_ITEMS.map(({ key, label, icon: Icon, route }) => (
+              <button
+                key={key}
+                onClick={() => {
+                  setOpen(false);
+                  if (route) router.push(route);
+                  else setTab(key);
+                }}
+                className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:bg-slate-50 ${
+                  tab === key ? "bg-slate-50 font-semibold" : ""
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -615,30 +615,6 @@ function UsersPanel() {
             ))}
           </tbody>
         </table>
-      </div>
-    </section>
-  );
-}
-
-function SessionsPanel({ t }) {
-  const router = useRouter();
-
-  return (
-    <section className="bg-white rounded-xl p-6 shadow">
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold mb-4 text-slate-800">
-          {t("admin.sessionManagement") || "Session Management"}
-        </h2>
-        <p className="text-slate-600 mb-6 max-w-md mx-auto">
-          {t("admin.sessionsMovedMessage") ||
-            "Session management has been moved to a dedicated page for better organization and accessibility."}
-        </p>
-        <button
-          onClick={() => router.push("/manage-sessions")}
-          className="px-6 py-3 bg-accent-500 text-slate-900 rounded-lg hover:bg-accent-600 font-semibold shadow-md hover:shadow-lg transition-all"
-        >
-          {t("admin.goToManageSessions") || "Go to Manage Sessions"}
-        </button>
       </div>
     </section>
   );
@@ -1501,7 +1477,38 @@ interface CitizenProposalItem {
   averageRating: number;
   ratingCount: number;
   imageUrl: string | null;
+  categories: string[];
   createdAt: string;
+}
+
+function CategoryChipPicker({
+  selected,
+  onToggle,
+}: {
+  selected: string[];
+  onToggle: (_category: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {ALL_CATEGORIES.map((c) => {
+        const active = selected.includes(c);
+        return (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onToggle(c)}
+            className={`px-2 py-1 rounded-lg text-xs font-medium border transition-colors ${
+              active
+                ? "bg-slate-800 text-white border-slate-800"
+                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            {c}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 const STATUS_LABEL: Record<CPStatus, string> = {
@@ -1567,6 +1574,7 @@ function CitizenProposalsPanel() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editCategories, setEditCategories] = useState<string[]>([]);
   const [savingText, setSavingText] = useState(false);
 
   useEffect(() => {
@@ -1603,10 +1611,19 @@ function CitizenProposalsPanel() {
     setEditingId(p._id);
     setEditTitle(p.title);
     setEditDescription(p.description);
+    setEditCategories(p.categories || []);
   }
 
   function cancelEditText() {
     setEditingId(null);
+  }
+
+  function toggleEditCategory(category: string) {
+    setEditCategories((prev) =>
+      prev.includes(category)
+        ? prev.filter((c) => c !== category)
+        : [...prev, category],
+    );
   }
 
   async function saveEditText(id: string) {
@@ -1620,6 +1637,7 @@ function CitizenProposalsPanel() {
           id,
           title: editTitle.trim(),
           description: editDescription.trim(),
+          categories: editCategories,
         }),
       });
       if (res.ok) {
@@ -1630,6 +1648,7 @@ function CitizenProposalsPanel() {
                   ...p,
                   title: editTitle.trim(),
                   description: editDescription.trim(),
+                  categories: editCategories,
                 }
               : p,
           ),
@@ -1808,6 +1827,10 @@ function CitizenProposalsPanel() {
                       className="w-full px-2 py-1 rounded border border-slate-300 text-xs text-slate-600"
                       placeholder="Beskrivning"
                     />
+                    <CategoryChipPicker
+                      selected={editCategories}
+                      onToggle={toggleEditCategory}
+                    />
                     <div className="flex gap-2">
                       <button
                         onClick={() => saveEditText(p._id)}
@@ -1833,6 +1856,18 @@ function CitizenProposalsPanel() {
                     <p className="text-slate-500 text-xs line-clamp-2">
                       {p.description}
                     </p>
+                    {p.categories?.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {p.categories.map((c) => (
+                          <span
+                            key={c}
+                            className="px-1.5 py-0.5 rounded text-[11px] bg-slate-100 text-slate-600"
+                          >
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <button
                       onClick={() => startEditText(p)}
                       className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700"
@@ -1895,6 +1930,8 @@ interface SessionProposalItem {
   thumbsUpCount: number;
   averageRating: number;
   authorName: string;
+  categories: string[];
+  imageUrl: string | null;
   createdAt: string;
 }
 
@@ -1915,10 +1952,12 @@ function SessionProposalsPanel() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<SPStatus | "all">("all");
   const [updating, setUpdating] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editProblem, setEditProblem] = useState("");
   const [editSolution, setEditSolution] = useState("");
+  const [editCategories, setEditCategories] = useState<string[]>([]);
   const [savingText, setSavingText] = useState(false);
 
   useEffect(() => {
@@ -1956,10 +1995,19 @@ function SessionProposalsPanel() {
     setEditTitle(p.title);
     setEditProblem(p.problem);
     setEditSolution(p.solution);
+    setEditCategories(p.categories || []);
   }
 
   function cancelEditText() {
     setEditingId(null);
+  }
+
+  function toggleEditCategory(category: string) {
+    setEditCategories((prev) =>
+      prev.includes(category)
+        ? prev.filter((c) => c !== category)
+        : [...prev, category],
+    );
   }
 
   async function saveEditText(id: string) {
@@ -1975,6 +2023,7 @@ function SessionProposalsPanel() {
             title: editTitle.trim(),
             problem: editProblem.trim(),
             solution: editSolution.trim(),
+            categories: editCategories,
           },
         }),
       });
@@ -1987,6 +2036,7 @@ function SessionProposalsPanel() {
                   title: editTitle.trim(),
                   problem: editProblem.trim(),
                   solution: editSolution.trim(),
+                  categories: editCategories,
                 }
               : p,
           ),
@@ -1998,6 +2048,32 @@ function SessionProposalsPanel() {
       }
     } finally {
       setSavingText(false);
+    }
+  }
+
+  async function uploadImage(id: string, file: File) {
+    setImageUploading(id);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("proposalId", id);
+      const res = await fetch("/api/admin/session-proposal-image", {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        const { imageUrl } = await res.json();
+        setProposals((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, imageUrl } : p)),
+        );
+      } else {
+        const error = await res.json().catch(() => null);
+        alert(error?.message || "Kunde inte ladda upp bilden");
+      }
+    } catch {
+      alert("Uppladdning misslyckades");
+    } finally {
+      setImageUploading(null);
     }
   }
 
@@ -2060,6 +2136,40 @@ function SessionProposalsPanel() {
               key={p.id}
               className="border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row gap-4"
             >
+              <div className="flex-shrink-0 space-y-1">
+                {p.imageUrl && (
+                  <img
+                    src={p.imageUrl}
+                    alt=""
+                    className="w-20 h-20 rounded-lg object-cover"
+                  />
+                )}
+                <label
+                  className={`flex items-center justify-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                    imageUploading === p.id
+                      ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400"
+                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <ImagePlus className="w-3.5 h-3.5" />
+                  {imageUploading === p.id
+                    ? "Laddar upp…"
+                    : p.imageUrl
+                      ? "Byt bild"
+                      : "Lägg till bild"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={imageUploading === p.id}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadImage(p.id, file);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
               <div className="flex-1 min-w-0 space-y-1">
                 <div className="flex items-start gap-2 flex-wrap">
                   <span
@@ -2110,6 +2220,10 @@ function SessionProposalsPanel() {
                       className="w-full px-2 py-1 rounded border border-slate-300 text-xs text-slate-600"
                       placeholder="Lösning"
                     />
+                    <CategoryChipPicker
+                      selected={editCategories}
+                      onToggle={toggleEditCategory}
+                    />
                     <div className="flex gap-2">
                       <button
                         onClick={() => saveEditText(p.id)}
@@ -2143,6 +2257,18 @@ function SessionProposalsPanel() {
                         <span className="font-semibold">Lösning:</span>{" "}
                         {p.solution}
                       </p>
+                    )}
+                    {p.categories?.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {p.categories.map((c) => (
+                          <span
+                            key={c}
+                            className="px-1.5 py-0.5 rounded text-[11px] bg-slate-100 text-slate-600"
+                          >
+                            {c}
+                          </span>
+                        ))}
+                      </div>
                     )}
                     <button
                       onClick={() => startEditText(p)}

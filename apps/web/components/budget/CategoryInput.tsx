@@ -1,4 +1,68 @@
 import { useState, useEffect } from "react";
+import { Star } from "lucide-react";
+import { fetchWithCsrf } from "../../lib/fetch-with-csrf";
+
+function CategoryRating({ sessionId, category }) {
+  const [rating, setRating] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [aggregate, setAggregate] = useState({
+    averageRating: category.averageRating || 0,
+    ratingCount: category.ratingCount || 0,
+  });
+
+  async function submitRating(value) {
+    setSubmitting(true);
+    try {
+      const res = await fetchWithCsrf("/api/budget/categories/rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          categoryId: category.id,
+          rating: value,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRating(value);
+        setAggregate({
+          averageRating: data.averageRating,
+          ratingCount: data.ratingCount,
+        });
+      } else if (res.status === 401) {
+        alert("Du måste logga in för att betygsätta.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-1 mb-2">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          disabled={submitting}
+          onClick={() => submitRating(n)}
+          className="p-0"
+          title={`Betygsätt ${n} av 5`}
+        >
+          <Star
+            className={`w-4 h-4 ${
+              n <= rating ? "fill-amber-400 text-amber-400" : "text-gray-300"
+            }`}
+          />
+        </button>
+      ))}
+      {aggregate.ratingCount > 0 && (
+        <span className="text-xs text-amber-600 ml-1">
+          {aggregate.averageRating.toFixed(1)} ({aggregate.ratingCount})
+        </span>
+      )}
+    </div>
+  );
+}
 
 /**
  * Category Input Component
@@ -9,6 +73,7 @@ export default function CategoryInput({
   allocation,
   onUpdate,
   readOnly = false,
+  sessionId,
 }) {
   // Calculate slider range based on budget size
   // For larger budgets, we need larger scales
@@ -120,6 +185,13 @@ export default function CategoryInput({
     <div className="p-4 bg-white border border-gray-200 rounded-lg">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
+          {category.imageUrl && (
+            <img
+              src={category.imageUrl}
+              alt=""
+              className="w-8 h-8 rounded object-cover"
+            />
+          )}
           <h3 className="font-medium text-gray-900">{category.name}</h3>
           {isFixed && (
             <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">
@@ -156,6 +228,10 @@ export default function CategoryInput({
           )}
         </div>
       </div>
+
+      {sessionId && (
+        <CategoryRating sessionId={sessionId} category={category} />
+      )}
 
       {isFixed ? (
         <div className="py-2 text-sm text-gray-500 italic">

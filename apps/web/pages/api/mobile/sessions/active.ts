@@ -28,7 +28,7 @@ export default async function handler(
       sessionType: { $nin: ["municipal", "voting"] },
     })
       .select(
-        "_id place phase startDate sessionType activeUsers showUserCount imageUrl noMotivation",
+        "_id place phase startDate sessionType activeUsers showUserCount imageUrl noMotivation categories",
       )
       .sort({ startDate: -1 })
       .lean();
@@ -44,6 +44,7 @@ export default async function handler(
         showUserCount: s.showUserCount || false,
         noMotivation: s.noMotivation || false,
         imageUrl: s.imageUrl || null,
+        categories: s.categories || [],
       })),
     );
   } catch (error) {

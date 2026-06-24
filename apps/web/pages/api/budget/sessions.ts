@@ -153,7 +153,6 @@ export default async function handler(
         "name",
         "municipality",
         "totalBudget",
-        "categories",
         "incomeCategories",
         "startDate",
         "endDate",
@@ -164,6 +163,34 @@ export default async function handler(
         if (updateData[field] !== undefined) {
           budgetSession[field] = updateData[field];
         }
+      }
+
+      // Merge categories by id instead of replacing wholesale — preserves
+      // imageUrl/totalStars/ratingCount/averageRating (set via the dedicated
+      // image-upload and rating endpoints) when an admin only edits a
+      // category's name/amount/tags here.
+      if (updateData.categories !== undefined) {
+        const existingById = new Map<string, any>(
+          budgetSession.categories.map((c) => [c.id, c]),
+        );
+        budgetSession.categories = updateData.categories.map(
+          (incoming: Record<string, unknown>) => {
+            const existing = existingById.get(incoming.id as string);
+            if (existing) {
+              return {
+                ...existing.toObject(),
+                name: incoming.name,
+                defaultAmount: incoming.defaultAmount,
+                minAmount: incoming.minAmount,
+                isFixed: incoming.isFixed,
+                color: incoming.color,
+                tags: incoming.tags,
+                subcategories: incoming.subcategories,
+              };
+            }
+            return incoming;
+          },
+        );
       }
 
       await budgetSession.save();

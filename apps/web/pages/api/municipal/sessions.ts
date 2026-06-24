@@ -195,7 +195,38 @@ export default async function handler(
           municipalSession.meetingDate = new Date(updates.meetingDate);
         if (updates.meetingType)
           municipalSession.meetingType = updates.meetingType;
-        if (updates.items) municipalSession.items = updates.items;
+        if (updates.items) {
+          // Merge by _id instead of replacing wholesale — preserves
+          // imageUrl/totalStars/ratingCount/averageRating (set via the
+          // dedicated image-upload and rating endpoints) when an admin only
+          // edits an item's text or categories here.
+          const existingById = new Map<string, any>(
+            municipalSession.items.map((it) => [String(it._id), it]),
+          );
+          municipalSession.items = updates.items.map(
+            (incoming: Record<string, unknown>) => {
+              const existing =
+                incoming._id && existingById.get(String(incoming._id));
+              if (existing) {
+                return {
+                  ...existing.toObject(),
+                  title: incoming.title,
+                  description: incoming.description,
+                  categories: incoming.categories,
+                  initialArguments: incoming.initialArguments,
+                };
+              }
+              return {
+                originalNumber: incoming.originalNumber,
+                title: incoming.title,
+                description: incoming.description,
+                categories: incoming.categories,
+                initialArguments: incoming.initialArguments,
+                status: incoming.status || "draft",
+              };
+            },
+          );
+        }
 
         await municipalSession.save();
 

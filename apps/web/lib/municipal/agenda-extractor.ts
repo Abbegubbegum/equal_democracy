@@ -4,6 +4,7 @@
  */
 
 import { anthropic, AI_MODELS } from "../ai";
+import { ALL_CATEGORIES } from "@repo/types";
 import { createLogger } from "../logger";
 
 const log = createLogger("AgendaExtractor");
@@ -51,14 +52,8 @@ FÖR VARJE ÄRENDE:
    - Om det finns argument i sammanfattningen (t.ex. "Policyn har förenklats språkligt"),
      lägg dem i initialArguments istället
 
-3. **Kategorisering**: Tilldela 1-3 kategorier:
-   1. Bygga, bo och miljö
-   2. Fritid och kultur
-   3. Förskola och skola
-   4. Ändring av styrdokument
-   5. Näringsliv och arbete
-   6. Omsorg och hjälp
-   7. Övrigt kommun och politik
+3. **Kategorisering**: Tilldela 1-3 kategorier från denna lista (skriv exakt som de står):
+${ALL_CATEGORIES.map((c) => `   - ${c}`).join("\n")}
 
 4. **Argument**: Om sammanfattningen innehåller för-argument, extrahera dem
 
@@ -72,7 +67,7 @@ RETURNERA ENDAST JSON (ingen annan text):
       "originalNumber": "§9",
       "title": "Anta den nya Arbetsmiljöpolicyn",
       "description": "Kommunstyrelsen föreslår att fullmäktige antar den nya arbetsmiljöpolicyn som ersätter den tidigare från 2018.",
-      "categories": [4, 7],
+      "categories": ["Trygghet & säkerhet", "Allmänt"],
       "initialArguments": [
         {
           "text": "Policyn har förenklats språkligt för att bli lättare att läsa och förstå",
@@ -88,7 +83,7 @@ RETURNERA ENDAST JSON (ingen annan text):
       "originalNumber": "§10",
       "title": "Godkänna detaljplan för Vibyområdet",
       "description": "Detaljplanen möjliggör byggande av 120 nya bostäder i centrala Vallentuna.",
-      "categories": [1],
+      "categories": ["Bostäder"],
       "initialArguments": []
     }
   ]
@@ -99,7 +94,7 @@ VALIDERING:
 - items ska innehålla MINST 1 ärende
 - Varje item måste ha title, description, categories (1-3 kategorier)
 - originalNumber behålls för spårbarhet men visas inte för användare
-- Kategorier är nummer 1-7
+- Kategorier måste vara exakt de strängar som listas ovan
 - initialArguments kan vara tom array om inga argument finns`;
 
   try {
@@ -170,11 +165,11 @@ VALIDERING:
           `Invalid categories in item "${item.title}". Must have 1-3 categories.`,
         );
       }
-      // Ensure categories are numbers 1-7
+      // Ensure categories are valid ALL_CATEGORIES strings
       for (const cat of item.categories) {
-        if (cat < 1 || cat > 7) {
+        if (!ALL_CATEGORIES.includes(cat)) {
           throw new Error(
-            `Invalid category ${cat} in item "${item.title}". Must be 1-7.`,
+            `Invalid category "${cat}" in item "${item.title}". Must be one of ALL_CATEGORIES.`,
           );
         }
       }
@@ -233,26 +228,4 @@ export async function extractAgendaFromURL(
     });
     throw new Error(`Failed to extract agenda from URL: ${error.message}`);
   }
-}
-
-/**
- * Category names in Swedish
- */
-export const CATEGORY_NAMES = {
-  1: "Bygga, bo och miljö",
-  2: "Fritid och kultur",
-  3: "Förskola och skola",
-  4: "Ändring av styrdokument",
-  5: "Näringsliv och arbete",
-  6: "Omsorg och hjälp",
-  7: "Övrigt kommun och politik",
-};
-
-/**
- * Get category name by number
- * @param {number} categoryNum - Category number (1-7)
- * @returns {string} - Category name in Swedish
- */
-export function getCategoryName(categoryNum) {
-  return CATEGORY_NAMES[categoryNum] || "Okänd kategori";
 }

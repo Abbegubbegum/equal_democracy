@@ -4,11 +4,14 @@ export {
   GEOGRAPHIC_CATEGORIES,
   THEMATIC_CATEGORIES,
   ALL_CATEGORIES,
+  INTEREST_TO_CATEGORIES,
+  INTEREST_AREAS,
 } from "./categories";
 export type {
   GeographicCategory,
   ThematicCategory,
   ContentCategory,
+  InterestArea,
 } from "./categories";
 
 export type {
@@ -56,6 +59,7 @@ export type {
   BudgetMedianIncomeAllocation,
   BudgetResult,
   BudgetArgument,
+  BudgetCategoryRating,
 } from "./budget";
 
 export type {
@@ -67,6 +71,7 @@ export type {
   MunicipalSession,
   CitizenProposal,
   CitizenProposalRating,
+  MunicipalItemRating,
 } from "./municipal";
 
 export type { SurveyStatus, SurveyChoice, Survey, SurveyVote } from "./survey";

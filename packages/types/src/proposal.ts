@@ -14,6 +14,8 @@ export interface Proposal extends BaseDocument {
   status: ProposalStatus;
   thumbsUpCount: number;
   averageRating: number;
+  categories?: string[];
+  imageUrl?: string | null;
 }
 
 export interface ThumbsUp extends BaseDocument {

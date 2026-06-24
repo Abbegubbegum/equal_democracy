@@ -12,16 +12,6 @@ export async function getServerSideProps({ params }) {
   return { props: {} };
 }
 
-const CATEGORY_NAMES = {
-  1: "Bygga, bo och miljö",
-  2: "Fritid och kultur",
-  3: "Förskola och skola",
-  4: "Ändring av styrdokument",
-  5: "Näringsliv och arbete",
-  6: "Omsorg och hjälp",
-  7: "Övrigt kommun och politik",
-};
-
 export default function BoardArchivePage() {
   const router = useRouter();
   const { municipality: municipalityParam, board: boardParam } = router.query;
@@ -123,7 +113,7 @@ export default function BoardArchivePage() {
                         key={idx}
                         className="border-l-4 border-gray-400 pl-4 hover:bg-gray-50 p-4 rounded bg-white shadow-sm"
                       >
-                        <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-start justify-between mb-2 gap-4">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               <Calendar className="w-4 h-4 text-gray-500" />
@@ -138,6 +128,13 @@ export default function BoardArchivePage() {
                               {item.title}
                             </h3>
                           </div>
+                          {item.imageUrl && (
+                            <img
+                              src={item.imageUrl}
+                              alt=""
+                              className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
+                            />
+                          )}
                         </div>
                         <p className="text-gray-700 mb-3 leading-relaxed">
                           {item.description}
@@ -148,10 +145,16 @@ export default function BoardArchivePage() {
                               key={cat}
                               className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded-full"
                             >
-                              {CATEGORY_NAMES[cat]}
+                              {cat}
                             </span>
                           ))}
                         </div>
+                        {item.ratingCount > 0 && (
+                          <p className="text-xs text-amber-600 mb-2">
+                            ★ {item.averageRating.toFixed(1)} (
+                            {item.ratingCount})
+                          </p>
+                        )}
                         {item.closedAt && (
                           <p className="text-xs text-gray-500 mb-2">
                             Avslutad:{" "}

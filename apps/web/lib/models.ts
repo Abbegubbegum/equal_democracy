@@ -193,6 +193,14 @@ const ProposalSchema = new mongoose.Schema(
       min: 0,
       max: 5,
     },
+    categories: {
+      type: [String],
+      default: [],
+    },
+    imageUrl: {
+      type: String,
+      default: null,
+    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -601,7 +609,25 @@ const MunicipalSessionSchema = new mongoose.Schema(
         originalNumber: String, // Original § number from agenda
         title: String, // Active title: "Anta den nya Arbetsmiljöpolicyn"
         description: String, // Background/context
-        categories: [Number], // 1-7 category codes
+        categories: [String], // ALL_CATEGORIES tags (thematic/geographic)
+        imageUrl: {
+          type: String,
+          default: null,
+        },
+        totalStars: {
+          type: Number,
+          default: 0,
+        },
+        ratingCount: {
+          type: Number,
+          default: 0,
+        },
+        averageRating: {
+          type: Number,
+          default: 0,
+          min: 0,
+          max: 5,
+        },
         proposalId: {
           // Link to created Proposal for voting
           type: mongoose.Schema.Types.ObjectId,
@@ -769,6 +795,86 @@ CitizenProposalRatingSchema.index(
   { unique: true },
 );
 
+// Municipal Item Rating Model — 1-5 star rating on a MunicipalSession item
+const MunicipalItemRatingSchema = new mongoose.Schema(
+  {
+    municipalSessionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "MunicipalSession",
+      required: true,
+      index: true,
+    },
+    itemId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      index: true,
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    rating: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
+
+// One rating per user per municipal item
+MunicipalItemRatingSchema.index({ itemId: 1, userId: 1 }, { unique: true });
+
+// Budget Category Rating Model — 1-5 star rating on a BudgetSession category
+const BudgetCategoryRatingSchema = new mongoose.Schema(
+  {
+    sessionId: {
+      type: String,
+      required: true,
+      index: true,
+    },
+    categoryId: {
+      type: String,
+      required: true,
+      index: true,
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    rating: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
+
+// One rating per user per budget category
+BudgetCategoryRatingSchema.index(
+  { sessionId: 1, categoryId: 1, userId: 1 },
+  { unique: true },
+);
+
 // Settings Model - for global settings
 const SettingsSchema = new mongoose.Schema(
   {
@@ -924,6 +1030,28 @@ const BudgetSessionSchema = new mongoose.Schema(
         color: {
           type: String,
           default: "#4a90e2",
+        },
+        tags: {
+          type: [String],
+          default: [],
+        },
+        imageUrl: {
+          type: String,
+          default: null,
+        },
+        totalStars: {
+          type: Number,
+          default: 0,
+        },
+        ratingCount: {
+          type: Number,
+          default: 0,
+        },
+        averageRating: {
+          type: Number,
+          default: 0,
+          min: 0,
+          max: 5,
         },
         subcategories: [
           {
@@ -1269,18 +1397,21 @@ export const FinalVote = safeModel("FinalVote", FinalVoteSchema);
 export const LoginCode = safeModel("LoginCode", LoginCodeSchema);
 export const TopProposal = safeModel("TopProposal", TopProposalSchema);
 export const SessionRequest = safeModel("SessionRequest", SessionRequestSchema);
-export const BudgetSession = safeModel("BudgetSession", BudgetSessionSchema);
 export const BudgetVote = safeModel("BudgetVote", BudgetVoteSchema);
 export const BudgetResult = safeModel("BudgetResult", BudgetResultSchema);
 export const Survey = safeModel("Survey", SurveySchema);
 export const SurveyVote = safeModel("SurveyVote", SurveyVoteSchema);
-export const MunicipalSession = safeModel(
-  "MunicipalSession",
-  MunicipalSessionSchema,
-);
 export const CitizenProposalRating = safeModel(
   "CitizenProposalRating",
   CitizenProposalRatingSchema,
+);
+export const MunicipalItemRating = safeModel(
+  "MunicipalItemRating",
+  MunicipalItemRatingSchema,
+);
+export const BudgetCategoryRating = safeModel(
+  "BudgetCategoryRating",
+  BudgetCategoryRatingSchema,
 );
 
 // Force-refresh Settings, Session, and CitizenProposal so schema updates always apply in dev (HMR)
@@ -1295,6 +1426,21 @@ if (mongoose.models["CitizenProposal"])
 export const CitizenProposal: AnyModel = mongoose.model(
   "CitizenProposal",
   CitizenProposalSchema,
+);
+
+// Force-refresh MunicipalSession and BudgetSession too — their item/category
+// subdocument schemas change frequently (categories, images, ratings).
+if (mongoose.models["MunicipalSession"])
+  delete mongoose.models["MunicipalSession"];
+export const MunicipalSession: AnyModel = mongoose.model(
+  "MunicipalSession",
+  MunicipalSessionSchema,
+);
+
+if (mongoose.models["BudgetSession"]) delete mongoose.models["BudgetSession"];
+export const BudgetSession: AnyModel = mongoose.model(
+  "BudgetSession",
+  BudgetSessionSchema,
 );
 
 // BudgetArgument - structured debate arguments tied to budget categories

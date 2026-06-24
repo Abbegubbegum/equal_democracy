@@ -26,7 +26,7 @@ export default async function handler(
   if (req.method === "GET") {
     const proposals = await CitizenProposal.find({})
       .select(
-        "_id title description authorName status averageRating ratingCount imageUrl createdAt",
+        "_id title description authorName status averageRating ratingCount imageUrl categories createdAt",
       )
       .sort({ createdAt: -1 })
       .lean();
@@ -35,10 +35,10 @@ export default async function handler(
   }
 
   if (req.method === "PATCH") {
-    const { id, status, title, description } = req.body;
+    const { id, status, title, description, categories } = req.body;
     if (!id) return res.status(400).json({ error: "Missing id" });
 
-    const $set: Record<string, string> = {};
+    const $set: Record<string, unknown> = {};
     if (status !== undefined) {
       if (!ALLOWED_STATUSES.includes(status)) {
         return res.status(400).json({ error: "Invalid status" });
@@ -56,6 +56,15 @@ export default async function handler(
         return res.status(400).json({ error: "Description cannot be empty" });
       }
       $set.description = description.trim();
+    }
+    if (categories !== undefined) {
+      if (
+        !Array.isArray(categories) ||
+        !categories.every((c) => typeof c === "string")
+      ) {
+        return res.status(400).json({ error: "Invalid categories" });
+      }
+      $set.categories = categories;
     }
     if (Object.keys($set).length === 0) {
       return res.status(400).json({ error: "No valid fields to update" });

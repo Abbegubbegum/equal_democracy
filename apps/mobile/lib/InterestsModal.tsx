@@ -10,8 +10,10 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { GEOGRAPHIC_CATEGORIES, THEMATIC_CATEGORIES } from "@repo/types";
+import { INTEREST_AREAS, INTEREST_TO_CATEGORIES } from "@repo/types";
+import { STORAGE_INTERESTS } from "./SettingsModal";
 import { apiClient } from "./api";
+import { setItem } from "./storage";
 import { addStars, isFirstInterestsSave, markInterestsSaved } from "./stars";
 import CelebrationModal from "./CelebrationModal";
 import { markProfileCompleted } from "./onboarding";
@@ -24,25 +26,43 @@ interface Props {
   onClose: () => void;
 }
 
+const GEO_SPLIT_IDX = INTEREST_AREAS.findIndex((a) => a.groupLabel);
+const THEMATIC_AREAS = INTEREST_AREAS.slice(0, GEO_SPLIT_IDX);
+const GEO_AREAS = INTEREST_AREAS.slice(GEO_SPLIT_IDX);
+const GEO_GROUP_LABEL = GEO_AREAS[0]?.groupLabel ?? "Geografiska intressen";
+
 export default function InterestsModal({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>(["budget"]);
   const [saving, setSaving] = useState(false);
   const [celebration, setCelebration] = useState(false);
 
-  function toggle(cat: string) {
+  function toggle(key: string) {
+    if (key === "budget") return;
     setSelected((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
     );
   }
 
   async function save() {
     setSaving(true);
     try {
-      await apiClient("/api/mobile/user/interests", {
-        method: "POST",
-        body: JSON.stringify({ interests: selected }),
-      });
+      // Same storage key + category mapping as SettingsModal, so Mina frågor
+      // (which only reads STORAGE_INTERESTS) sees onboarding choices too.
+      await setItem(STORAGE_INTERESTS, JSON.stringify(selected));
+      const dbInterests = [
+        ...new Set(
+          selected.flatMap((key) => INTEREST_TO_CATEGORIES[key] ?? []),
+        ),
+      ];
+      try {
+        await apiClient("/api/mobile/user/interests", {
+          method: "POST",
+          body: JSON.stringify({ interests: dbInterests }),
+        });
+      } catch {
+        // fail silently — local preferences still saved
+      }
       await markProfileCompleted();
       const firstTime = await isFirstInterestsSave();
       if (firstTime) {
@@ -52,10 +72,6 @@ export default function InterestsModal({ visible, onClose }: Props) {
       } else {
         onClose();
       }
-    } catch {
-      // fail silently — profile state is saved locally regardless
-      await markProfileCompleted();
-      onClose();
     } finally {
       setSaving(false);
     }
@@ -82,61 +98,56 @@ export default function InterestsModal({ visible, onClose }: Props) {
 
             <Text style={styles.subtitle}>
               Välj vad du bryr dig om — då får du bara notiser som är relevanta
-              för dig. Du kan ändra detta när som helst.
+              för dig, och Mina frågor visar det som rör just dina intressen. Du
+              kan ändra detta när som helst.
             </Text>
 
             <ScrollView
               showsVerticalScrollIndicator={false}
               style={styles.scroll}
             >
-              <Text style={styles.groupLabel}>Plats i Vallentuna</Text>
+              <Text style={styles.groupLabel}>Ämnesområde</Text>
               <View style={styles.chipRow}>
-                {GEOGRAPHIC_CATEGORIES.map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[
-                      styles.chip,
-                      selected.includes(cat) && styles.chipOn,
-                    ]}
-                    onPress={() => toggle(cat)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        selected.includes(cat) && styles.chipTextOn,
-                      ]}
+                {THEMATIC_AREAS.map((area) => {
+                  const checked = selected.includes(area.key);
+                  return (
+                    <TouchableOpacity
+                      key={area.key}
+                      style={[styles.chip, checked && styles.chipOn]}
+                      onPress={() => toggle(area.key)}
+                      activeOpacity={area.alwaysOn ? 1 : 0.7}
                     >
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[styles.chipText, checked && styles.chipTextOn]}
+                      >
+                        {area.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               <Text style={[styles.groupLabel, { marginTop: 16 }]}>
-                Ämnesområde
+                {GEO_GROUP_LABEL}
               </Text>
               <View style={styles.chipRow}>
-                {THEMATIC_CATEGORIES.map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[
-                      styles.chip,
-                      selected.includes(cat) && styles.chipOn,
-                    ]}
-                    onPress={() => toggle(cat)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        selected.includes(cat) && styles.chipTextOn,
-                      ]}
+                {GEO_AREAS.map((area) => {
+                  const checked = selected.includes(area.key);
+                  return (
+                    <TouchableOpacity
+                      key={area.key}
+                      style={[styles.chip, checked && styles.chipOn]}
+                      onPress={() => toggle(area.key)}
+                      activeOpacity={0.7}
                     >
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[styles.chipText, checked && styles.chipTextOn]}
+                      >
+                        {area.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </ScrollView>
 
@@ -149,9 +160,7 @@ export default function InterestsModal({ visible, onClose }: Props) {
                 <ActivityIndicator color={BLUE} />
               ) : (
                 <Text style={styles.saveBtnText}>
-                  {selected.length > 0
-                    ? `Spara ${selected.length} intressen`
-                    : "Spara (alla kategorier)"}
+                  Spara {selected.length} intresseområden
                 </Text>
               )}
             </TouchableOpacity>

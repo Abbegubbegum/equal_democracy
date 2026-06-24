@@ -12,60 +12,16 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { INTEREST_TO_CATEGORIES, INTEREST_AREAS } from "@repo/types";
 import { useAuth } from "./auth-context";
 import { getItem, setItem } from "./storage";
 import { apiClient, BASE_URL } from "./api";
-
-// Maps SettingsModal's short interest keys to the ALL_CATEGORIES strings
-// stored on User.interests in the DB and used for notification filtering.
-const INTEREST_TO_CATEGORIES: Record<string, string[]> = {
-  budget: ["Allmänt"],
-  barn: ["Skola & utbildning", "Barn & familj"],
-  arbete: ["Näringsliv & arbete"],
-  aldre: ["Äldreomsorg"],
-  politik: ["Allmänt"],
-  infra: ["Trafik & infrastruktur"],
-  kultur: ["Fritid & kultur"],
-  geo_central: ["Vallentuna centrum"],
-  geo_lindholmen: ["Lindholmen"],
-  geo_karsta: ["Kårsta"],
-  geo_karby: ["Karby", "Össeby-Garn"],
-};
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
 
 export const STORAGE_INTERESTS = "user_interests";
 export const STORAGE_INTERESTS_ONLY = "user_interests_only";
-
-export const INTEREST_AREAS: {
-  key: string;
-  label: string;
-  alwaysOn?: boolean;
-  note?: string;
-  groupLabel?: string;
-}[] = [
-  {
-    key: "budget",
-    label: "Budgeten",
-    alwaysOn: true,
-    note: "Alltid aktiv — balanserar övriga intressen",
-  },
-  { key: "barn", label: "Barn och utbildning" },
-  { key: "arbete", label: "Arbete och Näringsliv" },
-  { key: "aldre", label: "Äldre och social gemenskap" },
-  { key: "politik", label: "Politik och Organisation" },
-  { key: "infra", label: "Infrastruktur och Identitet" },
-  { key: "kultur", label: "Kultur och Fritid" },
-  {
-    key: "geo_central",
-    label: "Centrala Vallentuna",
-    groupLabel: "Geografiska intressen",
-  },
-  { key: "geo_lindholmen", label: "Lindholmen och Västra Vallentuna" },
-  { key: "geo_karsta", label: "Kårsta och norra Vallentuna" },
-  { key: "geo_karby", label: "Karby, Brottby, Össeby-Garn" },
-];
 
 export function SettingsModal({
   visible,

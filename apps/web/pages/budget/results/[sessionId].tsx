@@ -94,7 +94,7 @@ export default function BudgetResultsPage() {
       <header className="bg-emerald-800 text-white p-6 shadow">
         <div className="max-w-6xl mx-auto">
           <button
-            onClick={() => router.push("/budget/admin")}
+            onClick={() => router.push("/admin/my-questions/budget")}
             className="flex items-center gap-2 text-emerald-200 hover:text-white mb-4"
           >
             <ArrowLeft className="w-4 h-4" />

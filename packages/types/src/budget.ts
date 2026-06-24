@@ -19,6 +19,11 @@ export interface BudgetCategory {
   isFixed: boolean;
   color: string;
   subcategories: BudgetSubcategory[];
+  tags?: string[];
+  imageUrl?: string | null;
+  totalStars?: number;
+  ratingCount?: number;
+  averageRating?: number;
 }
 
 export interface BudgetIncomeCategory {
@@ -106,4 +111,11 @@ export interface BudgetArgument extends BaseDocument {
   text: string;
   helpfulVotes: string[];
   isHidden: boolean;
+}
+
+export interface BudgetCategoryRating extends BaseDocument {
+  sessionId: string;
+  categoryId: string;
+  userId: string;
+  rating: number;
 }

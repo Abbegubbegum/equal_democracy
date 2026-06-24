@@ -50,7 +50,7 @@ const INACTIVE_COLOR = "#aaa";
 
 const TAB_ICONS: Record<string, IoniconsName> = {
   index: "home-outline",
-  sessions: "people-outline",
+  "my-questions": "person-outline",
   vote: "checkmark-circle-outline",
   proposals: "bulb-outline",
   membership: "information-circle-outline",
@@ -89,36 +89,34 @@ function BottomBar({
     <View
       style={[styles.bar, { height: 56 + bottomPad, paddingBottom: bottomPad }]}
     >
-      {state.routes
-        .filter((r) => r.name !== "archive")
-        .map((route, index) => {
-          const focused = state.index === index;
-          const color = focused ? ACTIVE_COLOR : INACTIVE_COLOR;
-          const icon = TAB_ICONS[route.name] ?? "ellipse-outline";
-          const label =
-            (descriptors[route.key]?.options.title as string | undefined) ??
-            route.name;
-          return (
-            <TouchableOpacity
-              key={route.key}
-              style={styles.barItem}
-              onPress={() => {
-                const event = navigation.emit({
-                  type: "tabPress",
-                  target: route.key,
-                  canPreventDefault: true,
-                });
-                if (!focused && !event.defaultPrevented) {
-                  navigation.navigate(route.name);
-                }
-              }}
-              activeOpacity={0.7}
-            >
-              <Ionicons name={icon} size={22} color={color} />
-              <Text style={[styles.barLabel, { color }]}>{label}</Text>
-            </TouchableOpacity>
-          );
-        })}
+      {state.routes.map((route, index) => {
+        const focused = state.index === index;
+        const color = focused ? ACTIVE_COLOR : INACTIVE_COLOR;
+        const icon = TAB_ICONS[route.name] ?? "ellipse-outline";
+        const label =
+          (descriptors[route.key]?.options.title as string | undefined) ??
+          route.name;
+        return (
+          <TouchableOpacity
+            key={route.key}
+            style={styles.barItem}
+            onPress={() => {
+              const event = navigation.emit({
+                type: "tabPress",
+                target: route.key,
+                canPreventDefault: true,
+              });
+              if (!focused && !event.defaultPrevented) {
+                navigation.navigate(route.name);
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name={icon} size={22} color={color} />
+            <Text style={[styles.barLabel, { color }]}>{label}</Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
@@ -171,8 +169,8 @@ function TabNavigator() {
       >
         <MaterialTopTabs.Screen name="index" options={{ title: "Hem" }} />
         <MaterialTopTabs.Screen
-          name="sessions"
-          options={{ title: "Sessioner" }}
+          name="my-questions"
+          options={{ title: "Mina frågor" }}
         />
         <MaterialTopTabs.Screen name="vote" options={{ title: "Rösta" }} />
         <MaterialTopTabs.Screen

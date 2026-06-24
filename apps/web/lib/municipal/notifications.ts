@@ -6,7 +6,6 @@
 import { User } from "../models";
 import { sendEmail } from "../email";
 import { sendSMS, formatPhoneNumber } from "../sms";
-import { getCategoryName } from "./agenda-extractor";
 import { createLogger } from "../logger";
 
 const log = createLogger("Notifications");
@@ -28,21 +27,15 @@ export async function sendMunicipalSessionNotifications(municipalSession) {
 
     const categoriesArray = Array.from(allCategories);
 
-    // User interests are stored as category-name strings (`User.interests`),
-    // while municipal items use numeric codes 1-7, so translate to names to
-    // match. NOTE: the numeric municipal taxonomy (CATEGORY_NAMES) and the new
-    // interest taxonomy (packages/types categories) only partially overlap —
-    // matching is best-effort until the two taxonomies are reconciled.
-    const categoryNames = categoriesArray.map((c) => getCategoryName(c));
-
     log.info("Sending notifications", {
       sessionName: municipalSession.name,
-      categories: categoryNames,
+      categories: categoriesArray,
     });
 
-    // Find all users interested in these categories
+    // Find all users interested in these categories — item.categories are
+    // already ALL_CATEGORIES strings, the same format as User.interests.
     const interestedUsers = await User.find({
-      interests: { $in: categoryNames },
+      interests: { $in: categoriesArray },
       userType: { $in: ["member", "citizen"] }, // Only notify registered users
       notificationPreference: { $ne: "none" }, // Skip users who disabled notifications
     });
@@ -61,7 +54,7 @@ export async function sendMunicipalSessionNotifications(municipalSession) {
       // Find which items match this user's interests
       const relevantItems = municipalSession.items.filter((item) =>
         (item.categories || []).some((cat) =>
-          (user.interests || []).includes(getCategoryName(cat)),
+          (user.interests || []).includes(cat),
         ),
       );
 

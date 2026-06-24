@@ -143,7 +143,7 @@ export default function BudgetIndexPage() {
             <p className="text-sm text-blue-800">
               <strong>Admin:</strong> Manage budget sessions from the{" "}
               <button
-                onClick={() => router.push("/budget/admin")}
+                onClick={() => router.push("/admin/my-questions/budget")}
                 className="underline hover:text-blue-900"
               >
                 Budget Admin Panel

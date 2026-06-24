@@ -12,18 +12,11 @@ import {
   AlertCircle,
   Send,
   Plus,
+  ImagePlus,
 } from "lucide-react";
-import { fetchWithCsrf } from "../../lib/fetch-with-csrf";
-
-const CATEGORY_NAMES = {
-  1: "Bygga, bo och miljö",
-  2: "Fritid och kultur",
-  3: "Förskola och skola",
-  4: "Ändring av styrdokument",
-  5: "Näringsliv och arbete",
-  6: "Omsorg och hjälp",
-  7: "Övrigt kommun och politik",
-};
+import { ALL_CATEGORIES } from "@repo/types";
+import { fetchWithCsrf } from "../../../lib/fetch-with-csrf";
+import MyQuestionsSubNav from "../../../components/admin/MyQuestionsSubNav";
 
 export default function MunicipalAdminPage() {
   const { data: session, status } = useSession();
@@ -43,6 +36,7 @@ export default function MunicipalAdminPage() {
   // Review session
   const [reviewSession, setReviewSession] = useState(null);
   const [editingItems, setEditingItems] = useState([]);
+  const [imageUploading, setImageUploading] = useState(null);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -157,6 +151,35 @@ export default function MunicipalAdminPage() {
     }
   };
 
+  const handleSaveDraft = async () => {
+    if (!reviewSession) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetchWithCsrf("/api/municipal/sessions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: reviewSession._id,
+          action: "update",
+          updates: { items: editingItems },
+        }),
+      });
+      if (res.ok) {
+        setSuccess("Ändringarna har sparats");
+        await fetchSessions();
+      } else {
+        const data = await res.json().catch(() => null);
+        setError(data?.message || "Misslyckades att spara");
+      }
+    } catch (err) {
+      console.error("Error saving draft:", err);
+      setError("Ett fel uppstod vid sparande");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDeleteSession = async (sessionId) => {
     if (!confirm("Är du säker på att du vill ta bort denna session?")) return;
 
@@ -218,6 +241,33 @@ export default function MunicipalAdminPage() {
     ]);
   };
 
+  async function uploadItemImage(itemIndex, file) {
+    const item = editingItems[itemIndex];
+    if (!item?._id || !reviewSession?._id) return;
+    setImageUploading(itemIndex);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("municipalSessionId", reviewSession._id);
+      formData.append("itemId", item._id);
+      const res = await fetch("/api/admin/municipal-item-image", {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        const { imageUrl } = await res.json();
+        updateItem(itemIndex, "imageUrl", imageUrl);
+      } else {
+        const data = await res.json().catch(() => null);
+        alert(data?.message || "Kunde inte ladda upp bilden");
+      }
+    } catch {
+      alert("Uppladdning misslyckades");
+    } finally {
+      setImageUploading(null);
+    }
+  }
+
   if (status === "loading") return <div className="p-8">Laddar...</div>;
   if (!session?.user?.isSuperAdmin) return null;
 
@@ -237,15 +287,17 @@ export default function MunicipalAdminPage() {
             </div>
           </div>
           <button
-            onClick={() => router.push("/admin")}
+            onClick={() => router.push("/admin/my-questions")}
             className="px-4 py-2 bg-white hover:bg-gray-100 text-slate-900 font-medium rounded-lg transition-colors"
           >
-            Tillbaka till Admin
+            Tillbaka till Mina frågor
           </button>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto p-6">
+        <MyQuestionsSubNav active="municipal" />
+
         {/* Alerts */}
         {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800">
@@ -457,6 +509,15 @@ export default function MunicipalAdminPage() {
                 >
                   Avbryt
                 </button>
+                {reviewSession.status === "draft" && (
+                  <button
+                    onClick={handleSaveDraft}
+                    disabled={loading}
+                    className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Spara utkast
+                  </button>
+                )}
                 <button
                   onClick={handlePublish}
                   disabled={loading}
@@ -471,7 +532,7 @@ export default function MunicipalAdminPage() {
             <div className="space-y-6">
               {editingItems.map((item, index) => (
                 <div
-                  key={index}
+                  key={item._id || index}
                   className="border rounded-lg p-4 bg-gray-50 relative"
                 >
                   <div className="mb-3 flex items-start justify-between">
@@ -488,32 +549,82 @@ export default function MunicipalAdminPage() {
                   </div>
 
                   <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">
-                        Rubrik (aktiv formulering)
-                      </label>
-                      <input
-                        type="text"
-                        value={item.title}
-                        onChange={(e) =>
-                          updateItem(index, "title", e.target.value)
-                        }
-                        className="w-full px-3 py-2 border rounded"
-                      />
-                    </div>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <div className="flex-shrink-0 space-y-1">
+                        {item.imageUrl && (
+                          <img
+                            src={item.imageUrl}
+                            alt=""
+                            className="w-20 h-20 rounded-lg object-cover"
+                          />
+                        )}
+                        {item._id ? (
+                          <label
+                            className={`flex items-center justify-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                              imageUploading === index
+                                ? "opacity-50 cursor-not-allowed bg-white border-gray-200 text-gray-400"
+                                : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                            }`}
+                          >
+                            <ImagePlus className="w-3.5 h-3.5" />
+                            {imageUploading === index
+                              ? "Laddar upp…"
+                              : item.imageUrl
+                                ? "Byt bild"
+                                : "Lägg till bild"}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              disabled={imageUploading === index}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) uploadItemImage(index, file);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                        ) : (
+                          <p className="text-[11px] text-gray-400 max-w-[120px]">
+                            Spara utkastet för att kunna ladda upp en bild
+                          </p>
+                        )}
+                        {item.ratingCount > 0 && (
+                          <p className="text-xs text-amber-600">
+                            ★ {item.averageRating.toFixed(1)} (
+                            {item.ratingCount})
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">
+                            Rubrik (aktiv formulering)
+                          </label>
+                          <input
+                            type="text"
+                            value={item.title}
+                            onChange={(e) =>
+                              updateItem(index, "title", e.target.value)
+                            }
+                            className="w-full px-3 py-2 border rounded"
+                          />
+                        </div>
 
-                    <div>
-                      <label className="block text-sm font-medium mb-1">
-                        Beskrivning
-                      </label>
-                      <textarea
-                        value={item.description}
-                        onChange={(e) =>
-                          updateItem(index, "description", e.target.value)
-                        }
-                        rows={3}
-                        className="w-full px-3 py-2 border rounded"
-                      />
+                        <div>
+                          <label className="block text-sm font-medium mb-1">
+                            Beskrivning
+                          </label>
+                          <textarea
+                            value={item.description}
+                            onChange={(e) =>
+                              updateItem(index, "description", e.target.value)
+                            }
+                            rows={3}
+                            className="w-full px-3 py-2 border rounded"
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     <div>
@@ -521,7 +632,7 @@ export default function MunicipalAdminPage() {
                         Kategorier (max 3)
                       </label>
                       <div className="flex flex-wrap gap-2">
-                        {[1, 2, 3, 4, 5, 6, 7].map((cat) => {
+                        {ALL_CATEGORIES.map((cat) => {
                           const isSelected = item.categories?.includes(cat);
                           return (
                             <button
@@ -534,7 +645,7 @@ export default function MunicipalAdminPage() {
                                   : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                               }`}
                             >
-                              {cat}. {CATEGORY_NAMES[cat]}
+                              {cat}
                             </button>
                           );
                         })}
