@@ -92,7 +92,8 @@ function SessionsPanel() {
   const [noMotivation, setNoMotivation] = useState(false);
   const [singleResult, setSingleResult] = useState(false);
   const [onlyYesVotes, setOnlyYesVotes] = useState(false);
-  const [sessionType, setSessionType] = useState("standard"); // "standard", "survey", or "voting"
+  const [sessionType, setSessionType] = useState("voting");
+  const [newImage, setNewImage] = useState<File | null>(null);
   const [surveyDurationDays, setSurveyDurationDays] = useState("6");
   const [message, setMessage] = useState("");
   const [remainingSessions, setRemainingSessions] = useState(null);
@@ -295,6 +296,11 @@ function SessionsPanel() {
           setMessage("Session created!");
         }
 
+        if (newImage) {
+          await uploadImage(data._id, newImage);
+          setNewImage(null);
+        }
+
         // Reload page to apply new settings if they were saved
         if (settingsSaved) {
           setTimeout(() => {
@@ -306,7 +312,7 @@ function SessionsPanel() {
           setNewPlace("Write a short question max eight words here");
           setMaxOneProposalPerUser(false);
           setOnlyYesVotes(false);
-          setSessionType("standard");
+          setSessionType("voting");
           setSurveyDurationDays("6");
           setCategories([]);
           setTimeout(() => setMessage(""), data.isLastSession ? 5000 : 3000);
@@ -590,6 +596,23 @@ function SessionsPanel() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   type="button"
+                  onClick={() => setSessionType("voting")}
+                  className={`flex-1 p-4 rounded-xl border-2 transition-all text-left ${
+                    sessionType === "voting"
+                      ? "border-green-500 bg-green-50"
+                      : "border-slate-300 hover:border-slate-400"
+                  }`}
+                >
+                  <span className="block font-semibold text-slate-800">
+                    📱 Mobilapp — Ja/Nej
+                  </span>
+                  <span className="text-xs text-slate-500 mt-1 block">
+                    Fråga med Ja/Nej-svar — visas i flödets Hem- och
+                    Rösta-flikar
+                  </span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setSessionType("standard")}
                   className={`flex-1 p-4 rounded-xl border-2 transition-all text-left ${
                     sessionType === "standard"
@@ -598,7 +621,7 @@ function SessionsPanel() {
                   }`}
                 >
                   <span className="block font-semibold text-slate-800">
-                    Standard (Democracy)
+                    Webapp – Live session
                   </span>
                   <span className="text-xs text-slate-500 mt-1 block">
                     Two phases: idea collection with ratings, then debate &
@@ -619,23 +642,6 @@ function SessionsPanel() {
                   </span>
                   <span className="text-xs text-slate-500 mt-1 block">
                     Time-limited responses with live rankings, then archived
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSessionType("voting")}
-                  className={`flex-1 p-4 rounded-xl border-2 transition-all text-left ${
-                    sessionType === "voting"
-                      ? "border-green-500 bg-green-50"
-                      : "border-slate-300 hover:border-slate-400"
-                  }`}
-                >
-                  <span className="block font-semibold text-slate-800">
-                    Voting (Yes/No/Abstain)
-                  </span>
-                  <span className="text-xs text-slate-500 mt-1 block">
-                    Single question with three choices — shown as "Question of
-                    the Day" in the mobile app
                   </span>
                 </button>
               </div>
@@ -821,6 +827,25 @@ function SessionsPanel() {
                   {remainingSessions}
                 </strong>
               </p>
+            )}
+
+            {sessionType === "voting" && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Bakgrundsbild (valfri)
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setNewImage(e.target.files?.[0] ?? null)}
+                  className="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
+                />
+                {newImage && (
+                  <p className="text-xs text-green-600 mt-1">
+                    ✓ {newImage.name}
+                  </p>
+                )}
+              </div>
             )}
 
             <button

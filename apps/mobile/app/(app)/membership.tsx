@@ -28,6 +28,29 @@ const BENEFITS = [
   "Inbjudan till exklusiva möten och fester",
 ];
 
+const VALUES = [
+  {
+    icon: "people-outline" as const,
+    title: "INFLYTANDE",
+    text: "Du som bor i Vallentuna ska ha samma rätt att påverka här som en aktieägare. Swipa, scrolla och rösta för att vara med.",
+  },
+  {
+    icon: "leaf-outline" as const,
+    title: "UTVECKLING",
+    text: "Vallentuna ska växa in i framtiden och bli föregångare inom sociotekniska innovationer. Vi ska också bevara naturen och skapa ett bra liv för kommande generationer.",
+  },
+  {
+    icon: "sunny-outline" as const,
+    title: "POLICY",
+    text: "För att motverka maktmissbruk är appen anonym. Det skyddar mot personpåhopp, korruption och åsiktsregistrering.",
+  },
+  {
+    icon: "sparkles" as const,
+    title: "MAJ",
+    text: "MAJ är en AI-betjänt som hjälper dig att göra rätt, men det är du som bestämmer. Gör MAJ något konstigt så finns det en anmälningsknapp. Tryck så granskar vi den.\n\nVarje år lämnar MAJ en demokratirapport som mäter maktkoncentrationen i lokalpartiet. Vi vill inte ha någon mäktig ledare utan mäktiga medborgare.",
+  },
+];
+
 export default function MembershipScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -36,7 +59,7 @@ export default function MembershipScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Bli medlem</Text>
+        <Text style={styles.headerTitle}>Info</Text>
       </View>
 
       <ScrollView
@@ -47,6 +70,28 @@ export default function MembershipScreen() {
           <Ionicons name="people" size={40} color={YELLOW} />
           <Text style={styles.heroTitle}>Vallentuna Framåt</Text>
           <Text style={styles.heroSub}>Ditt lokala parti där du bestämmer</Text>
+        </View>
+
+        {VALUES.map((v) => (
+          <View key={v.title} style={styles.valueCard}>
+            <View style={styles.valueIcon}>
+              <Ionicons name={v.icon} size={22} color={BLUE} />
+            </View>
+            <View style={styles.valueText}>
+              <Text style={styles.valueTitle}>{v.title}</Text>
+              <Text style={styles.valueBody}>{v.text}</Text>
+            </View>
+          </View>
+        ))}
+
+        <View style={styles.aboutBox}>
+          <Text style={styles.aboutTitle}>Om den här appen</Text>
+          <Text style={styles.aboutBody}>
+            Rösta, lämna förslag och följ vad som händer i kommunen. Alla
+            medborgare i Vallentuna har rösträtt. Om du röstar in oss den 13
+            september så framför vi dina åsikter i lokalpolitiken de närmaste
+            fyra åren.
+          </Text>
         </View>
 
         <View style={styles.rulesCard}>
@@ -191,6 +236,52 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   heroSub: { color: "rgba(255,255,255,0.7)", fontSize: 15 },
+
+  valueCard: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 16,
+    padding: 14,
+    gap: 12,
+  },
+  valueIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  valueText: { flex: 1 },
+  valueTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: YELLOW,
+    marginBottom: 4,
+    letterSpacing: 0.5,
+  },
+  valueBody: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.8)",
+    lineHeight: 20,
+  },
+
+  aboutBox: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 16,
+    padding: 20,
+  },
+  aboutTitle: {
+    color: YELLOW,
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 8,
+  },
+  aboutBody: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 15,
+    lineHeight: 22,
+  },
 
   rulesCard: {
     backgroundColor: "rgba(255,255,255,0.08)",

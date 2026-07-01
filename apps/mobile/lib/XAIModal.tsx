@@ -27,7 +27,6 @@ interface Message {
 
 const TAB_LABEL: Record<string, string> = {
   "/": "Hem",
-  "/my-questions": "Mina frågor",
   "/vote": "Rösta",
   "/proposals": "Förslag",
   "/archive": "Arkiv",
@@ -36,22 +35,12 @@ const TAB_LABEL: Record<string, string> = {
 const QUICK_ACTIONS: Record<string, { label: string; message: string }[]> = {
   "/": [
     {
+      label: "Hur väljer jag frågor?",
+      message: "Hur väljer jag vilka frågor jag ser och röstar i?",
+    },
+    {
       label: "Vad är MAJ?",
       message: "Vad är MAJ och hur fungerar det i appen?",
-    },
-    {
-      label: "Förklara appen",
-      message: "Hur fungerar Vallentuna Framåt-appen?",
-    },
-  ],
-  "/my-questions": [
-    {
-      label: "Vad är Mina frågor?",
-      message: "Vad är Mina frågor och hur väljer jag vilka ämnen jag ser?",
-    },
-    {
-      label: "Hur ändrar jag intressen?",
-      message: "Hur ändrar jag mina valda intresseområden?",
     },
   ],
   "/vote": [

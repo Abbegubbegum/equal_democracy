@@ -27,7 +27,21 @@ export default async function handler(
 
   await connectDB();
 
+  const CITIZEN_PROPOSAL_LIMIT = 1;
+
   if (req.method === "POST") {
+    if (!user.isAdmin) {
+      const existing = await CitizenProposal.countDocuments({
+        authorId: user.id,
+      });
+      if (existing >= CITIZEN_PROPOSAL_LIMIT) {
+        return res.status(403).json({
+          message:
+            "Du har redan lämnat ditt medborgarförslag — varje medlem får lämna ett förslag fram till valet den 13 september.",
+        });
+      }
+    }
+
     const form = formidable({
       keepExtensions: true,
       maxFileSize: 600 * 1024, // 600 KB — mobile already compresses to ~max 500 KB
@@ -130,16 +144,20 @@ export default async function handler(
       .lean();
 
     const proposalIds = proposals.map((p) => p._id);
-    const userRatings = await CitizenProposalRating.find({
-      proposalId: { $in: proposalIds },
-      userId: user.id,
-    }).lean();
+    const [userRatings, ownCount] = await Promise.all([
+      CitizenProposalRating.find({
+        proposalId: { $in: proposalIds },
+        userId: user.id,
+      }).lean(),
+      CitizenProposal.countDocuments({ authorId: user.id }),
+    ]);
     const ratingMap = Object.fromEntries(
       userRatings.map((r) => [r.proposalId.toString(), r.rating]),
     );
+    const canSubmit = user.isAdmin || ownCount < CITIZEN_PROPOSAL_LIMIT;
 
-    return res.status(200).json(
-      proposals.map((p) => ({
+    return res.status(200).json({
+      proposals: proposals.map((p) => ({
         id: p._id.toString(),
         title: p.title,
         description: p.description,
@@ -149,7 +167,8 @@ export default async function handler(
         ratingCount: p.ratingCount || 0,
         userRating: ratingMap[p._id.toString()] || 0,
       })),
-    );
+      canSubmit,
+    });
   } catch (error) {
     log.error("Failed to fetch citizen proposals", { error: error.message });
     return res.status(500).json({ message: "Failed to fetch proposals" });

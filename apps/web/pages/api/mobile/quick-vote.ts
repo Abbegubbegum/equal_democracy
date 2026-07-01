@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../lib/mongodb";
-import { QuickVote } from "../../../lib/models";
+import { QuickVote, Session } from "../../../lib/models";
 import { verifyBearerToken } from "../../../lib/mobile-jwt";
 import { createLogger } from "../../../lib/logger";
 
@@ -22,11 +22,36 @@ export default async function handler(
 
   const { sessionId, choice } = req.body;
   if (!sessionId) return res.status(400).json({ message: "sessionId krävs" });
-  if (!["ja", "nej", "abstar"].includes(choice))
+  if (!["ja", "nej"].includes(choice))
     return res.status(400).json({ message: "Ogiltigt val" });
 
   try {
     await connectDB();
+
+    const existingVote = await QuickVote.findOne({
+      sessionId,
+      userId: user.id,
+    }).lean();
+
+    if (!existingVote) {
+      const session: any = await Session.findById(sessionId)
+        .select("status")
+        .lean();
+      if (!session || session.status !== "active") {
+        return res
+          .status(403)
+          .json({ message: "Den här frågan är stängd för röstning." });
+      }
+
+      const PRE_ELECTION_LIMIT = 5;
+      const used = await QuickVote.countDocuments({ userId: user.id });
+      if (used >= PRE_ELECTION_LIMIT) {
+        return res.status(403).json({
+          message:
+            "Du har röstat i 5 frågor — det är din kvot fram till valet den 13 september.",
+        });
+      }
+    }
 
     await QuickVote.findOneAndUpdate(
       { sessionId, userId: user.id },
@@ -39,7 +64,6 @@ export default async function handler(
       voteCounts: {
         ja: allVotes.filter((v) => v.choice === "ja").length,
         nej: allVotes.filter((v) => v.choice === "nej").length,
-        abstar: allVotes.filter((v) => v.choice === "abstar").length,
       },
       userVote: choice,
     });

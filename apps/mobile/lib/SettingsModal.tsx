@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
@@ -22,6 +23,7 @@ const YELLOW = "#f5a623";
 
 export const STORAGE_INTERESTS = "user_interests";
 export const STORAGE_INTERESTS_ONLY = "user_interests_only";
+export const STORAGE_PHONE = "user_phone_number";
 
 export function SettingsModal({
   visible,
@@ -36,6 +38,7 @@ export function SettingsModal({
   const { user, logout } = useAuth();
   const [localInterests, setLocalInterests] = useState<string[]>(["budget"]);
   const [localOnly, setLocalOnly] = useState(true);
+  const [phoneNumber, setPhoneNumber] = useState("");
 
   useEffect(() => {
     if (!visible) return;
@@ -44,6 +47,8 @@ export function SettingsModal({
       if (saved) setLocalInterests(JSON.parse(saved));
       const savedOnly = await getItem(STORAGE_INTERESTS_ONLY);
       if (savedOnly !== null) setLocalOnly(savedOnly === "true");
+      const savedPhone = await getItem(STORAGE_PHONE);
+      setPhoneNumber(savedPhone ?? "");
     })();
   }, [visible]);
 
@@ -57,6 +62,8 @@ export function SettingsModal({
   async function handleSave() {
     await setItem(STORAGE_INTERESTS, JSON.stringify(localInterests));
     await setItem(STORAGE_INTERESTS_ONLY, String(localOnly));
+    const trimmedPhone = phoneNumber.trim();
+    await setItem(STORAGE_PHONE, trimmedPhone);
     // Persist to DB — deduplicate since multiple keys can map to the same category
     const dbInterests = [
       ...new Set(
@@ -70,6 +77,14 @@ export function SettingsModal({
       });
     } catch {
       // fail silently — local preferences still saved
+    }
+    try {
+      await apiClient("/api/mobile/user/phone", {
+        method: "POST",
+        body: JSON.stringify({ phoneNumber: trimmedPhone }),
+      });
+    } catch {
+      // fail silently — local value still saved
     }
     onClose();
     onSaved?.();
@@ -159,6 +174,25 @@ export function SettingsModal({
                     onValueChange={setLocalOnly}
                     trackColor={{ false: "#e5e7eb", true: BLUE }}
                     thumbColor="#fff"
+                  />
+                </View>
+
+                <View style={st.divider} />
+
+                <View style={{ marginBottom: 4 }}>
+                  <Text style={st.toggleLabel}>Mobilnummer</Text>
+                  <Text style={st.toggleHint}>
+                    Få en sms-påminnelse inför viktiga omröstningar, t.ex. valet
+                    den 13 september.
+                  </Text>
+                  <TextInput
+                    style={st.phoneInput}
+                    value={phoneNumber}
+                    onChangeText={setPhoneNumber}
+                    placeholder="07XX-XXX XX XX"
+                    placeholderTextColor="#aaa"
+                    keyboardType="phone-pad"
+                    autoComplete="tel"
                   />
                 </View>
 
@@ -304,6 +338,16 @@ const st = StyleSheet.create({
   },
   toggleLabel: { fontSize: 15, fontWeight: "600", color: "#222" },
   toggleHint: { fontSize: 12, color: "#aaa", marginTop: 2 },
+  phoneInput: {
+    borderWidth: 1.5,
+    borderColor: "#e5e7eb",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontSize: 15,
+    color: "#222",
+    marginTop: 10,
+  },
   saveBtn: {
     flexDirection: "row",
     alignItems: "center",

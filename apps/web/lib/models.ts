@@ -258,10 +258,11 @@ const CommentSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // Optional: "voting"-type session debates have no Proposal — the
+    // Comment attaches to sessionId alone in that case.
     proposalId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Proposal",
-      required: true,
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,

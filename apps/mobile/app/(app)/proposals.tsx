@@ -20,6 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { apiClient, BASE_URL, getAccessToken } from "../../lib/api";
+import { useAuth } from "../../lib/auth-context";
 import CelebrationModal from "../../lib/CelebrationModal";
 import { addStars } from "../../lib/stars";
 
@@ -310,12 +311,17 @@ function SubmitModal({
                 <View style={styles.handle} />
                 <View style={styles.sheetHeader}>
                   <Text style={styles.sheetTitle}>Nytt medborgarförslag</Text>
-                  <TouchableOpacity onPress={onClose} hitSlop={12}>
-                    <Ionicons name="close" size={22} color="#666" />
+                  <TouchableOpacity
+                    onPress={onClose}
+                    hitSlop={12}
+                    style={styles.closeButton}
+                  >
+                    <Ionicons name="close" size={22} color="#333" />
                   </TouchableOpacity>
                 </View>
 
                 <ScrollView
+                  style={{ flexShrink: 1 }}
                   showsVerticalScrollIndicator={false}
                   keyboardShouldPersistTaps="handled"
                 >
@@ -374,7 +380,11 @@ function SubmitModal({
                   </View>
 
                   <Text style={styles.catGroupLabel}>Plats</Text>
-                  <View style={styles.chipRow}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipRow}
+                  >
                     {GEOGRAPHIC_CATEGORIES.map((cat) => (
                       <TouchableOpacity
                         key={cat}
@@ -395,12 +405,16 @@ function SubmitModal({
                         </Text>
                       </TouchableOpacity>
                     ))}
-                  </View>
+                  </ScrollView>
 
                   <Text style={[styles.catGroupLabel, { marginTop: 8 }]}>
                     Ämne
                   </Text>
-                  <View style={styles.chipRow}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipRow}
+                  >
                     {THEMATIC_CATEGORIES.map((cat) => (
                       <TouchableOpacity
                         key={cat}
@@ -421,7 +435,7 @@ function SubmitModal({
                         </Text>
                       </TouchableOpacity>
                     ))}
-                  </View>
+                  </ScrollView>
 
                   {/* Image */}
                   <View style={{ marginTop: 8 }}>
@@ -497,7 +511,9 @@ function SubmitModal({
 
 export default function ProposalsScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const [proposals, setProposals] = useState<CitizenProposal[]>([]);
+  const [canSubmit, setCanSubmit] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -532,10 +548,12 @@ export default function ProposalsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiClient<CitizenProposal[]>(
-        "/api/mobile/citizen-proposals",
-      );
-      setProposals(data);
+      const data = await apiClient<{
+        proposals: CitizenProposal[];
+        canSubmit: boolean;
+      }>("/api/mobile/citizen-proposals");
+      setProposals(data.proposals);
+      setCanSubmit(data.canSubmit);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -564,6 +582,7 @@ export default function ProposalsScreen() {
   async function handleCreated(proposal: CitizenProposal) {
     setProposals((prev) => [proposal, ...prev]);
     setShowModal(false);
+    if (!user?.isAdmin) setCanSubmit(false);
     await addStars(5);
     setCelebration(true);
   }
@@ -616,14 +635,18 @@ export default function ProposalsScreen() {
         <Ionicons name="bulb-outline" size={56} color="#ccc" />
         <Text style={styles.emptyTitle}>Inga medborgarförslag</Text>
         <Text style={styles.emptyText}>
-          Var den första att lämna ett förslag.
+          {canSubmit
+            ? "Var den första att lämna ett förslag."
+            : "Du har redan lämnat ditt medborgarförslag fram till valet den 13 september."}
         </Text>
-        <TouchableOpacity
-          style={styles.retryBtn}
-          onPress={() => setShowModal(true)}
-        >
-          <Text style={styles.retryText}>Lämna ett förslag</Text>
-        </TouchableOpacity>
+        {canSubmit && (
+          <TouchableOpacity
+            style={styles.retryBtn}
+            onPress={() => setShowModal(true)}
+          >
+            <Text style={styles.retryText}>Lämna ett förslag</Text>
+          </TouchableOpacity>
+        )}
         {showModal && (
           <SubmitModal
             onClose={() => setShowModal(false)}
@@ -659,14 +682,17 @@ export default function ProposalsScreen() {
         ))}
       </ScrollView>
 
-      {/* Floating action button */}
-      <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom + 16 }]}
-        onPress={() => setShowModal(true)}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="add" size={28} color={BLUE} />
-      </TouchableOpacity>
+      {/* Submit-proposal button — one idea per non-admin user before the election */}
+      {canSubmit && (
+        <TouchableOpacity
+          style={[styles.fab, { bottom: insets.bottom + 16 }]}
+          onPress={() => setShowModal(true)}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add" size={18} color={BLUE} />
+          <Text style={styles.fabText}>Mitt förslag för Vallentuna framåt</Text>
+        </TouchableOpacity>
+      )}
 
       {showModal && (
         <SubmitModal
@@ -804,21 +830,29 @@ const styles = StyleSheet.create({
   },
   retryText: { color: "#fff", fontWeight: "700" },
 
-  // FAB
+  // Submit-proposal button
   fab: {
     position: "absolute",
+    left: 20,
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: YELLOW,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 16,
+    backgroundColor: YELLOW,
     shadowColor: "#000",
     shadowOpacity: 0.25,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
     elevation: 6,
+  },
+  fabText: {
+    color: BLUE,
+    fontSize: 15,
+    fontWeight: "800",
+    textAlign: "center",
   },
 
   // Modal
@@ -827,7 +861,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
   },
-  kav: { justifyContent: "flex-end" },
+  kav: { flex: 1, justifyContent: "flex-end" },
   sheet: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
@@ -835,6 +869,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     gap: 8,
+    maxHeight: "88%",
   },
   handle: {
     width: 40,
@@ -851,6 +886,11 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   sheetTitle: { fontSize: 17, fontWeight: "800", color: "#111" },
+  closeButton: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 16,
+    padding: 6,
+  },
   inputLabel: { fontSize: 13, fontWeight: "600", color: "#333", marginTop: 4 },
   textInput: {
     borderWidth: 1,
@@ -913,7 +953,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 6,
   },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  chipRow: { flexDirection: "row", gap: 6, paddingRight: 4 },
   chip: {
     paddingHorizontal: 10,
     paddingVertical: 5,

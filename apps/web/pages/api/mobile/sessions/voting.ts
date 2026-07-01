@@ -23,7 +23,8 @@ export default async function handler(
   try {
     await connectDB();
 
-    const [activeSessions, pastSessions] = await Promise.all([
+    const PRE_ELECTION_LIMIT = 5;
+    const [activeSessions, pastSessions, used] = await Promise.all([
       Session.find({ status: "active", sessionType: "voting" })
         .select("_id place imageUrl startDate createdAt status categories")
         .sort({ createdAt: -1 })
@@ -35,10 +36,13 @@ export default async function handler(
         .select("_id place imageUrl startDate createdAt status categories")
         .sort({ createdAt: -1 })
         .lean(),
+      QuickVote.countDocuments({ userId: user.id }),
     ]);
+    const quota = { used, limit: PRE_ELECTION_LIMIT };
 
     const allSessions = [...activeSessions, ...pastSessions];
-    if (allSessions.length === 0) return res.status(200).json([]);
+    if (allSessions.length === 0)
+      return res.status(200).json({ sessions: [], quota });
 
     const sessionIds = allSessions.map((s) => s._id);
     const [allVotes, userVotes] = await Promise.all([
@@ -66,14 +70,13 @@ export default async function handler(
         voteCounts: {
           ja: votes.filter((v) => v.choice === "ja").length,
           nej: votes.filter((v) => v.choice === "nej").length,
-          abstar: votes.filter((v) => v.choice === "abstar").length,
         },
         createdAt: s.createdAt,
         userVote: userVoteMap[sid] ?? null,
       };
     });
 
-    return res.status(200).json(result);
+    return res.status(200).json({ sessions: result, quota });
   } catch (error) {
     log.error("Failed to fetch voting sessions", { error: error.message });
     return res.status(500).json({ message: "Failed to fetch voting sessions" });

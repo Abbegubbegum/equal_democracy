@@ -215,73 +215,83 @@ function SubmitModal({
 
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Lägg ditt svar</Text>
-                  <TouchableOpacity onPress={onClose} hitSlop={12}>
-                    <Ionicons name="close" size={22} color="#666" />
+                  <TouchableOpacity
+                    onPress={onClose}
+                    hitSlop={12}
+                    style={styles.closeButton}
+                  >
+                    <Ionicons name="close" size={22} color="#333" />
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.modalQuestion} numberOfLines={2}>
-                  {session.place}
-                </Text>
-
-                <Text style={styles.inputLabel}>Ditt förslag *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Skriv ditt förslag här..."
-                  placeholderTextColor="#aaa"
-                  value={title}
-                  onChangeText={setTitle}
-                  maxLength={200}
-                  returnKeyType={session.noMotivation ? "done" : "next"}
-                  autoFocus
-                />
-
-                {!session.noMotivation && (
-                  <>
-                    <Text style={styles.inputLabel}>Problem (valfritt)</Text>
-                    <TextInput
-                      style={[styles.textInput, styles.textInputMulti]}
-                      placeholder="Beskriv problemet..."
-                      placeholderTextColor="#aaa"
-                      value={problem}
-                      onChangeText={setProblem}
-                      maxLength={500}
-                      multiline
-                      numberOfLines={3}
-                    />
-
-                    <Text style={styles.inputLabel}>Lösning (valfritt)</Text>
-                    <TextInput
-                      style={[styles.textInput, styles.textInputMulti]}
-                      placeholder="Beskriv din lösning..."
-                      placeholderTextColor="#aaa"
-                      value={solution}
-                      onChangeText={setSolution}
-                      maxLength={500}
-                      multiline
-                      numberOfLines={3}
-                    />
-                  </>
-                )}
-
-                {!!error && <Text style={styles.modalError}>{error}</Text>}
-
-                <TouchableOpacity
-                  style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
-                  onPress={submit}
-                  disabled={submitting}
+                <ScrollView
+                  style={{ flexShrink: 1 }}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
                 >
-                  {submitting ? (
-                    <ActivityIndicator color="#002d75" />
-                  ) : (
+                  <Text style={styles.modalQuestion} numberOfLines={2}>
+                    {session.place}
+                  </Text>
+
+                  <Text style={styles.inputLabel}>Ditt förslag *</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Skriv ditt förslag här..."
+                    placeholderTextColor="#aaa"
+                    value={title}
+                    onChangeText={setTitle}
+                    maxLength={200}
+                    returnKeyType={session.noMotivation ? "done" : "next"}
+                    autoFocus
+                  />
+
+                  {!session.noMotivation && (
                     <>
-                      <Ionicons name="send" size={16} color="#002d75" />
-                      <Text style={styles.submitBtnText}>
-                        Skicka in förslag
-                      </Text>
+                      <Text style={styles.inputLabel}>Problem (valfritt)</Text>
+                      <TextInput
+                        style={[styles.textInput, styles.textInputMulti]}
+                        placeholder="Beskriv problemet..."
+                        placeholderTextColor="#aaa"
+                        value={problem}
+                        onChangeText={setProblem}
+                        maxLength={500}
+                        multiline
+                        numberOfLines={3}
+                      />
+
+                      <Text style={styles.inputLabel}>Lösning (valfritt)</Text>
+                      <TextInput
+                        style={[styles.textInput, styles.textInputMulti]}
+                        placeholder="Beskriv din lösning..."
+                        placeholderTextColor="#aaa"
+                        value={solution}
+                        onChangeText={setSolution}
+                        maxLength={500}
+                        multiline
+                        numberOfLines={3}
+                      />
                     </>
                   )}
-                </TouchableOpacity>
+
+                  {!!error && <Text style={styles.modalError}>{error}</Text>}
+
+                  <TouchableOpacity
+                    style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
+                    onPress={submit}
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <ActivityIndicator color="#002d75" />
+                    ) : (
+                      <>
+                        <Ionicons name="send" size={16} color="#002d75" />
+                        <Text style={styles.submitBtnText}>
+                          Skicka in förslag
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </ScrollView>
               </View>
             </TouchableWithoutFeedback>
           </KeyboardAvoidingView>
@@ -711,7 +721,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
   },
-  modalKAV: { justifyContent: "flex-end" },
+  modalKAV: { flex: 1, justifyContent: "flex-end" },
   modalSheet: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
@@ -719,6 +729,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     gap: 8,
+    maxHeight: "88%",
   },
   modalHandle: {
     width: 40,
@@ -735,6 +746,11 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   modalTitle: { fontSize: 17, fontWeight: "800", color: "#111" },
+  closeButton: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 16,
+    padding: 6,
+  },
   modalQuestion: { fontSize: 13, color: "#666", marginBottom: 4 },
   inputLabel: { fontSize: 13, fontWeight: "600", color: "#333", marginTop: 4 },
   textInput: {

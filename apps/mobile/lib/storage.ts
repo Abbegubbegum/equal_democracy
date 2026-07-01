@@ -1,8 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 
-/**
- * Key-value storage backed by expo-secure-store (encrypted on-device).
- */
+export const STORAGE_SELECTED_QUESTION = "selected_voting_question";
+
 export async function getItem(key: string): Promise<string | null> {
   return SecureStore.getItemAsync(key);
 }

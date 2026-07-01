@@ -114,13 +114,14 @@ Format: {"status":"ok","message":""}
 
 Statusvärden:
 - "ok"   → acceptabelt, konstruktivt eller normalt politiskt argument (även om starkt)
-- "warn" → repetitivt, tydligt off-topic, personangrepp eller milt ohövligt — ge kort vänligt tips i message
+- "warn" → repetitivt, tydligt off-topic, nonsens/obegriplig text (tangentbordsmadring, slumpmässiga tecken, "test", eller annan text utan faktiskt innehåll), personangrepp eller milt ohövligt — ge kort vänligt tips i message
 - "flag" → svordomar, obscenitet, hat mot folkgrupp, uppmaning till brott, hot eller annat lagbrott — beskriv problemet i message
 
 Regler:
 • Lämna message som tom sträng om status är "ok"
 • message ska vara max 2 meningar på svenska
 • Flagga INTE normala hetsiga argument — bara faktiska överträdelser
+• Om texten är nonsens eller uppenbarligen inte ett argument, fråga vänligt om det verkligen var menat som ett argument (t.ex. i stil med "Hej, är det här verkligen ett argument?")
 • Vid tvekan, välj "warn" framför "flag"`;
 
   try {

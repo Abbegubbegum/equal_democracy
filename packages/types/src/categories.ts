@@ -7,6 +7,7 @@ export const GEOGRAPHIC_CATEGORIES = [
   "Lindholmen",
   "Angarn",
   "Karby",
+  "Ekskogen",
 ] as const;
 
 export const THEMATIC_CATEGORIES = [
@@ -44,10 +45,10 @@ export const INTEREST_TO_CATEGORIES: Record<string, string[]> = {
   infra: ["Trafik & infrastruktur"],
   kultur: ["Fritid & kultur"],
   miljo: ["Miljö & klimat", "Bostäder", "Trygghet & säkerhet"],
-  geo_central: ["Vallentuna centrum"],
-  geo_lindholmen: ["Lindholmen"],
-  geo_karsta: ["Kårsta"],
-  geo_karby: ["Karby", "Össeby-Garn"],
+  geo_central: ["Vallentuna centrum", "Bällsta"],
+  geo_lindholmen: ["Lindholmen", "Frösunda"],
+  geo_karsta: ["Kårsta", "Ekskogen"],
+  geo_brottby: ["Karby", "Össeby-Garn", "Angarn"],
 };
 
 export interface InterestArea {
@@ -74,10 +75,10 @@ export const INTEREST_AREAS: InterestArea[] = [
   { key: "miljo", label: "Miljö och klimat" },
   {
     key: "geo_central",
-    label: "Centrala Vallentuna",
+    label: "Centrala och södra Vallentuna",
     groupLabel: "Geografiska intressen",
   },
-  { key: "geo_lindholmen", label: "Lindholmen och Västra Vallentuna" },
+  { key: "geo_lindholmen", label: "Lindholmen och västra Vallentuna" },
   { key: "geo_karsta", label: "Kårsta och norra Vallentuna" },
-  { key: "geo_karby", label: "Karby, Brottby, Össeby-Garn" },
+  { key: "geo_brottby", label: "Brottby och östra Vallentuna" },
 ];

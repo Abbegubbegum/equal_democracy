@@ -8,7 +8,6 @@ const YELLOW = "#f5a623";
 export interface VoteCounts {
   ja: number;
   nej: number;
-  abstar: number;
 }
 
 export interface VotingSession {
@@ -19,34 +18,37 @@ export interface VotingSession {
   startDate: string;
   createdAt: string;
   voteCounts: VoteCounts;
-  userVote: "ja" | "nej" | "abstar" | null;
+  userVote: "ja" | "nej" | null;
   categories?: string[];
 }
 
-const ALTS: { key: "ja" | "nej" | "abstar"; label: string }[] = [
+export interface VotingQuota {
+  used: number;
+  limit: number;
+}
+
+const ALTS: { key: "ja" | "nej"; label: string }[] = [
   { key: "ja", label: "Ja" },
   { key: "nej", label: "Nej" },
-  { key: "abstar", label: "Avstår" },
 ];
 
-// Shared "fråga"-card used by both the Rösta carousel and the Mina frågor
-// category view — keeps the interactive Ja/Nej/Avstå voting UI identical
-// in both places.
 export function VotingQuestionCard({
   session,
   selected,
   onSelect,
   onVote,
   submitting,
+  onUnselect,
 }: {
   session: VotingSession;
-  selected: "ja" | "nej" | "abstar" | null;
-  onSelect: (key: "ja" | "nej" | "abstar") => void;
+  selected: "ja" | "nej" | null;
+  onSelect: (key: "ja" | "nej") => void;
   onVote: () => void;
   submitting: boolean;
+  onUnselect: () => void;
 }) {
-  const total =
-    session.voteCounts.ja + session.voteCounts.nej + session.voteCounts.abstar;
+  const hasVoted = !!session.userVote;
+  const total = session.voteCounts.ja + session.voteCounts.nej;
   const pct = (n: number) => (total === 0 ? 0 : Math.round((n / total) * 100));
   const isPrimary = session.isActive;
   const showResults = session.userVote != null || !isPrimary;
@@ -156,6 +158,21 @@ export function VotingQuestionCard({
           </Text>
         </View>
       )}
+
+      <TouchableOpacity
+        style={styles.unselectBtn}
+        onPress={onUnselect}
+        activeOpacity={0.75}
+      >
+        <Ionicons
+          name={hasVoted ? "refresh-outline" : "close-circle-outline"}
+          size={16}
+          color={BLUE}
+        />
+        <Text style={styles.unselectBtnText}>
+          {hasVoted ? "Välj en annan fråga" : "Ångra val"}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -239,4 +256,16 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   votedText: { fontSize: 13, color: "#444", fontWeight: "600" },
+
+  unselectBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: "#e5e7eb",
+  },
+  unselectBtnText: { fontSize: 13, fontWeight: "700", color: BLUE },
 });

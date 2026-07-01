@@ -1,342 +1,235 @@
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
-  ScrollView,
   View,
   Text,
   StyleSheet,
-  Image,
+  ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
+  Image,
+  Dimensions,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import Svg, { Path } from "react-native-svg";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  getStars,
-  addStars,
-  isFirstVisit,
-  markFirstVisitSeen,
-  isFirstInterestsSave,
-  markInterestsSaved,
-} from "../../lib/stars";
-import CelebrationModal from "../../lib/CelebrationModal";
-import { SettingsModal } from "../../lib/SettingsModal";
-
-const PLACEHOLDER_IMAGE =
-  "https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&q=80";
+import { Ionicons } from "@expo/vector-icons";
+import { apiClient } from "../../lib/api";
+import { setItem, STORAGE_SELECTED_QUESTION } from "../../lib/storage";
+import type { VotingSession, VotingQuota } from "../../lib/VotingQuestionCard";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
-
-const VALUES = [
-  {
-    icon: "people-outline" as const,
-    title: "INFLYTANDE",
-    text: "Du som bor i Vallentuna ska ha samma rätt att påverka här som en aktieägare. Swipa, scrolla och rösta för att vara med.",
-  },
-  {
-    icon: "leaf-outline" as const,
-    title: "UTVECKLING",
-    text: "Vallentuna ska växa in i framtiden och bli föregångare inom sociotekniska innovationer. Vi ska också bevara naturen och skapa ett bra liv för kommande generationer.",
-  },
-  {
-    icon: "sunny-outline" as const,
-    title: "POLICY",
-    text: "För att motverka maktmissbruk är appen anonym. Det skyddar mot personpåhopp, korruption och åsiktsregistrering.",
-  },
-  {
-    icon: "sparkles" as const,
-    title: "MAJ",
-    text: "MAJ är en AI-betjänt som hjälper dig att göra rätt, men det är du som bestämmer. Gör MAJ något konstigt så finns det en anmälningsknapp. Tryck så granskar vi den.\n\nVarje år lämnar MAJ en demokratirapport som mäter maktkoncentrationen i lokalpartiet. Vi vill inte ha någon mäktig ledare utan mäktiga medborgare.",
-  },
-];
+const CARD_HEIGHT = Math.round(Dimensions.get("window").width * 0.78);
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const [heroHeight, setHeroHeight] = useState(0);
-  const [showSettings, setShowSettings] = useState(false);
-  const [sloganWidth, setSloganWidth] = useState(0);
-  const [starCount, setStarCount] = useState(0);
-  const [celebration, setCelebration] = useState<{
-    title: string;
-    subtitle: string;
-    stars: number;
-  } | null>(null);
+  const navigation = useNavigation<any>();
+  const [sessions, setSessions] = useState<VotingSession[]>([]);
+  const [quota, setQuota] = useState<VotingQuota | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      const stars = await getStars();
-      setStarCount(stars);
-      if (await isFirstVisit()) {
-        await markFirstVisitSeen();
-        const newTotal = await addStars(1);
-        setStarCount(newTotal);
-        setCelebration({
-          title: "Välkommen till Vallentuna Framåt!",
-          subtitle:
-            "Du är nu en del av en unik demokratirörelse. Bra jobbat — det krävs mod att ta steget!",
-          stars: 1,
-        });
-      }
-    })();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, []),
+  );
 
-  async function handleSaved() {
-    if (await isFirstInterestsSave()) {
-      await markInterestsSaved();
-      const newTotal = await addStars(2);
-      setStarCount(newTotal);
-      setCelebration({
-        title: "Profilen är klar!",
-        subtitle:
-          "Du vet vad du bryr dig om. Nu kan vi visa dig det som spelar roll för dig.",
-        stars: 2,
-      });
+  async function load() {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const data = await apiClient<{
+        sessions: VotingSession[];
+        quota: VotingQuota;
+      }>("/api/mobile/sessions/voting");
+      const available = (data.sessions ?? []).filter(
+        (s) => s.isActive && !s.userVote,
+      );
+      setSessions(available);
+      setQuota(data.quota ?? null);
+    } catch (e: any) {
+      setFetchError(e.message);
+    } finally {
+      setLoading(false);
     }
+  }
+
+  async function handleSelect(sessionId: string) {
+    await setItem(STORAGE_SELECTED_QUESTION, sessionId);
+    navigation.navigate("vote");
+  }
+
+  function imageUri(s: VotingSession): string | null {
+    if (!s.imageUrl) return null;
+    return s.imageUrl.startsWith("http")
+      ? s.imageUrl
+      : `${BASE_URL}${s.imageUrl}`;
+  }
+
+  if (loading) {
+    return (
+      <View style={[styles.center, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={YELLOW} />
+      </View>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <View style={[styles.center, { paddingTop: insets.top }]}>
+        <Ionicons name="alert-circle-outline" size={48} color="#dc2626" />
+        <Text style={styles.errorText}>{fetchError}</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={load}>
+          <Text style={styles.retryText}>Försök igen</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (sessions.length === 0) {
+    return (
+      <View style={[styles.center, { paddingTop: insets.top }]}>
+        <Ionicons name="checkmark-circle-outline" size={56} color="#16a34a" />
+        <Text style={styles.emptyTitle}>Du är à jour!</Text>
+        <Text style={styles.emptyText}>
+          {quota && quota.used > 0
+            ? `Du har röstat i ${quota.used} av ${quota.limit} frågor. Kom tillbaka när nästa fråga publiceras.`
+            : "Inga aktiva frågor just nu. Kom tillbaka snart."}
+        </Text>
+      </View>
+    );
   }
 
   return (
     <View style={styles.screen}>
-      <Image
-        source={{ uri: PLACEHOLDER_IMAGE }}
-        style={StyleSheet.absoluteFill}
-        resizeMode="cover"
-      />
-      <View style={styles.overlay} />
-
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.container, { paddingTop: heroHeight }]}
+        contentContainerStyle={[styles.feed, { paddingTop: insets.top + 20 }]}
         showsVerticalScrollIndicator={false}
       >
-        {VALUES.map((v) => (
-          <View key={v.title} style={styles.valueCard}>
-            <View style={styles.valueIcon}>
-              <Ionicons name={v.icon} size={22} color={BLUE} />
-            </View>
-            <View style={styles.valueText}>
-              <Text style={styles.valueTitle}>{v.title}</Text>
-              <Text style={styles.valueBody}>{v.text}</Text>
-            </View>
-          </View>
-        ))}
-
-        <View style={styles.aboutBox}>
-          <Text style={styles.aboutTitle}>Om den här appen</Text>
-          <Text style={styles.aboutBody}>
-            Rösta, lämna förslag och följ vad som händer i kommunen. Alla
-            medborgare i Vallentuna har rösträtt. Om du röstar in oss den 13
-            september så framför vi dina åsikter i lokalpolitiken de närmaste
-            fyra åren.
+        <Text style={styles.feedTitle}>Välj en fråga att rösta på</Text>
+        {quota && (
+          <Text style={styles.quotaLine}>
+            {quota.limit - quota.used} av {quota.limit} röster kvar
           </Text>
-        </View>
+        )}
 
-        <View style={styles.memberBox}>
-          <Text style={styles.memberText}>
-            Vill du bli medlem i partiet och få utökad rösträtt?
-          </Text>
-          <TouchableOpacity
-            style={styles.memberBtn}
-            onPress={() => router.push("/membership" as any)}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="card-outline" size={18} color={BLUE} />
-            <Text style={styles.memberBtnText}>Klicka här</Text>
-          </TouchableOpacity>
-        </View>
+        {sessions.map((s) => {
+          const uri = imageUri(s);
+          return (
+            <View key={s.id} style={styles.card}>
+              {uri ? (
+                <Image
+                  source={{ uri }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View
+                  style={[StyleSheet.absoluteFill, { backgroundColor: BLUE }]}
+                />
+              )}
+              <View style={styles.cardTint} />
+              <View style={styles.cardBottom}>
+                <Text style={styles.cardQuestion}>{s.question}</Text>
+                <TouchableOpacity
+                  style={styles.väljBtn}
+                  onPress={() => handleSelect(s.id)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.väljText}>Välj</Text>
+                  <Ionicons
+                    name="arrow-forward-circle"
+                    size={20}
+                    color={BLUE}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })}
       </ScrollView>
-
-      {/* Fixed blue hero */}
-      <View
-        style={[styles.hero, { paddingTop: insets.top + 16 }]}
-        onLayout={(e) => setHeroHeight(e.nativeEvent.layout.height)}
-      >
-        {/* Gear icon — upper right corner */}
-        <TouchableOpacity
-          style={[styles.gearBtn, { top: insets.top + 10 }]}
-          onPress={() => setShowSettings(true)}
-          hitSlop={8}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="settings-outline"
-            size={24}
-            color="rgba(255,255,255,0.85)"
-          />
-        </TouchableOpacity>
-
-        {/* Star badge — upper left corner */}
-        <View style={[styles.starBadge, { top: insets.top + 14 }]}>
-          <Ionicons name="star" size={14} color={YELLOW} />
-          <Text style={styles.starBadgeText}>{starCount}</Text>
-        </View>
-
-        <Svg
-          width={sloganWidth || 90}
-          height={Math.round(((sloganWidth || 90) * 499) / 650)}
-          viewBox="185 259 650 499"
-          style={{ marginBottom: 8 }}
-        >
-          <Path
-            d="M 200,306 L 200,718 Q 200,768 241,739 L 519,541 Q 560,512 519,483 L 241,285 Q 200,256 200,306 Z"
-            fill={YELLOW}
-          />
-          <Path
-            d="M 480,306 L 480,718 Q 480,768 521,739 L 799,541 Q 840,512 799,483 L 521,285 Q 480,256 480,306 Z"
-            fill={YELLOW}
-          />
-        </Svg>
-        <Text style={styles.partyName}>VALLENTUNA</Text>
-        <Text
-          style={styles.partySlogan}
-          onLayout={(e) => setSloganWidth(e.nativeEvent.layout.width)}
-        >
-          Framåt
-        </Text>
-        <Text style={styles.heroSub}>mot en fri och rättvis demokrati</Text>
-      </View>
-
-      <SettingsModal
-        visible={showSettings}
-        onClose={() => setShowSettings(false)}
-        onSaved={handleSaved}
-      />
-
-      <CelebrationModal
-        visible={!!celebration}
-        title={celebration?.title ?? ""}
-        subtitle={celebration?.subtitle ?? ""}
-        stars={celebration?.stars ?? 1}
-        onDone={() => setCelebration(null)}
-      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  scroll: { flex: 1 },
-  container: { paddingBottom: 40 },
+  screen: { flex: 1, backgroundColor: "#111" },
 
-  hero: {
+  feed: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+    gap: 16,
+  },
+  feedTitle: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  quotaLine: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 13,
+    marginTop: -4,
+  },
+
+  card: {
+    height: CARD_HEIGHT,
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  cardTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.22)",
+  },
+  cardBottom: {
     position: "absolute",
-    top: 0,
+    bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: BLUE,
-    alignItems: "center",
-    paddingBottom: 28,
-    paddingHorizontal: 24,
-    zIndex: 10,
+    padding: 20,
+    paddingTop: 44,
+    backgroundColor: "rgba(0,0,0,0.58)",
   },
-  gearBtn: {
-    position: "absolute",
-    right: 16,
-    padding: 8,
-    zIndex: 1,
+  cardQuestion: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "800",
+    lineHeight: 25,
+    marginBottom: 14,
   },
-  starBadge: {
-    position: "absolute",
-    left: 16,
+  väljBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(0,0,0,0.25)",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    zIndex: 1,
+    alignSelf: "flex-start",
+    backgroundColor: YELLOW,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 12,
+    gap: 8,
   },
-  starBadgeText: { color: "#fff", fontSize: 13, fontWeight: "700" },
-  partyName: {
-    color: "#fff",
-    fontSize: 26,
-    fontWeight: "900",
-    letterSpacing: 4,
+  väljText: { color: BLUE, fontSize: 15, fontWeight: "800" },
+
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+    backgroundColor: "#111",
+    paddingHorizontal: 32,
   },
-  partySlogan: {
-    color: YELLOW,
-    fontSize: 24,
-    fontWeight: "600",
-    marginTop: -2,
-    marginBottom: 12,
-  },
-  heroSub: {
-    color: "rgba(255,255,255,0.8)",
+  emptyTitle: { color: "#fff", fontSize: 20, fontWeight: "700" },
+  emptyText: {
+    color: "rgba(255,255,255,0.55)",
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,
   },
-
-  valueCard: {
-    flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.85)",
-    marginHorizontal: 16,
-    marginBottom: 10,
-    borderRadius: 12,
-    padding: 14,
-    gap: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  valueIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#eef1fa",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  valueText: { flex: 1 },
-  valueTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: BLUE,
-    marginBottom: 4,
-  },
-  valueBody: { fontSize: 15, color: "#555", lineHeight: 21 },
-
-  aboutBox: {
-    margin: 16,
-    marginTop: 8,
-    backgroundColor: "rgba(0,45,117,0.88)",
-    borderRadius: 12,
-    padding: 20,
-  },
-  aboutTitle: {
-    color: YELLOW,
-    fontSize: 17,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  aboutBody: { color: "rgba(255,255,255,0.85)", fontSize: 15, lineHeight: 22 },
-
-  memberBox: {
-    margin: 16,
-    marginTop: 0,
-    backgroundColor: "rgba(255,255,255,0.85)",
-    borderRadius: 12,
-    padding: 20,
-    gap: 14,
-    alignItems: "flex-start",
-  },
-  memberText: { fontSize: 15, color: "#222", lineHeight: 22 },
-  memberBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: YELLOW,
-    paddingHorizontal: 20,
+  errorText: { color: "#dc2626", fontSize: 14, textAlign: "center" },
+  retryBtn: {
+    backgroundColor: BLUE,
+    paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 24,
-    gap: 8,
+    borderRadius: 10,
   },
-  memberBtnText: { color: BLUE, fontSize: 15, fontWeight: "800" },
+  retryText: { color: "#fff", fontWeight: "700" },
 });

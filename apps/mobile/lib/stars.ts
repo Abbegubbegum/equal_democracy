@@ -3,6 +3,7 @@ import { getItem, setItem } from "./storage";
 const STARS_KEY = "user_stars";
 const FIRST_VISIT_KEY = "celebrated_first_visit";
 const INTERESTS_SET_KEY = "celebrated_interests_set";
+const PHONE_SET_KEY = "celebrated_phone_set";
 
 export async function getStars(): Promise<number> {
   try {
@@ -36,4 +37,13 @@ export async function isFirstInterestsSave(): Promise<boolean> {
 
 export async function markInterestsSaved(): Promise<void> {
   await setItem(INTERESTS_SET_KEY, "1");
+}
+
+export async function isFirstPhoneSave(): Promise<boolean> {
+  const seen = await getItem(PHONE_SET_KEY);
+  return !seen;
+}
+
+export async function markPhoneSaved(): Promise<void> {
+  await setItem(PHONE_SET_KEY, "1");
 }

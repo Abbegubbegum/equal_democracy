@@ -50,7 +50,6 @@ const INACTIVE_COLOR = "#aaa";
 
 const TAB_ICONS: Record<string, IoniconsName> = {
   index: "home-outline",
-  "my-questions": "person-outline",
   vote: "checkmark-circle-outline",
   proposals: "bulb-outline",
   membership: "information-circle-outline",
@@ -168,10 +167,6 @@ function TabNavigator() {
         tabBar={(props) => <BottomBar {...props} bottomPad={bottomPad} />}
       >
         <MaterialTopTabs.Screen name="index" options={{ title: "Hem" }} />
-        <MaterialTopTabs.Screen
-          name="my-questions"
-          options={{ title: "Mina frågor" }}
-        />
         <MaterialTopTabs.Screen name="vote" options={{ title: "Rösta" }} />
         <MaterialTopTabs.Screen
           name="proposals"
