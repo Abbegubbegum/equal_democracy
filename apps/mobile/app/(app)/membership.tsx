@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Modal,
   TouchableWithoutFeedback,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -177,6 +178,17 @@ export default function MembershipScreen() {
         >
           <Text style={styles.legalLink}>
             Integritetspolicy & Användarvillkor
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() =>
+            Linking.openURL("https://github.com/Abbegubbegum/equal_democracy")
+          }
+          activeOpacity={0.7}
+        >
+          <Text style={styles.legalLink}>
+            Källkod (öppen källkod, AGPL-3.0)
           </Text>
         </TouchableOpacity>
       </ScrollView>

@@ -288,6 +288,31 @@ export default function LegalPage() {
               <br />
               c/o Norbäck, Björkhagsvägen 75 D, 186 35 Vallentuna
             </p>
+
+            <h3 className="font-bold text-gray-800 mt-6 mb-2">
+              8. Källkod (öppen källkod)
+            </h3>
+            <p className="text-gray-600 text-sm leading-relaxed">
+              Den här tjänsten är fri programvara, licensierad under{" "}
+              <a
+                href="https://www.gnu.org/licenses/agpl-3.0.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#002d75] underline"
+              >
+                GNU AGPL-3.0
+              </a>
+              . Du har rätt att ta del av, granska och återanvända källkoden:{" "}
+              <a
+                href="https://github.com/Abbegubbegum/equal_democracy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#002d75] underline"
+              >
+                github.com/Abbegubbegum/equal_democracy
+              </a>
+              .
+            </p>
           </section>
 
           <div className="mt-12 pt-6 border-t border-gray-100 text-center">
