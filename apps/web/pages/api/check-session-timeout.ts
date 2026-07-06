@@ -7,7 +7,11 @@ import { createLogger } from "@/lib/logger";
 const log = createLogger("SessionTimeout");
 
 /**
- * Closes any active session that has exceeded Settings.sessionLimitHours.
+ * Closes any active standard/survey/municipal session that has exceeded
+ * Settings.sessionLimitHours, and any active "voting" (mobile Ja/Nej) session
+ * that has passed its own admin-set `deadline`. "voting" sessions are never
+ * subject to sessionLimitHours — they run until their deadline or a manual
+ * admin close.
  * Invoked by Vercel Cron (see apps/web/vercel.json) with a Bearer CRON_SECRET.
  */
 export default async function handler(
@@ -32,29 +36,22 @@ export default async function handler(
     const settings = await Settings.findOne({});
     const sessionLimitHours = settings?.sessionLimitHours || 24;
 
-    // Find all active sessions
-    const activeSessions = await Session.find({ status: "active" });
-
-    if (!activeSessions || activeSessions.length === 0) {
-      return res.status(200).json({
-        message: "No active sessions to check",
-        checked: 0,
-        closed: 0,
-      });
-    }
-
     const currentTime = new Date();
     const closedSessions = [];
 
-    // Check each active session
-    for (const session of activeSessions) {
+    // --- Standard/survey/municipal sessions: close on sessionLimitHours ---
+    const timedSessions = await Session.find({
+      status: "active",
+      sessionType: { $ne: "voting" },
+    });
+
+    for (const session of timedSessions) {
       if (!session.startDate) continue;
 
       const sessionStartTime = new Date(session.startDate);
       const elapsedHours =
         (currentTime.getTime() - sessionStartTime.getTime()) / (1000 * 60 * 60);
 
-      // If session has exceeded the time limit, close it
       if (elapsedHours >= sessionLimitHours) {
         log.info("Session exceeded time limit", {
           sessionId: session._id.toString(),
@@ -72,9 +69,40 @@ export default async function handler(
       }
     }
 
+    // --- "voting" (mobile Ja/Nej) sessions: close on their own deadline ---
+    const dueVotingSessions = await Session.find({
+      status: "active",
+      sessionType: "voting",
+      deadline: { $lte: currentTime },
+    });
+
+    for (const session of dueVotingSessions) {
+      log.info("Voting session reached deadline", {
+        sessionId: session._id.toString(),
+        deadline: session.deadline,
+      });
+
+      await closeSession(session);
+      closedSessions.push({
+        sessionId: session._id,
+        place: session.place,
+        deadline: session.deadline,
+      });
+    }
+
+    const checked = timedSessions.length + dueVotingSessions.length;
+
+    if (checked === 0) {
+      return res.status(200).json({
+        message: "No active sessions to check",
+        checked: 0,
+        closed: 0,
+      });
+    }
+
     return res.status(200).json({
-      message: `Checked ${activeSessions.length} session(s), closed ${closedSessions.length}`,
-      checked: activeSessions.length,
+      message: `Checked ${checked} session(s), closed ${closedSessions.length}`,
+      checked,
       closed: closedSessions.length,
       closedSessions,
       sessionLimitHours,

@@ -93,6 +93,7 @@ function SessionsPanel() {
   const [singleResult, setSingleResult] = useState(false);
   const [onlyYesVotes, setOnlyYesVotes] = useState(false);
   const [sessionType, setSessionType] = useState("voting");
+  const [newDeadline, setNewDeadline] = useState("");
   const [newImage, setNewImage] = useState<File | null>(null);
   const [surveyDurationDays, setSurveyDurationDays] = useState("6");
   const [message, setMessage] = useState("");
@@ -252,6 +253,11 @@ function SessionsPanel() {
       return;
     }
 
+    if (sessionType === "voting" && !newDeadline) {
+      setMessage("Deadline is required for Mobilapp — Ja/Nej");
+      return;
+    }
+
     // Warn user if this is their last session
     if (!session?.user?.isSuperAdmin && remainingSessions === 1) {
       const confirmed = confirm(
@@ -282,6 +288,7 @@ function SessionsPanel() {
           sessionType: sessionType,
           surveyDurationDays:
             sessionType === "survey" ? parseInt(surveyDurationDays) : undefined,
+          deadline: sessionType === "voting" ? newDeadline : undefined,
           categories,
         }),
       });
@@ -314,6 +321,7 @@ function SessionsPanel() {
           setOnlyYesVotes(false);
           setSessionType("voting");
           setSurveyDurationDays("6");
+          setNewDeadline("");
           setCategories([]);
           setTimeout(() => setMessage(""), data.isLastSession ? 5000 : 3000);
         }
@@ -647,6 +655,26 @@ function SessionsPanel() {
               </div>
             </div>
 
+            {sessionType === "voting" && (
+              <div className="p-4 bg-green-50 border-2 border-green-200 rounded-xl">
+                <label className="block text-sm font-semibold text-green-800 mb-2">
+                  Deadline (sista dag frågan är aktiv) *
+                </label>
+                <input
+                  type="date"
+                  required
+                  min={new Date().toISOString().slice(0, 10)}
+                  value={newDeadline}
+                  onChange={(e) => setNewDeadline(e.target.value)}
+                  className="w-full border-2 border-green-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <p className="text-xs text-green-700 mt-2">
+                  Frågan stängs automatiskt vid slutet av valt datum. Den stängs
+                  aldrig av en generell tidsgräns.
+                </p>
+              </div>
+            )}
+
             {sessionType === "survey" && (
               <div className="p-4 bg-purple-50 border-2 border-purple-200 rounded-xl">
                 <label className="block text-sm font-semibold text-purple-800 mb-2">
@@ -850,7 +878,7 @@ function SessionsPanel() {
 
             <button
               onClick={createSession}
-              disabled={creating}
+              disabled={creating || (sessionType === "voting" && !newDeadline)}
               className="px-8 py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all"
               style={{
                 backgroundColor: accentColor,
