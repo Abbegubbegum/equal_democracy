@@ -78,22 +78,24 @@ export default async function handler(
       }
 
       // Phase 1: rating metrics
-      const totalProposals = await Proposal.countDocuments({
+      const activeProposals = await Proposal.find({
         sessionId: activeSession._id,
         status: "active",
+      })
+        .select("_id")
+        .lean();
+      const totalProposals = activeProposals.length;
+
+      // One distinct query instead of a parallel countDocuments per proposal —
+      // the per-proposal burst forced the driver to expand its connection pool
+      // on every poll and helped exhaust Atlas's connection limit.
+      const ratedProposalIds = await ThumbsUp.distinct("proposalId", {
+        sessionId: activeSession._id,
       });
-
-      const proposalIds = await Proposal.find({
-        sessionId: activeSession._id,
-        status: "active",
-      }).select("_id");
-
-      const ratedProposals = await Promise.all(
-        proposalIds.map(async (p) => {
-          const count = await ThumbsUp.countDocuments({ proposalId: p._id });
-          return count > 0 ? 1 : 0;
-        }),
-      ).then((results) => results.reduce((sum, val) => sum + val, 0));
+      const ratedIdSet = new Set(ratedProposalIds.map(String));
+      const ratedProposals = activeProposals.filter((p) =>
+        ratedIdSet.has(String(p._id)),
+      ).length;
 
       const usersWhoRated = await ThumbsUp.distinct("userId", {
         sessionId: activeSession._id,
