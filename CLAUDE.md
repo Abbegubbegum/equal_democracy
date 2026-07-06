@@ -579,7 +579,7 @@ Claude API receives base64-encoded PDF. Budget extraction (`lib/budget/ai-extrac
 ### Real-time
 
 - **Pusher:** All real-time fan-out (votes, phase transitions, ratings, new proposals, presence). Server publishes via `lib/pusher-broadcaster.ts`; clients subscribe via the `usePusher` hook. Presence channel `presence-active-users` powers the live "active users" count (authed through `POST /api/pusher/auth`).
-- **Admin live panel:** uses `GET /api/admin/live-panel` polling for proposal/vote progress metrics (Pusher pushes the events that trigger refetches).
+- **Admin live panel:** uses `GET /api/admin/live-panel` polling (15s, paused while the tab is hidden) for proposal/vote progress metrics; Pusher events trigger immediate refetches but only when the event payload's `sessionId` matches the panel's session (`vote-update`/`rating-update` payloads carry `sessionId` for this). The panel is NOT rendered for `"voting"`-type sessions — its metrics (activeUsers, FinalVote counts, 75% conditions) don't apply to them and would poll forever showing zeros (with ~30 long-lived voting sessions this was ~6 req/s per admin tab and helped exhaust Atlas's connection limit). Voting-session cards instead show static Ja/Nej counts from `quickVoteCounts`, which `GET /api/admin/sessions` computes for active voting sessions via one `QuickVote` aggregation.
 
 ### Internationalization
 

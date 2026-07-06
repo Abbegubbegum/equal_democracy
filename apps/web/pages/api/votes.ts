@@ -126,6 +126,7 @@ export default async function handler(
 
       // Broadcast vote update event
       await broadcaster.broadcast("vote-update", {
+        sessionId: activeSession._id.toString(),
         proposalId: proposalId.toString(),
         yes: yesCount,
         no: noCount,

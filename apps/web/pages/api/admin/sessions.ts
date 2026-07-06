@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
-import { Session, User, FinalVote } from "@/lib/models";
+import { Session, User, FinalVote, QuickVote } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { csrfProtection } from "@/lib/csrf";
@@ -91,6 +91,44 @@ export default async function handler(
               name: user.name,
               email: user.email,
             }));
+          }
+        }
+      }
+
+      // Ja/Nej counts for active voting sessions — shown statically on the
+      // session card instead of a polling LivePanel (which doesn't apply to
+      // voting sessions: they have no activeUsers or FinalVotes)
+      const votingIds = sessions
+        .filter((s) => s.sessionType === "voting" && s.status === "active")
+        .map((s) => s._id);
+      if (votingIds.length > 0) {
+        const counts = await QuickVote.aggregate([
+          { $match: { sessionId: { $in: votingIds } } },
+          {
+            $group: {
+              _id: { sessionId: "$sessionId", choice: "$choice" },
+              count: { $sum: 1 },
+            },
+          },
+        ]);
+        const countsBySession = new Map();
+        for (const c of counts) {
+          const key = c._id.sessionId.toString();
+          const entry = countsBySession.get(key) || {
+            ja: 0,
+            nej: 0,
+            abstar: 0,
+          };
+          entry[c._id.choice] = c.count;
+          countsBySession.set(key, entry);
+        }
+        for (const sess of sessions) {
+          if (sess.sessionType === "voting" && sess.status === "active") {
+            sess.quickVoteCounts = countsBySession.get(sess._id.toString()) || {
+              ja: 0,
+              nej: 0,
+              abstar: 0,
+            };
           }
         }
       }

@@ -1010,6 +1010,18 @@ function SessionsPanel() {
                       >
                         {activeSession.sessionType === "survey" ? (
                           <span className="text-purple-700">Ranking</span>
+                        ) : activeSession.sessionType === "voting" ? (
+                          <span>
+                            📱 Mobilapp — Ja/Nej
+                            {activeSession.quickVoteCounts && (
+                              <span className="font-normal">
+                                {" · "}Ja {activeSession.quickVoteCounts.ja} /
+                                Nej {activeSession.quickVoteCounts.nej}
+                                {activeSession.quickVoteCounts.abstar > 0 &&
+                                  ` / Avstår ${activeSession.quickVoteCounts.abstar}`}
+                              </span>
+                            )}
+                          </span>
                         ) : (
                           <>
                             Current phase:{" "}
@@ -1093,8 +1105,13 @@ function SessionsPanel() {
                       ))}
                   </div>
 
+                  {/* No LivePanel for "voting" sessions: its phase machinery
+                      (activeUsers, FinalVote counts, 75% conditions) doesn't
+                      apply to them — they'd poll forever showing zeros. Their
+                      Ja/Nej counts come from the sessions list instead. */}
                   {!activeSession.isOtherUserSession &&
                     activeSession.sessionType !== "survey" &&
+                    activeSession.sessionType !== "voting" &&
                     (activeSession.phase === "phase1" ||
                       activeSession.phase === "phase2") && (
                       <LivePanel
@@ -1284,12 +1301,32 @@ function LivePanel({ sessionId, onPhaseAdvanced }) {
     setLoading(false);
   }, [sessionId]);
 
-  // Poll every 5 seconds
+  // Poll every 15 seconds, and only while the tab is visible — Pusher events
+  // (below) already trigger immediate refetches, so polling is just a fallback.
   useEffect(() => {
-    fetchData(); // eslint-disable-line react-hooks/set-state-in-effect
-    pollRef.current = setInterval(fetchData, 5000);
+    const stopPolling = () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+    const startPolling = () => {
+      stopPolling();
+      fetchData();
+      pollRef.current = setInterval(fetchData, 15000);
+    };
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+      } else {
+        startPolling();
+      }
+    };
+    if (!document.hidden) startPolling();
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      stopPolling();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [fetchData]);
 
@@ -1321,14 +1358,26 @@ function LivePanel({ sessionId, onPhaseAdvanced }) {
     };
   }, [countdown, fetchData, onPhaseAdvanced, data?.phase, executeTermination]);
 
-  // Listen for Pusher events to trigger immediate refresh
+  // Listen for Pusher events to trigger immediate refresh — but only for
+  // events about this panel's session, so one vote anywhere in the app
+  // doesn't fan out into a refetch from every open panel. Payloads without
+  // a sessionId refetch as a safe fallback.
+  const refetchIfMine = useCallback(
+    (event) => {
+      if (event?.sessionId && event.sessionId !== sessionId) return;
+      fetchData();
+    },
+    [sessionId, fetchData],
+  );
+
   usePusher({
-    onRatingUpdate: () => fetchData(),
-    onNewProposal: () => fetchData(),
-    onVoteUpdate: () => fetchData(),
-    onTransitionScheduled: () => fetchData(),
-    onTerminationScheduled: () => fetchData(),
-    onPhaseChange: () => {
+    onRatingUpdate: refetchIfMine,
+    onNewProposal: refetchIfMine,
+    onVoteUpdate: refetchIfMine,
+    onTransitionScheduled: refetchIfMine,
+    onTerminationScheduled: refetchIfMine,
+    onPhaseChange: (event) => {
+      if (event?.sessionId && event.sessionId !== sessionId) return;
       fetchData();
       if (onPhaseAdvanced) onPhaseAdvanced();
     },

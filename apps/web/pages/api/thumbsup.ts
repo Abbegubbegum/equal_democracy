@@ -73,6 +73,7 @@ export default async function handler(
 
         // Broadcast rating update event
         await broadcaster.broadcast("rating-update", {
+          sessionId: activeSession._id.toString(),
           proposalId: proposalId.toString(),
           thumbsUpCount: count,
           averageRating: avgRating,
@@ -110,6 +111,7 @@ export default async function handler(
 
       // Broadcast rating update event
       await broadcaster.broadcast("rating-update", {
+        sessionId: activeSession._id.toString(),
         proposalId: proposalId.toString(),
         thumbsUpCount: count,
         averageRating: avgRating,
