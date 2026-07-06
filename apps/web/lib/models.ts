@@ -429,6 +429,13 @@ const SessionSchema = new mongoose.Schema(
     archiveDate: {
       type: Date,
     },
+    // For "voting" sessions: required end-of-life date, set by the admin at
+    // creation time. Voting sessions are never auto-closed by sessionLimitHours
+    // (see check-session-timeout.ts) — only by reaching this deadline or a
+    // manual admin close.
+    deadline: {
+      type: Date,
+    },
     // Duration in days for survey sessions (default 6)
     surveyDurationDays: {
       type: Number,

@@ -113,6 +113,7 @@ export default async function handler(
         onlyYesVotes,
         sessionType,
         surveyDurationDays,
+        deadline,
         categories: rawCategories,
       } = req.body;
 
@@ -154,6 +155,27 @@ export default async function handler(
         archiveDate.setDate(archiveDate.getDate() + durationDays);
       }
 
+      // Voting sessions must always have an admin-set deadline — they are
+      // never auto-closed by sessionLimitHours (see check-session-timeout.ts)
+      let deadlineDate: Date | null = null;
+      if (isVoting) {
+        if (!deadline) {
+          return res
+            .status(400)
+            .json({ error: "Deadline is required for Mobilapp — Ja/Nej" });
+        }
+        deadlineDate = new Date(deadline);
+        deadlineDate.setHours(23, 59, 59, 999);
+        if (Number.isNaN(deadlineDate.getTime())) {
+          return res.status(400).json({ error: "Invalid deadline" });
+        }
+        if (deadlineDate.getTime() <= Date.now()) {
+          return res
+            .status(400)
+            .json({ error: "Deadline must be in the future" });
+        }
+      }
+
       // Voting sessions go straight to phase2 so the mobile Rösta tab shows them
       const resolvedSessionType = isSurvey
         ? "survey"
@@ -171,6 +193,7 @@ export default async function handler(
         phase: isVoting ? "phase2" : "phase1",
         surveyDurationDays: isSurvey ? durationDays : undefined,
         archiveDate: archiveDate,
+        deadline: isVoting ? deadlineDate : undefined,
         maxOneProposalPerUser: maxOneProposalPerUser || false,
         showUserCount: showUserCount !== undefined ? showUserCount : false,
         noMotivation: isSurvey
