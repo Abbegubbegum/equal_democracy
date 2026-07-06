@@ -25,10 +25,9 @@ import { addStars } from "../lib/stars";
 
 interface ActiveSession {
   id: string;
-  place: string;
+  title: string;
   phase: string;
   startDate: string;
-  sessionType: string;
   activeUsersCount: number;
   showUserCount: boolean;
   noMotivation: boolean;
@@ -41,8 +40,7 @@ interface Proposal {
   problem: string;
   solution: string;
   averageRating: number;
-  thumbsUpCount: number;
-  authorName: string;
+  ratingCount: number;
   userRating: number;
 }
 
@@ -58,24 +56,22 @@ function resolveImage(session: ActiveSession): string {
 
 function ProposalCard({
   proposal,
-  sessionId,
   onRated,
   onCelebrate,
 }: {
   proposal: Proposal;
-  sessionId: string;
   onRated: (
     id: string,
     userRating: number,
     averageRating: number,
-    thumbsUpCount: number,
+    ratingCount: number,
   ) => void;
   onCelebrate: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [localUserRating, setLocalUserRating] = useState(proposal.userRating);
   const [localAvg, setLocalAvg] = useState(proposal.averageRating);
-  const [localCount, setLocalCount] = useState(proposal.thumbsUpCount);
+  const [localCount, setLocalCount] = useState(proposal.ratingCount);
   const [rating, setRating] = useState(false);
   const hasDetails = !!proposal.problem || !!proposal.solution;
 
@@ -87,19 +83,18 @@ function ProposalCard({
     try {
       const result = await apiClient<{
         averageRating: number;
-        thumbsUpCount: number;
+        ratingCount: number;
         userRating: number;
       }>("/api/mobile/proposals/rate", {
         method: "POST",
         body: JSON.stringify({
           proposalId: proposal.id,
           rating: stars,
-          sessionId,
         }),
       });
       setLocalAvg(result.averageRating);
-      setLocalCount(result.thumbsUpCount);
-      onRated(proposal.id, stars, result.averageRating, result.thumbsUpCount);
+      setLocalCount(result.ratingCount);
+      onRated(proposal.id, stars, result.averageRating, result.ratingCount);
       await addStars(3);
       onCelebrate();
     } catch {
@@ -230,7 +225,7 @@ function SubmitModal({
                   keyboardShouldPersistTaps="handled"
                 >
                   <Text style={styles.modalQuestion} numberOfLines={2}>
-                    {session.place}
+                    {session.title}
                   </Text>
 
                   <Text style={styles.inputLabel}>Ditt förslag *</Text>
@@ -348,7 +343,7 @@ function SessionPage({
       >
         {/* Title block — compact, sits near top of page */}
         <View style={styles.heroContent}>
-          <Text style={styles.sessionTitle}>{session.place}</Text>
+          <Text style={styles.sessionTitle}>{session.title}</Text>
 
           <Text style={styles.sessionDate}>
             {new Date(session.startDate).toLocaleDateString("sv-SE", {
@@ -407,12 +402,11 @@ function SessionPage({
                 <ProposalCard
                   key={p.id}
                   proposal={p}
-                  sessionId={session.id}
-                  onRated={(id, userRating, averageRating, thumbsUpCount) =>
+                  onRated={(id, userRating, averageRating, ratingCount) =>
                     onProposalUpdated(id, {
                       userRating,
                       averageRating,
-                      thumbsUpCount,
+                      ratingCount,
                     })
                   }
                   onCelebrate={onCelebrate}

@@ -1,11 +1,19 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import connectDB from "../../../lib/mongodb";
-import { QuickVote, Session } from "../../../lib/models";
-import { verifyBearerToken } from "../../../lib/mobile-jwt";
-import { createLogger } from "../../../lib/logger";
+import connectDB from "../../../../lib/mongodb";
+import { Question, QuestionVote } from "../../../../lib/models";
+import { verifyBearerToken } from "../../../../lib/mobile-jwt";
+import { createLogger } from "../../../../lib/logger";
 
-const log = createLogger("MobileQuickVote");
+const log = createLogger("MobileQuestionVote");
 
+const PRE_ELECTION_LIMIT = 5;
+
+/**
+ * POST /api/mobile/questions/vote
+ * Cast or update a Ja/Nej vote on a Question. A brand-new vote is gated by
+ * the question being active and the pre-election quota; changing an
+ * existing vote is always free.
+ */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -20,31 +28,30 @@ export default async function handler(
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  const { sessionId, choice } = req.body;
-  if (!sessionId) return res.status(400).json({ message: "sessionId krävs" });
+  const { questionId, choice } = req.body;
+  if (!questionId) return res.status(400).json({ message: "questionId krävs" });
   if (!["ja", "nej"].includes(choice))
     return res.status(400).json({ message: "Ogiltigt val" });
 
   try {
     await connectDB();
 
-    const existingVote = await QuickVote.findOne({
-      sessionId,
+    const existingVote = await QuestionVote.findOne({
+      questionId,
       userId: user.id,
     }).lean();
 
     if (!existingVote) {
-      const session: any = await Session.findById(sessionId)
+      const question: any = await Question.findById(questionId)
         .select("status")
         .lean();
-      if (!session || session.status !== "active") {
+      if (!question || question.status !== "active") {
         return res
           .status(403)
           .json({ message: "Den här frågan är stängd för röstning." });
       }
 
-      const PRE_ELECTION_LIMIT = 5;
-      const used = await QuickVote.countDocuments({ userId: user.id });
+      const used = await QuestionVote.countDocuments({ userId: user.id });
       if (used >= PRE_ELECTION_LIMIT) {
         return res.status(403).json({
           message:
@@ -53,13 +60,13 @@ export default async function handler(
       }
     }
 
-    await QuickVote.findOneAndUpdate(
-      { sessionId, userId: user.id },
+    await QuestionVote.findOneAndUpdate(
+      { questionId, userId: user.id },
       { choice },
       { upsert: true, new: true },
     );
 
-    const allVotes = await QuickVote.find({ sessionId }).lean();
+    const allVotes = await QuestionVote.find({ questionId }).lean();
     return res.status(200).json({
       voteCounts: {
         ja: allVotes.filter((v) => v.choice === "ja").length,
@@ -68,7 +75,7 @@ export default async function handler(
       userVote: choice,
     });
   } catch (error) {
-    log.error("Failed to save quick vote", { error: error.message });
+    log.error("Failed to save question vote", { error: error.message });
     return res.status(500).json({ message: "Röstning misslyckades" });
   }
 }

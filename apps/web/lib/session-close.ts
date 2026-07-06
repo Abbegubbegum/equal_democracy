@@ -1,22 +1,14 @@
 import mongoose from "mongoose";
-import {
-  Proposal,
-  FinalVote,
-  TopProposal,
-  MunicipalSession,
-  Settings,
-  User,
-} from "./models";
+import { Proposal, FinalVote, WinningProposal, Settings, User } from "./models";
 import { sendSessionResultsEmail } from "./email";
 import { createLogger } from "./logger";
 
 const log = createLogger("SessionClose");
 
-/** Shape of a Mongoose Session document as used in close/archive operations */
+/** Shape of a Mongoose Session document as used in close operations */
 interface SessionDocument {
   _id: mongoose.Types.ObjectId;
-  place: string;
-  sessionType: string;
+  title: string;
   singleResult: boolean;
   tiebreakerActive: boolean;
   tiebreakerProposals: mongoose.Types.ObjectId[];
@@ -35,13 +27,13 @@ interface CloseOptions {
   sendEmails?: boolean;
 }
 
-export async function closeStandardSession(
+export async function closeSession(
   session: SessionDocument,
   { sendEmails = false }: CloseOptions = {},
 ) {
-  const topProposals = await Proposal.find({
+  const finalistProposals = await Proposal.find({
     sessionId: session._id,
-    status: "top3",
+    status: "finalist",
   });
 
   const savedProposals = [];
@@ -50,7 +42,7 @@ export async function closeStandardSession(
     let bestResult = -Infinity;
     const proposalsWithVotes = [];
 
-    let evaluationProposals = topProposals;
+    let evaluationProposals = finalistProposals;
     if (session.tiebreakerActive) {
       evaluationProposals = await Proposal.find({
         _id: { $in: session.tiebreakerProposals },
@@ -105,23 +97,22 @@ export async function closeStandardSession(
     }
 
     for (const item of tiedProposals) {
-      const topProposal = await TopProposal.create({
+      const winningProposal = await WinningProposal.create({
         sessionId: session._id,
-        sessionPlace: session.place,
+        sessionTitle: session.title,
         sessionStartDate: session.startDate || session.createdAt || new Date(),
         proposalId: item.proposal._id,
         title: item.proposal.title,
         problem: item.proposal.problem,
         solution: item.proposal.solution,
-        authorName: item.proposal.authorName,
         yesVotes: item.yesVotes,
         noVotes: item.noVotes,
         archivedAt: new Date(),
       });
-      savedProposals.push(topProposal);
+      savedProposals.push(winningProposal);
     }
   } else {
-    for (const proposal of topProposals) {
+    for (const proposal of finalistProposals) {
       const yesVotes = await FinalVote.countDocuments({
         sessionId: session._id,
         proposalId: proposal._id,
@@ -134,21 +125,20 @@ export async function closeStandardSession(
       });
 
       if (yesVotes > noVotes) {
-        const topProposal = await TopProposal.create({
+        const winningProposal = await WinningProposal.create({
           sessionId: session._id,
-          sessionPlace: session.place,
+          sessionTitle: session.title,
           sessionStartDate:
             session.startDate || session.createdAt || new Date(),
           proposalId: proposal._id,
           title: proposal.title,
           problem: proposal.problem,
           solution: proposal.solution,
-          authorName: proposal.authorName,
           yesVotes,
           noVotes,
           archivedAt: new Date(),
         });
-        savedProposals.push(topProposal);
+        savedProposals.push(winningProposal);
       }
     }
   }
@@ -166,49 +156,11 @@ export async function closeStandardSession(
     savedProposals: savedProposals.length,
   });
 
-  if (session.sessionType === "municipal") {
-    await MunicipalSession.updateOne(
-      { "items.sessionId": session._id },
-      {
-        $set: {
-          "items.$.status": "closed",
-          "items.$.closedAt": new Date(),
-        },
-      },
-    );
-    log.info("Municipal item auto-archived", {
-      sessionId: session._id.toString(),
-    });
-  }
-
   if (sendEmails) {
     await sendResultEmails(session, savedProposals);
   }
 
   return { topProposals: savedProposals };
-}
-
-export async function archiveRankingSession(session: SessionDocument) {
-  session.status = "archived";
-  session.endDate = new Date();
-  await session.save();
-
-  log.info("Ranking session archived", {
-    sessionId: session._id.toString(),
-    place: session.place,
-  });
-
-  return { success: true };
-}
-
-export async function closeSession(
-  session: SessionDocument,
-  options: CloseOptions = {},
-) {
-  if (session.sessionType === "survey") {
-    return archiveRankingSession(session);
-  }
-  return closeStandardSession(session, options);
 }
 
 async function sendResultEmails(
@@ -228,7 +180,7 @@ async function sendResultEmails(
       try {
         await sendSessionResultsEmail(
           user.email as string,
-          session.place,
+          session.title,
           savedProposals.map((tp) => ({
             title: tp.title,
             yesVotes: tp.yesVotes,

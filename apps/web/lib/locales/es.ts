@@ -45,6 +45,7 @@ export const es = {
     home: "Inicio",
     applyForAdmin: "Solicitar admin",
     manageSessions: "Gestionar sesiones",
+    manageQuestions: "Gestionar preguntas",
   },
 
   // Admin

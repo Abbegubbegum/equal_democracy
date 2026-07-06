@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 import { put, del } from "@vercel/blob";
 import connectDB from "../../../../lib/mongodb";
 import { CitizenProposal, CitizenProposalRating } from "../../../../lib/models";
+import { getRatingAggregates } from "../../../../lib/rating-helper";
 import { verifyBearerToken } from "../../../../lib/mobile-jwt";
 import { ALL_CATEGORIES } from "@repo/types";
 import { createLogger } from "../../../../lib/logger";
@@ -109,7 +110,6 @@ export default async function handler(
         description: description.trim(),
         categories,
         authorId: user.id,
-        authorName: user.name || user.email,
         status: "active",
         ...(imageUrl && { imageUrl }),
       });
@@ -137,36 +137,47 @@ export default async function handler(
     const proposals = await CitizenProposal.find({
       status: { $in: ["active", "selected", "submitted_as_motion"] },
     })
-      .select(
-        "_id title description authorName imageUrl averageRating ratingCount status createdAt",
-      )
-      .sort({ averageRating: -1, ratingCount: -1, createdAt: -1 })
+      .select("_id title description imageUrl status createdAt")
       .lean();
 
     const proposalIds = proposals.map((p) => p._id);
-    const [userRatings, ownCount] = await Promise.all([
+    const [ratings, userRatings, ownCount] = await Promise.all([
+      getRatingAggregates(CitizenProposalRating, "proposalId", proposalIds),
       CitizenProposalRating.find({
         proposalId: { $in: proposalIds },
         userId: user.id,
       }).lean(),
       CitizenProposal.countDocuments({ authorId: user.id }),
     ]);
-    const ratingMap = Object.fromEntries(
+    const userRatingMap = Object.fromEntries(
       userRatings.map((r) => [r.proposalId.toString(), r.rating]),
     );
     const canSubmit = user.isAdmin || ownCount < CITIZEN_PROPOSAL_LIMIT;
 
+    const sortedProposals = proposals
+      .map((p) => {
+        const agg = ratings.get(p._id.toString());
+        return {
+          id: p._id.toString(),
+          title: p.title,
+          description: p.description,
+          imageUrl: (p as any).imageUrl ?? null,
+          status: p.status,
+          averageRating: agg?.averageRating || 0,
+          ratingCount: agg?.ratingCount || 0,
+          userRating: userRatingMap[p._id.toString()] || 0,
+          createdAt: p.createdAt,
+        };
+      })
+      .sort(
+        (a, b) =>
+          b.averageRating - a.averageRating ||
+          b.ratingCount - a.ratingCount ||
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+
     return res.status(200).json({
-      proposals: proposals.map((p) => ({
-        id: p._id.toString(),
-        title: p.title,
-        description: p.description,
-        imageUrl: (p as any).imageUrl ?? null,
-        status: p.status,
-        averageRating: p.averageRating || 0,
-        ratingCount: p.ratingCount || 0,
-        userRating: ratingMap[p._id.toString()] || 0,
-      })),
+      proposals: sortedProposals,
       canSubmit,
     });
   } catch (error) {

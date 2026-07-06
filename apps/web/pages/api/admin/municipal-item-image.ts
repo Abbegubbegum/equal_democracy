@@ -6,7 +6,7 @@ import { put, del } from "@vercel/blob";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
-import { MunicipalSession } from "../../../lib/models";
+import { MunicipalMeeting, Question } from "../../../lib/models";
 import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("AdminMunicipalItemImage");
@@ -45,30 +45,29 @@ export default async function handler(
     return res.status(400).json({ message: "Kunde inte läsa bilden." });
   }
 
-  const municipalSessionId = Array.isArray(fields.municipalSessionId)
-    ? fields.municipalSessionId[0]
-    : fields.municipalSessionId;
+  const meetingId = Array.isArray(fields.meetingId)
+    ? fields.meetingId[0]
+    : fields.meetingId;
   const itemId = Array.isArray(fields.itemId)
     ? fields.itemId[0]
     : fields.itemId;
   const file = Array.isArray(files.image) ? files.image[0] : files.image;
 
-  if (!file || !municipalSessionId || !itemId) {
+  if (!file || !meetingId || !itemId) {
     return res
       .status(400)
-      .json({ message: "Missing image, municipalSessionId or itemId" });
+      .json({ message: "Missing image, meetingId or itemId" });
   }
 
   try {
     await connectDB();
 
-    const municipalSession =
-      await MunicipalSession.findById(municipalSessionId);
-    if (!municipalSession) {
-      return res.status(404).json({ message: "Sessionen hittades inte." });
+    const meeting = await MunicipalMeeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({ message: "Mötet hittades inte." });
     }
 
-    const item = municipalSession.items.find(
+    const item = meeting.items.find(
       (it: any) => String(it._id) === String(itemId),
     );
     if (!item) {
@@ -91,12 +90,17 @@ export default async function handler(
     }
 
     item.imageUrl = url;
-    await municipalSession.save();
+    await meeting.save();
+
+    // Keep the spawned Question's image in sync, if the item was activated
+    if (item.questionId) {
+      await Question.findByIdAndUpdate(item.questionId, { imageUrl: url });
+    }
 
     return res.status(200).json({ imageUrl: url });
   } catch (err: any) {
     log.error("Municipal item image upload failed", {
-      municipalSessionId,
+      meetingId,
       itemId,
       error: err?.message,
       stack: err?.stack,

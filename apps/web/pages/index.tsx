@@ -148,6 +148,12 @@ export default function HomePage() {
                     {t("nav.admin")}
                   </button>
                   <button
+                    onClick={() => router.push("/manage-questions")}
+                    className="text-white hover:text-accent-400 font-medium whitespace-nowrap"
+                  >
+                    {t("nav.manageQuestions") || "Manage Questions"}
+                  </button>
+                  <button
                     onClick={() => router.push("/manage-sessions")}
                     className="text-white hover:text-accent-400 font-medium whitespace-nowrap"
                   >
@@ -156,12 +162,20 @@ export default function HomePage() {
                 </>
               )}
               {session.user.isAdmin && !session.user.isSuperAdmin && (
-                <button
-                  onClick={() => router.push("/manage-sessions")}
-                  className="text-white hover:text-accent-400 font-medium whitespace-nowrap"
-                >
-                  {t("nav.manageSessions") || "Manage Sessions"}
-                </button>
+                <>
+                  <button
+                    onClick={() => router.push("/manage-questions")}
+                    className="text-white hover:text-accent-400 font-medium whitespace-nowrap"
+                  >
+                    {t("nav.manageQuestions") || "Manage Questions"}
+                  </button>
+                  <button
+                    onClick={() => router.push("/manage-sessions")}
+                    className="text-white hover:text-accent-400 font-medium whitespace-nowrap"
+                  >
+                    {t("nav.manageSessions") || "Manage Sessions"}
+                  </button>
+                </>
               )}
               {!session.user.isAdmin && !session.user.isSuperAdmin && (
                 <button

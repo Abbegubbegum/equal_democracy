@@ -45,6 +45,7 @@ export const sr = {
     home: "Početna",
     applyForAdmin: "Prijavi se za admina",
     manageSessions: "Upravljaj sesijama",
+    manageQuestions: "Upravljaj pitanjima",
   },
 
   // Admin

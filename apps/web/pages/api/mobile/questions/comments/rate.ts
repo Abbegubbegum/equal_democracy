@@ -1,10 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import connectDB from "../../../../lib/mongodb";
-import { Comment, CommentRating, Session } from "../../../../lib/models";
-import { verifyBearerToken } from "../../../../lib/mobile-jwt";
-import { createLogger } from "../../../../lib/logger";
+import connectDB from "../../../../../lib/mongodb";
+import {
+  Question,
+  QuestionComment,
+  QuestionCommentRating,
+} from "../../../../../lib/models";
+import { verifyBearerToken } from "../../../../../lib/mobile-jwt";
+import { createLogger } from "../../../../../lib/logger";
 
-const log = createLogger("MobileVotingCommentRate");
+const log = createLogger("MobileQuestionCommentRate");
 
 export default async function handler(
   req: NextApiRequest,
@@ -31,31 +35,28 @@ export default async function handler(
   try {
     await connectDB();
 
-    const comment: any = await Comment.findById(commentId);
+    const comment: any = await QuestionComment.findById(commentId).lean();
     if (!comment)
       return res.status(404).json({ message: "Kommentaren hittades inte" });
 
-    const session: any = await Session.findById(comment.sessionId)
+    const question: any = await Question.findById(comment.questionId)
       .select("status")
       .lean();
-    if (!session || session.status !== "active") {
+    if (!question || question.status !== "active") {
       return res
         .status(403)
         .json({ message: "Debatten är stängd för den här frågan." });
     }
 
-    await CommentRating.findOneAndUpdate(
+    await QuestionCommentRating.findOneAndUpdate(
       { commentId, userId: user.id },
-      { sessionId: comment.sessionId, rating },
+      { rating },
       { upsert: true },
     );
 
-    const ratings = await CommentRating.find({ commentId }).lean();
+    const ratings = await QuestionCommentRating.find({ commentId }).lean();
     const averageRating =
       ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length;
-
-    comment.averageRating = averageRating;
-    await comment.save();
 
     return res.status(200).json({
       averageRating,
@@ -63,7 +64,7 @@ export default async function handler(
       totalRatings: ratings.length,
     });
   } catch (error) {
-    log.error("Failed to rate voting comment", {
+    log.error("Failed to rate question comment", {
       error: (error as Error).message,
     });
     return res

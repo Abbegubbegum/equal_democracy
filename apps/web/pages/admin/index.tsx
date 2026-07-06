@@ -6,10 +6,10 @@ import {
   Users,
   Settings,
   Calendar,
+  Vote,
   Trophy,
   Mail,
   PlusCircle,
-  BarChart3,
   FileText,
   Sparkles,
   Lightbulb,
@@ -29,9 +29,9 @@ export default function AdminPage() {
   useEffect(() => {
     if (status === "loading") return;
     if (!session) router.replace("/login");
-    // Redirect session admins to manage-sessions page
+    // Redirect session admins to the Ja/Nej question manager (their default landing)
     else if (session.user?.isAdmin && !session.user?.isSuperAdmin)
-      router.replace("/manage-sessions");
+      router.replace("/manage-questions");
     // Only allow super admins on this page
     else if (!session.user?.isSuperAdmin) router.replace("/");
   }, [status, session, router]);
@@ -73,6 +73,12 @@ export default function AdminPage() {
           />
           <Tab
             label="Rösta"
+            icon={<Vote className="w-4 h-4" />}
+            active={false}
+            onClick={() => router.push("/manage-questions")}
+          />
+          <Tab
+            label="Webapp"
             icon={<Calendar className="w-4 h-4" />}
             active={false}
             onClick={() => router.push("/manage-sessions")}
@@ -115,14 +121,18 @@ function Tab({ label, icon, active, onClick }) {
   );
 }
 
-const MORE_ITEMS = [
+const MORE_ITEMS: {
+  key: string;
+  label: string;
+  icon: typeof Trophy;
+  route?: string;
+}[] = [
   { key: "top-proposals", label: "Top Proposals", icon: Trophy },
   { key: "admin-applications", label: "Admin Applications", icon: Shield },
   { key: "session-requests", label: "Session Requests", icon: PlusCircle },
   { key: "email", label: "Email", icon: Mail },
   { key: "users", label: "Users", icon: Users },
   { key: "settings", label: "Settings", icon: Settings },
-  { key: "survey", label: "Survey", icon: BarChart3, route: "/admin/survey" },
   { key: "clean", label: "Clean", icon: Sparkles },
 ];
 
@@ -627,7 +637,7 @@ function TopProposalsPanel() {
   const loadTopProposals = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/top-proposals");
+      const res = await fetch("/api/admin/winning-proposals");
       if (res.ok) {
         const data = await res.json();
         setTopProposals(Array.isArray(data) ? data : []);
@@ -687,7 +697,7 @@ function TopProposalsPanel() {
 
                   <div className="flex items-center gap-4 text-sm">
                     <span className="text-slate-600">
-                      <strong>{tp.sessionPlace}</strong> •{" "}
+                      <strong>{tp.sessionTitle}</strong> •{" "}
                       {new Date(tp.sessionStartDate).toLocaleDateString(
                         "sv-SE",
                       )}
@@ -843,7 +853,7 @@ function EmailPanel() {
               <option value="">-- Select session --</option>
               {sessions.map((s) => (
                 <option key={s._id} value={s._id}>
-                  {s.place} - {new Date(s.startDate).toLocaleDateString()}
+                  {s.title} - {new Date(s.startDate).toLocaleDateString()}
                 </option>
               ))}
             </select>
@@ -1917,19 +1927,18 @@ function CitizenProposalsPanel() {
   );
 }
 
-type SPStatus = "active" | "top3" | "archived";
+type SPStatus = "active" | "finalist" | "archived";
 
 interface SessionProposalItem {
   id: string;
   sessionId: string | null;
-  sessionPlace: string | null;
+  sessionTitle: string | null;
   title: string;
   problem: string;
   solution: string;
   status: SPStatus;
-  thumbsUpCount: number;
+  ratingCount: number;
   averageRating: number;
-  authorName: string;
   categories: string[];
   imageUrl: string | null;
   createdAt: string;
@@ -1937,13 +1946,13 @@ interface SessionProposalItem {
 
 const SP_STATUS_LABEL: Record<SPStatus, string> = {
   active: "Aktiv",
-  top3: "Topp 3",
+  finalist: "Finalist",
   archived: "Arkiverad",
 };
 
 const SP_STATUS_COLOR: Record<SPStatus, string> = {
   active: "bg-green-100 text-green-800",
-  top3: "bg-blue-100 text-blue-800",
+  finalist: "bg-blue-100 text-blue-800",
   archived: "bg-gray-100 text-gray-600",
 };
 
@@ -2106,7 +2115,7 @@ function SessionProposalsPanel() {
 
         {/* Filter tabs */}
         <div className="flex gap-2 flex-wrap">
-          {(["all", "active", "top3", "archived"] as const).map((s) => (
+          {(["all", "active", "finalist", "archived"] as const).map((s) => (
             <button
               key={s}
               onClick={() => setFilter(s)}
@@ -2180,17 +2189,14 @@ function SessionProposalsPanel() {
                   <span className="text-xs text-slate-400">
                     {new Date(p.createdAt).toLocaleDateString("sv-SE")}
                   </span>
-                  <span className="text-xs text-slate-400">
-                    av {p.authorName}
-                  </span>
-                  {p.sessionPlace && (
+                  {p.sessionTitle && (
                     <span className="text-xs text-slate-400">
-                      · {p.sessionPlace}
+                      · {p.sessionTitle}
                     </span>
                   )}
-                  {p.thumbsUpCount > 0 && (
+                  {p.ratingCount > 0 && (
                     <span className="text-xs text-amber-600">
-                      ★ {p.averageRating.toFixed(1)} ({p.thumbsUpCount})
+                      ★ {p.averageRating.toFixed(1)} ({p.ratingCount})
                     </span>
                   )}
                 </div>
@@ -2302,11 +2308,11 @@ function SessionProposalsPanel() {
                       Arkivera
                     </button>
                     <button
-                      onClick={() => setStatus(p.id, "top3")}
+                      onClick={() => setStatus(p.id, "finalist")}
                       disabled={updating === p.id}
                       className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
                     >
-                      Topp 3
+                      Finalist
                     </button>
                   </>
                 )}

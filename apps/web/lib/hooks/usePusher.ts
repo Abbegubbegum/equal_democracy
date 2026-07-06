@@ -18,7 +18,6 @@ export interface PusherHandlers {
   onTerminationScheduled?: (_data: AnyData) => void;
   onTiebreakerStarted?: (_data: AnyData) => void;
   onNewSession?: (_data: AnyData) => void;
-  onSessionArchived?: (_data: AnyData) => void;
 }
 
 export default function usePusher(handlers: PusherHandlers = {}) {
@@ -126,10 +125,6 @@ export default function usePusher(handlers: PusherHandlers = {}) {
 
       channel.bind("new-session", (data: unknown) => {
         handlersRef.current.onNewSession?.(data);
-      });
-
-      channel.bind("session-archived", (data: unknown) => {
-        handlersRef.current.onSessionArchived?.(data);
       });
     });
 

@@ -4,10 +4,11 @@ import { authOptions } from "./auth/[...nextauth]";
 import connectDB from "@/lib/mongodb";
 import {
   Session,
+  Question,
   CitizenProposal,
   BudgetSession,
-  MunicipalSession,
-  TopProposal,
+  MunicipalMeeting,
+  WinningProposal,
   BudgetArgument,
 } from "@/lib/models";
 import { createLogger } from "@/lib/logger";
@@ -26,39 +27,51 @@ export default async function handler(
   try {
     await connectDB();
 
-    const [sessions, ideas, budgets, municipals, winners, debateArgs] =
-      await Promise.all([
-        Session.find({ status: "active", sessionType: { $nin: ["municipal"] } })
-          .sort({ createdAt: -1 })
-          .limit(6)
-          .select("place sessionType createdAt _id")
-          .lean(),
-        CitizenProposal.find()
-          .sort({ createdAt: -1 })
-          .limit(6)
-          .select("title createdAt _id")
-          .lean(),
-        BudgetSession.find()
-          .sort({ createdAt: -1 })
-          .limit(6)
-          .select("name createdAt sessionId")
-          .lean(),
-        MunicipalSession.find()
-          .sort({ createdAt: -1 })
-          .limit(6)
-          .select("name municipality createdAt _id")
-          .lean(),
-        TopProposal.find()
-          .sort({ archivedAt: -1 })
-          .limit(6)
-          .select("title sessionPlace archivedAt createdAt _id")
-          .lean(),
-        BudgetArgument.find({ isHidden: false })
-          .sort({ createdAt: -1 })
-          .limit(6)
-          .select("sessionId categoryName direction createdAt")
-          .lean(),
-      ]);
+    const [
+      sessions,
+      questions,
+      ideas,
+      budgets,
+      municipals,
+      winners,
+      debateArgs,
+    ] = await Promise.all([
+      Session.find({ status: "active" })
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .select("title createdAt _id")
+        .lean(),
+      Question.find({ status: "active", meetingId: null })
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .select("text createdAt _id")
+        .lean(),
+      CitizenProposal.find()
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .select("title createdAt _id")
+        .lean(),
+      BudgetSession.find()
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .select("name createdAt sessionId")
+        .lean(),
+      MunicipalMeeting.find()
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .select("name municipality createdAt _id")
+        .lean(),
+      WinningProposal.find()
+        .sort({ archivedAt: -1 })
+        .limit(6)
+        .select("title sessionTitle archivedAt createdAt _id")
+        .lean(),
+      BudgetArgument.find({ isHidden: false })
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .select("sessionId categoryName direction createdAt")
+        .lean(),
+    ]);
 
     const candidates = [
       ...debateArgs.map((a) => ({
@@ -71,16 +84,19 @@ export default async function handler(
       })),
       ...sessions.map((s) => ({
         type: "session",
-        icon: s.sessionType === "voting" ? "📱" : "🗳️",
-        title: s.place,
-        subtitle:
-          s.sessionType === "voting"
-            ? "Röstning · svara i appen"
-            : s.sessionType === "survey"
-              ? "Enkät"
-              : "Omröstning",
+        icon: "🗳️",
+        title: s.title,
+        subtitle: "Omröstning",
         date: s.createdAt,
-        link: s.sessionType === "voting" ? "#" : `/session/${s._id}`,
+        link: `/session/${s._id}`,
+      })),
+      ...questions.map((q) => ({
+        type: "question",
+        icon: "📱",
+        title: q.text,
+        subtitle: "Röstning · svara i appen",
+        date: q.createdAt,
+        link: "#",
       })),
       ...ideas.map((i) => ({
         type: "idea",
@@ -110,7 +126,7 @@ export default async function handler(
         type: "winner",
         icon: "🏆",
         title: w.title,
-        subtitle: `Vinnande förslag · ${w.sessionPlace}`,
+        subtitle: `Vinnande förslag · ${w.sessionTitle}`,
         date: w.archivedAt || w.createdAt,
         link: "/archive",
       })),

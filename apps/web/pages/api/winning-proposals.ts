@@ -1,11 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
-import { TopProposal, Session } from "@/lib/models";
+import { WinningProposal, Session } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth/[...nextauth]";
 import { createLogger } from "@/lib/logger";
 
-const log = createLogger("TopProposals");
+const log = createLogger("WinningProposals");
 
 /**
  * Public endpoint to get winning proposals from the most recently closed session
@@ -43,21 +43,20 @@ export default async function handler(
       }
 
       // Get winning proposals from this session
-      const winningProposals = await TopProposal.find({
+      const winningProposals = await WinningProposal.find({
         sessionId: targetSessionId,
       }).sort({ yesVotes: -1 }); // Sort by yes votes descending
 
-      // Format the response (authorName removed for anonymity)
-      const formatted = winningProposals.map((tp) => ({
-        _id: tp._id.toString(),
-        sessionName: tp.sessionName,
-        title: tp.title,
-        problem: tp.problem,
-        solution: tp.solution,
-        estimatedCost: tp.estimatedCost,
-        yesVotes: tp.yesVotes,
-        noVotes: tp.noVotes,
-        archivedAt: tp.archivedAt,
+      // Format the response (author identity removed for anonymity)
+      const formatted = winningProposals.map((wp) => ({
+        _id: wp._id.toString(),
+        sessionTitle: wp.sessionTitle,
+        title: wp.title,
+        problem: wp.problem,
+        solution: wp.solution,
+        yesVotes: wp.yesVotes,
+        noVotes: wp.noVotes,
+        archivedAt: wp.archivedAt,
       }));
 
       return res.status(200).json(formatted);

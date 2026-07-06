@@ -1,9 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
-import { Session, Proposal, ThumbsUp } from "@/lib/models";
+import { Session, Proposal, ProposalRating } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { csrfProtection } from "@/lib/csrf";
+import { getRatingAggregates } from "@/lib/rating-helper";
 import broadcaster from "@/lib/pusher-broadcaster";
 import { createLogger } from "@/lib/logger";
 
@@ -65,50 +66,38 @@ export default async function handler(
         ? Math.max(2, Math.min(proposalCount, parseInt(requestedTopCount)))
         : formulaCount;
 
-      // Get proposals sorted by average rating
+      // Get proposals ranked by average rating (computed at read time)
       const proposals = await Proposal.find({
         sessionId: activeSession._id,
         status: "active",
       }).lean();
 
-      // Calculate average rating for each if not already set
-      for (const proposal of proposals) {
-        if (!proposal.averageRating) {
-          const ratings = await ThumbsUp.find({
-            proposalId: proposal._id,
-          });
-          if (ratings.length > 0) {
-            const avgRating =
-              ratings.reduce((sum, r) => sum + (r.rating || 5), 0) /
-              ratings.length;
-            await Proposal.findByIdAndUpdate(proposal._id, {
-              averageRating: avgRating,
-              thumbsUpCount: ratings.length,
-            });
-          }
-        }
-      }
+      const ratings = await getRatingAggregates(
+        ProposalRating,
+        "proposalId",
+        proposals.map((p) => p._id),
+      );
+      const rankedProposals = proposals.sort((a, b) => {
+        const ra = ratings.get(a._id.toString());
+        const rb = ratings.get(b._id.toString());
+        return (
+          (rb?.averageRating || 0) - (ra?.averageRating || 0) ||
+          (rb?.ratingCount || 0) - (ra?.ratingCount || 0)
+        );
+      });
 
-      // Re-fetch proposals with updated ratings
-      const updatedProposals = await Proposal.find({
-        sessionId: activeSession._id,
-        status: "active",
-      })
-        .sort({ averageRating: -1, thumbsUpCount: -1 })
-        .lean();
-
-      // Move top proposals to "top3" status
-      const topProposalIds = updatedProposals
+      // Move top proposals to "finalist" status
+      const topProposalIds = rankedProposals
         .slice(0, topCount)
         .map((p) => p._id);
 
       await Proposal.updateMany(
         { _id: { $in: topProposalIds } },
-        { status: "top3" },
+        { status: "finalist" },
       );
 
       // Archive the rest
-      const archivedIds = updatedProposals.slice(topCount).map((p) => p._id);
+      const archivedIds = rankedProposals.slice(topCount).map((p) => p._id);
       await Proposal.updateMany(
         { _id: { $in: archivedIds } },
         { status: "archived" },

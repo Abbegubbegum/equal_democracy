@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
-import { Session, Proposal, ThumbsUp, FinalVote } from "@/lib/models";
+import { Session, Proposal, ProposalRating, FinalVote } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { csrfProtection } from "@/lib/csrf";
@@ -85,20 +85,21 @@ export default async function handler(
         .select("_id")
         .lean();
       const totalProposals = activeProposals.length;
+      const activeProposalIds = activeProposals.map((p) => p._id);
 
       // One distinct query instead of a parallel countDocuments per proposal —
       // the per-proposal burst forced the driver to expand its connection pool
       // on every poll and helped exhaust Atlas's connection limit.
-      const ratedProposalIds = await ThumbsUp.distinct("proposalId", {
-        sessionId: activeSession._id,
+      const ratedProposalIds = await ProposalRating.distinct("proposalId", {
+        proposalId: { $in: activeProposalIds },
       });
       const ratedIdSet = new Set(ratedProposalIds.map(String));
       const ratedProposals = activeProposals.filter((p) =>
         ratedIdSet.has(String(p._id)),
       ).length;
 
-      const usersWhoRated = await ThumbsUp.distinct("userId", {
-        sessionId: activeSession._id,
+      const usersWhoRated = await ProposalRating.distinct("userId", {
+        proposalId: { $in: activeProposalIds },
       });
       const usersWhoRatedCount = usersWhoRated.length;
 

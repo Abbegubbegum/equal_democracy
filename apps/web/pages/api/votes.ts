@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth/[...nextauth]";
 import connectDB from "../../lib/mongodb";
-import { FinalVote, Session, Settings } from "../../lib/models";
+import { FinalVote, Session } from "../../lib/models";
 import { getActiveSession, registerActiveUser } from "../../lib/session-helper";
 import { validateObjectId, toObjectId } from "../../lib/validation";
 import { csrfProtection } from "../../lib/csrf";
@@ -301,25 +301,14 @@ async function checkAutoClose(activeSession) {
       }
     }
 
-    // Check condition 2: Time limit exceeded
-    if (activeSession.startDate) {
-      const settings = await Settings.findOne({});
-      const sessionLimitHours = settings?.sessionLimitHours || 24;
-
-      const sessionStartTime = new Date(activeSession.startDate);
-      const currentTime = new Date();
-      const elapsedHours =
-        (currentTime.getTime() - sessionStartTime.getTime()) / (1000 * 60 * 60);
-
-      if (elapsedHours >= sessionLimitHours) {
-        log.info("Session time limit exceeded, closing", {
-          sessionId: activeSession._id.toString(),
-          elapsedHours: elapsedHours.toFixed(1),
-          limitHours: sessionLimitHours,
-        });
-        await closeSession(activeSession, { sendEmails: true });
-        return true;
-      }
+    // Check condition 2: Session's own deadline has passed
+    if (activeSession.deadline && new Date() >= activeSession.deadline) {
+      log.info("Session deadline exceeded, closing", {
+        sessionId: activeSession._id.toString(),
+        deadline: activeSession.deadline,
+      });
+      await closeSession(activeSession, { sendEmails: true });
+      return true;
     }
 
     return false;

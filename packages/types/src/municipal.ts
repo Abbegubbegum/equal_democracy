@@ -1,6 +1,6 @@
 import type { BaseDocument } from "./base.js";
 
-export type MunicipalSessionStatus = "draft" | "active" | "closed" | "archived";
+export type MunicipalMeetingStatus = "draft" | "active" | "closed" | "archived";
 export type MunicipalItemStatus = "draft" | "active" | "closed";
 export type CitizenProposalStatus =
   | "active"
@@ -21,25 +21,22 @@ export interface MunicipalItem {
   description?: string;
   categories?: string[];
   imageUrl?: string | null;
-  totalStars?: number;
-  ratingCount?: number;
-  averageRating?: number;
-  proposalId?: string;
-  sessionId?: string;
+  /** Question spawned for this item on activation */
+  questionId?: string;
   initialArguments?: MunicipalItemArgument[];
   status: MunicipalItemStatus;
   closedAt?: string;
   closedBy?: string;
 }
 
-export interface MunicipalSession extends BaseDocument {
+export interface MunicipalMeeting extends BaseDocument {
   name: string;
   municipality: string;
   meetingDate: string;
   meetingTime?: string;
   meetingType: string;
   sourceUrl?: string;
-  status: MunicipalSessionStatus;
+  status: MunicipalMeetingStatus;
   createdBy: string;
   items: MunicipalItem[];
   notificationsSent: boolean;
@@ -50,16 +47,8 @@ export interface CitizenProposal extends BaseDocument {
   description: string;
   categories: string[];
   authorId: string;
-  authorName: string;
   status: CitizenProposalStatus;
-  totalStars: number;
-  ratingCount: number;
-  averageRating: number;
   imageUrl?: string | null;
-  selectedForMunicipalSession?: string;
-  selectedAt?: string;
-  submittedAsMotionAt?: string;
-  motionNumber?: string;
 }
 
 export interface CitizenProposalRating extends BaseDocument {
@@ -69,7 +58,7 @@ export interface CitizenProposalRating extends BaseDocument {
 }
 
 export interface MunicipalItemRating extends BaseDocument {
-  municipalSessionId: string;
+  meetingId: string;
   itemId: string;
   userId: string;
   rating: number;

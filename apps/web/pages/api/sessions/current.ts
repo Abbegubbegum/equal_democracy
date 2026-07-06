@@ -73,7 +73,7 @@ export default async function handler(
 
     return res.status(200).json({
       _id: activeSession._id.toString(),
-      place: activeSession.place,
+      title: activeSession.title,
       status: activeSession.status,
       phase: activeSession.phase,
       imageUrl: activeSession.imageUrl || null,
@@ -87,9 +87,7 @@ export default async function handler(
           ? activeSession.noMotivation
           : false,
       onlyYesVotes: activeSession.onlyYesVotes || false,
-      sessionType: activeSession.sessionType || "standard",
-      archiveDate: activeSession.archiveDate,
-      surveyDurationDays: activeSession.surveyDurationDays,
+      deadline: activeSession.deadline,
       terminationSecondsRemaining,
       tiebreakerActive,
       tiebreakerSecondsRemaining,

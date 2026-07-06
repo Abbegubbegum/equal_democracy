@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
-import { Session, User, FinalVote, QuickVote } from "@/lib/models";
+import { Session, User, FinalVote } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { csrfProtection } from "@/lib/csrf";
@@ -11,13 +11,11 @@ import {
   checkAdminSessionLimit,
 } from "@/lib/admin-helper";
 import { createLogger } from "@/lib/logger";
-import {
-  notifyNewVotingQuestion,
-  getTokensForCategories,
-} from "@/lib/push-notifications";
 import { ALL_CATEGORIES } from "@repo/types";
 
 const log = createLogger("AdminSessions");
+
+const DEFAULT_SESSION_HOURS = 24;
 
 export default async function handler(
   req: NextApiRequest,
@@ -95,44 +93,6 @@ export default async function handler(
         }
       }
 
-      // Ja/Nej counts for active voting sessions — shown statically on the
-      // session card instead of a polling LivePanel (which doesn't apply to
-      // voting sessions: they have no activeUsers or FinalVotes)
-      const votingIds = sessions
-        .filter((s) => s.sessionType === "voting" && s.status === "active")
-        .map((s) => s._id);
-      if (votingIds.length > 0) {
-        const counts = await QuickVote.aggregate([
-          { $match: { sessionId: { $in: votingIds } } },
-          {
-            $group: {
-              _id: { sessionId: "$sessionId", choice: "$choice" },
-              count: { $sum: 1 },
-            },
-          },
-        ]);
-        const countsBySession = new Map();
-        for (const c of counts) {
-          const key = c._id.sessionId.toString();
-          const entry = countsBySession.get(key) || {
-            ja: 0,
-            nej: 0,
-            abstar: 0,
-          };
-          entry[c._id.choice] = c.count;
-          countsBySession.set(key, entry);
-        }
-        for (const sess of sessions) {
-          if (sess.sessionType === "voting" && sess.status === "active") {
-            sess.quickVoteCounts = countsBySession.get(sess._id.toString()) || {
-              ja: 0,
-              nej: 0,
-              abstar: 0,
-            };
-          }
-        }
-      }
-
       return res.status(200).json(sessions);
     } catch (error) {
       log.error("Failed to fetch sessions", { error: error.message });
@@ -143,14 +103,12 @@ export default async function handler(
   if (req.method === "POST") {
     try {
       const {
-        place,
+        title,
         maxOneProposalPerUser,
         showUserCount,
         noMotivation,
         singleResult,
         onlyYesVotes,
-        sessionType,
-        surveyDurationDays,
         deadline,
         categories: rawCategories,
       } = req.body;
@@ -165,8 +123,8 @@ export default async function handler(
             .slice(0, 3)
         : [];
 
-      if (!place) {
-        return res.status(400).json({ error: "Place is required" });
+      if (!title) {
+        return res.status(400).json({ error: "Title is required" });
       }
 
       // Check session limits for regular admins
@@ -179,29 +137,13 @@ export default async function handler(
         });
       }
 
-      // Multiple active sessions are now allowed - no restriction check needed
-
-      // Calculate archive date for survey sessions
       const startDate = new Date();
-      let archiveDate = null;
-      const isSurvey = sessionType === "survey";
-      const isVoting = sessionType === "voting";
-      const durationDays = surveyDurationDays || 6;
 
-      if (isSurvey) {
-        archiveDate = new Date(startDate);
-        archiveDate.setDate(archiveDate.getDate() + durationDays);
-      }
-
-      // Voting sessions must always have an admin-set deadline — they are
-      // never auto-closed by sessionLimitHours (see check-session-timeout.ts)
-      let deadlineDate: Date | null = null;
-      if (isVoting) {
-        if (!deadline) {
-          return res
-            .status(400)
-            .json({ error: "Deadline is required for Mobilapp — Ja/Nej" });
-        }
+      // Deadline replaces the old global Settings.sessionLimitHours — each
+      // session now carries its own end-of-life, defaulting to 24h if the
+      // admin doesn't set one explicitly.
+      let deadlineDate: Date;
+      if (deadline) {
         deadlineDate = new Date(deadline);
         deadlineDate.setHours(23, 59, 59, 999);
         if (Number.isNaN(deadlineDate.getTime())) {
@@ -212,44 +154,27 @@ export default async function handler(
             .status(400)
             .json({ error: "Deadline must be in the future" });
         }
+      } else {
+        deadlineDate = new Date(
+          startDate.getTime() + DEFAULT_SESSION_HOURS * 60 * 60 * 1000,
+        );
       }
-
-      // Voting sessions go straight to phase2 so the mobile Rösta tab shows them
-      const resolvedSessionType = isSurvey
-        ? "survey"
-        : isVoting
-          ? "voting"
-          : "standard";
 
       // Create new session
       const newSession = await Session.create({
-        place: place.trim(),
+        title: title.trim(),
         status: "active",
         startDate: startDate,
         createdBy: session.user.id,
-        sessionType: resolvedSessionType,
-        phase: isVoting ? "phase2" : "phase1",
-        surveyDurationDays: isSurvey ? durationDays : undefined,
-        archiveDate: archiveDate,
-        deadline: isVoting ? deadlineDate : undefined,
+        phase: "phase1",
+        deadline: deadlineDate,
         maxOneProposalPerUser: maxOneProposalPerUser || false,
         showUserCount: showUserCount !== undefined ? showUserCount : false,
-        noMotivation: isSurvey
-          ? true
-          : noMotivation !== undefined
-            ? noMotivation
-            : false,
+        noMotivation: noMotivation !== undefined ? noMotivation : false,
         singleResult: singleResult !== undefined ? singleResult : false,
         onlyYesVotes: onlyYesVotes || false,
         categories,
       });
-
-      // Send targeted push notification when a voting question is created
-      if (isVoting) {
-        getTokensForCategories(categories)
-          .then((tokens) => notifyNewVotingQuestion(place.trim(), tokens))
-          .catch(() => {});
-      }
 
       // Decrement remainingSessions for regular admins (not superadmins)
       const user = await User.findById(session.user.id);
@@ -268,12 +193,11 @@ export default async function handler(
       // Broadcast new session event to all connected clients
       await broadcaster.broadcast("new-session", {
         _id: newSession._id.toString(),
-        place: newSession.place,
+        title: newSession.title,
         status: newSession.status,
         phase: newSession.phase,
         startDate: newSession.startDate,
-        sessionType: newSession.sessionType,
-        archiveDate: newSession.archiveDate,
+        deadline: newSession.deadline,
       });
 
       return res.status(201).json({

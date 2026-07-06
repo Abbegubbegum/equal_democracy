@@ -58,17 +58,25 @@ export default function ManageSessionsPage() {
                 </h1>
                 <p className="text-primary-100 text-xs sm:text-sm wrap-break-word">
                   {t("manageSessions.subtitle") ||
-                    "Create and manage democracy sessions"}
+                    "Create and manage two-phase democracy sessions"}
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => router.push("/")}
-              className="text-white hover:opacity-80 font-medium whitespace-nowrap flex items-center gap-2 text-sm"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              {t("common.backToHome") || "Back to home"}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.push("/manage-questions")}
+                className="text-white/80 hover:text-white font-medium whitespace-nowrap text-sm underline underline-offset-2"
+              >
+                Ja/Nej-frågor →
+              </button>
+              <button
+                onClick={() => router.push("/")}
+                className="text-white hover:opacity-80 font-medium whitespace-nowrap flex items-center gap-2 text-sm"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                {t("common.backToHome") || "Back to home"}
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -86,16 +94,13 @@ function SessionsPanel() {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [newPlace, setNewPlace] = useState("");
+  const [newTitle, setNewTitle] = useState("");
   const [maxOneProposalPerUser, setMaxOneProposalPerUser] = useState(false);
   const [showUserCount, setShowUserCount] = useState(false);
   const [noMotivation, setNoMotivation] = useState(false);
   const [singleResult, setSingleResult] = useState(false);
   const [onlyYesVotes, setOnlyYesVotes] = useState(false);
-  const [sessionType, setSessionType] = useState("voting");
   const [newDeadline, setNewDeadline] = useState("");
-  const [newImage, setNewImage] = useState<File | null>(null);
-  const [surveyDurationDays, setSurveyDurationDays] = useState("6");
   const [message, setMessage] = useState("");
   const [remainingSessions, setRemainingSessions] = useState(null);
   const [requestedSessions, setRequestedSessions] = useState("10");
@@ -140,7 +145,7 @@ function SessionsPanel() {
         ) {
           sessionsData.unshift({
             _id: globalActiveSession._id,
-            place: globalActiveSession.place,
+            title: globalActiveSession.title,
             status: globalActiveSession.status,
             phase: globalActiveSession.phase,
             startDate: globalActiveSession.startDate,
@@ -193,7 +198,6 @@ function SessionsPanel() {
     loadSessions();
     loadSessionLimit();
     loadSettings();
-    setNewPlace("Write a short question max eight words here");
   }, [loadSessions, loadSessionLimit, loadSettings]);
 
   const saveSettings = async () => {
@@ -222,13 +226,13 @@ function SessionsPanel() {
   };
 
   const suggestCategories = async () => {
-    if (!newPlace.trim()) return;
+    if (!newTitle.trim()) return;
     setSuggesting(true);
     try {
       const res = await fetchWithCsrf("/api/admin/suggest-categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newPlace.trim() }),
+        body: JSON.stringify({ title: newTitle.trim() }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -248,13 +252,8 @@ function SessionsPanel() {
   };
 
   const createSession = async () => {
-    if (!newPlace) {
-      setMessage("Place required");
-      return;
-    }
-
-    if (sessionType === "voting" && !newDeadline) {
-      setMessage("Deadline is required for Mobilapp — Ja/Nej");
+    if (!newTitle) {
+      setMessage("Title required");
       return;
     }
 
@@ -279,16 +278,13 @@ function SessionsPanel() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          place: newPlace,
+          title: newTitle,
           maxOneProposalPerUser: maxOneProposalPerUser,
           showUserCount: showUserCount,
           noMotivation: noMotivation,
           singleResult: singleResult,
           onlyYesVotes: onlyYesVotes,
-          sessionType: sessionType,
-          surveyDurationDays:
-            sessionType === "survey" ? parseInt(surveyDurationDays) : undefined,
-          deadline: sessionType === "voting" ? newDeadline : undefined,
+          deadline: newDeadline || undefined,
           categories,
         }),
       });
@@ -303,11 +299,6 @@ function SessionsPanel() {
           setMessage("Session created!");
         }
 
-        if (newImage) {
-          await uploadImage(data._id, newImage);
-          setNewImage(null);
-        }
-
         // Reload page to apply new settings if they were saved
         if (settingsSaved) {
           setTimeout(() => {
@@ -316,11 +307,9 @@ function SessionsPanel() {
         } else {
           loadSessions();
           loadSessionLimit();
-          setNewPlace("Write a short question max eight words here");
+          setNewTitle("");
           setMaxOneProposalPerUser(false);
           setOnlyYesVotes(false);
-          setSessionType("voting");
-          setSurveyDurationDays("6");
           setNewDeadline("");
           setCategories([]);
           setTimeout(() => setMessage(""), data.isLastSession ? 5000 : 3000);
@@ -421,37 +410,6 @@ function SessionsPanel() {
     }
   };
 
-  const archiveSession = async (sessionId) => {
-    if (
-      !confirm(
-        "Are you sure you want to archive this ranking? The current rankings will be preserved and visible in the archive section.",
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const res = await fetchWithCsrf("/api/admin/archive-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId }),
-      });
-
-      if (res.ok) {
-        alert(
-          "Ranking archived successfully! Results are now available in the archive section.",
-        );
-        loadSessions();
-      } else {
-        const error = await res.json();
-        alert(`Error: ${error.error}`);
-      }
-    } catch (error) {
-      console.error("Error archiving session:", error);
-      alert("Could not archive session");
-    }
-  };
-
   if (loading)
     return <div className="p-6 bg-white rounded-2xl shadow-lg">Loading…</div>;
 
@@ -485,28 +443,15 @@ function SessionsPanel() {
           <div className="space-y-5">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
-                {sessionType === "voting"
-                  ? "Question (max 20 words)"
-                  : "What do you want to ask?"}
+                What do you want to ask?
               </label>
-              {sessionType === "voting" ? (
-                <textarea
-                  value={newPlace}
-                  onChange={(e) => setNewPlace(e.target.value)}
-                  rows={3}
-                  maxLength={200}
-                  className="w-full border-2 border-green-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all resize-none"
-                  placeholder="e.g. 'Should Vallentuna build more cycle lanes?'"
-                />
-              ) : (
-                <input
-                  type="text"
-                  value={newPlace}
-                  onChange={(e) => setNewPlace(e.target.value)}
-                  className="w-full border-2 border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent transition-all"
-                  placeholder="e.g. 'City Name' or 'Topic'"
-                />
-              )}
+              <input
+                type="text"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                className="w-full border-2 border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent transition-all"
+                placeholder="e.g. 'Ska vi bygga fler cykelbanor?'"
+              />
             </div>
 
             {/* Category picker */}
@@ -521,7 +466,7 @@ function SessionsPanel() {
                 <button
                   type="button"
                   onClick={suggestCategories}
-                  disabled={!newPlace.trim() || suggesting}
+                  disabled={!newTitle.trim() || suggesting}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{
                     borderColor: primaryDark,
@@ -533,10 +478,6 @@ function SessionsPanel() {
                   {suggesting ? "Tänker…" : "XAI föreslår"}
                 </button>
               </div>
-
-              <p className="text-xs text-slate-400 mb-3">
-                Avgör vilka användare som får push-notiser om detta innehåll.
-              </p>
 
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
                 Plats
@@ -597,141 +538,42 @@ function SessionsPanel() {
               </div>
             </div>
 
-            <div>
+            <div className="p-4 bg-slate-50 border-2 border-slate-200 rounded-xl">
               <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Session Type
+                Deadline{" "}
+                <span className="font-normal text-slate-400">
+                  (valfritt — 24h efter start om tomt)
+                </span>
               </label>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSessionType("voting")}
-                  className={`flex-1 p-4 rounded-xl border-2 transition-all text-left ${
-                    sessionType === "voting"
-                      ? "border-green-500 bg-green-50"
-                      : "border-slate-300 hover:border-slate-400"
-                  }`}
-                >
-                  <span className="block font-semibold text-slate-800">
-                    📱 Mobilapp — Ja/Nej
-                  </span>
-                  <span className="text-xs text-slate-500 mt-1 block">
-                    Fråga med Ja/Nej-svar — visas i flödets Hem- och
-                    Rösta-flikar
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSessionType("standard")}
-                  className={`flex-1 p-4 rounded-xl border-2 transition-all text-left ${
-                    sessionType === "standard"
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-slate-300 hover:border-slate-400"
-                  }`}
-                >
-                  <span className="block font-semibold text-slate-800">
-                    Webapp – Live session
-                  </span>
-                  <span className="text-xs text-slate-500 mt-1 block">
-                    Two phases: idea collection with ratings, then debate &
-                    voting
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSessionType("survey")}
-                  className={`flex-1 p-4 rounded-xl border-2 transition-all text-left ${
-                    sessionType === "survey"
-                      ? "border-purple-500 bg-purple-50"
-                      : "border-slate-300 hover:border-slate-400"
-                  }`}
-                >
-                  <span className="block font-semibold text-slate-800">
-                    Survey (Rankings)
-                  </span>
-                  <span className="text-xs text-slate-500 mt-1 block">
-                    Time-limited responses with live rankings, then archived
-                  </span>
-                </button>
-              </div>
+              <input
+                type="date"
+                min={new Date().toISOString().slice(0, 10)}
+                value={newDeadline}
+                onChange={(e) => setNewDeadline(e.target.value)}
+                className="w-full border-2 border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
+              />
+              <p className="text-xs text-slate-500 mt-2">
+                Sessionen stängs automatiskt vid slutet av valt datum (eller när
+                alla aktiva användare har röstat i fas 2).
+              </p>
             </div>
 
-            {sessionType === "voting" && (
-              <div className="p-4 bg-green-50 border-2 border-green-200 rounded-xl">
-                <label className="block text-sm font-semibold text-green-800 mb-2">
-                  Deadline (sista dag frågan är aktiv) *
-                </label>
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
                 <input
-                  type="date"
-                  required
-                  min={new Date().toISOString().slice(0, 10)}
-                  value={newDeadline}
-                  onChange={(e) => setNewDeadline(e.target.value)}
-                  className="w-full border-2 border-green-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  type="checkbox"
+                  checked={maxOneProposalPerUser}
+                  onChange={(e) => setMaxOneProposalPerUser(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
                 />
-                <p className="text-xs text-green-700 mt-2">
-                  Frågan stängs automatiskt vid slutet av valt datum. Den stängs
-                  aldrig av en generell tidsgräns.
-                </p>
-              </div>
-            )}
-
-            {sessionType === "survey" && (
-              <div className="p-4 bg-purple-50 border-2 border-purple-200 rounded-xl">
-                <label className="block text-sm font-semibold text-purple-800 mb-2">
-                  Survey Duration (days)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="365"
-                  value={surveyDurationDays}
-                  onChange={(e) => setSurveyDurationDays(e.target.value)}
-                  className="w-full border-2 border-purple-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
-                <p className="text-xs text-purple-600 mt-2">
-                  After this period, the session will be automatically archived
-                  and results will be preserved in the archive section.
-                </p>
-              </div>
-            )}
-
-            {sessionType === "standard" && (
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={maxOneProposalPerUser}
-                    onChange={(e) => setMaxOneProposalPerUser(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                  />
-                  <span className="text-sm font-semibold text-slate-700">
-                    Max one proposal each
-                  </span>
-                </label>
-                <p className="text-xs text-slate-500 mt-1 ml-6">
-                  Limit all users (except admins) to one proposal per session
-                </p>
-              </div>
-            )}
-
-            {sessionType === "survey" && (
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={maxOneProposalPerUser}
-                    onChange={(e) => setMaxOneProposalPerUser(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-2 focus:ring-purple-500"
-                  />
-                  <span className="text-sm font-semibold text-slate-700">
-                    Max one response each
-                  </span>
-                </label>
-                <p className="text-xs text-slate-500 mt-1 ml-6">
-                  Limit all users (except admins) to one response per survey
-                </p>
-              </div>
-            )}
+                <span className="text-sm font-semibold text-slate-700">
+                  Max one proposal each
+                </span>
+              </label>
+              <p className="text-xs text-slate-500 mt-1 ml-6">
+                Limit all users (except admins) to one proposal per session
+              </p>
+            </div>
 
             <div>
               <label className="flex items-center gap-2 cursor-pointer">
@@ -750,62 +592,58 @@ function SessionsPanel() {
               </p>
             </div>
 
-            {sessionType === "standard" && (
-              <>
-                <div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={noMotivation}
-                      onChange={(e) => setNoMotivation(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className="text-sm font-semibold text-slate-700">
-                      No motivation
-                    </span>
-                  </label>
-                  <p className="text-xs text-slate-500 mt-1 ml-6">
-                    Hide problem and solution fields, only show proposal title
-                  </p>
-                </div>
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={noMotivation}
+                  onChange={(e) => setNoMotivation(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-sm font-semibold text-slate-700">
+                  No motivation
+                </span>
+              </label>
+              <p className="text-xs text-slate-500 mt-1 ml-6">
+                Hide problem and solution fields, only show proposal title
+              </p>
+            </div>
 
-                <div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={singleResult}
-                      onChange={(e) => setSingleResult(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className="text-sm font-semibold text-slate-700">
-                      Single result
-                    </span>
-                  </label>
-                  <p className="text-xs text-slate-500 mt-1 ml-6">
-                    Only one winner: proposal with highest result (yes votes -
-                    no votes)
-                  </p>
-                </div>
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={singleResult}
+                  onChange={(e) => setSingleResult(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-sm font-semibold text-slate-700">
+                  Single result
+                </span>
+              </label>
+              <p className="text-xs text-slate-500 mt-1 ml-6">
+                Only one winner: proposal with highest result (yes votes - no
+                votes)
+              </p>
+            </div>
 
-                <div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={onlyYesVotes}
-                      onChange={(e) => setOnlyYesVotes(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className="text-sm font-semibold text-slate-700">
-                      Only yes-votes
-                    </span>
-                  </label>
-                  <p className="text-xs text-slate-500 mt-1 ml-6">
-                    Replace the no-button with &quot;Next proposal&quot;. Users
-                    browse in a loop and confirm before voting.
-                  </p>
-                </div>
-              </>
-            )}
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={onlyYesVotes}
+                  onChange={(e) => setOnlyYesVotes(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-sm font-semibold text-slate-700">
+                  Only yes-votes
+                </span>
+              </label>
+              <p className="text-xs text-slate-500 mt-1 ml-6">
+                Replace the no-button with &quot;Next proposal&quot;. Users
+                browse in a loop and confirm before voting.
+              </p>
+            </div>
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
@@ -857,28 +695,9 @@ function SessionsPanel() {
               </p>
             )}
 
-            {sessionType === "voting" && (
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Bakgrundsbild (valfri)
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setNewImage(e.target.files?.[0] ?? null)}
-                  className="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
-                />
-                {newImage && (
-                  <p className="text-xs text-green-600 mt-1">
-                    ✓ {newImage.name}
-                  </p>
-                )}
-              </div>
-            )}
-
             <button
               onClick={createSession}
-              disabled={creating || (sessionType === "voting" && !newDeadline)}
+              disabled={creating}
               className="px-8 py-3 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all"
               style={{
                 backgroundColor: accentColor,
@@ -971,7 +790,7 @@ function SessionsPanel() {
                         className="font-bold text-xl"
                         style={{ color: primaryDark }}
                       >
-                        {activeSession.place}
+                        {activeSession.title}
                         {activeSession.isOtherUserSession && (
                           <span className="ml-2 text-xs font-normal text-orange-600">
                             (Created by another admin)
@@ -1008,28 +827,10 @@ function SessionsPanel() {
                         className="text-sm font-bold mt-2"
                         style={{ color: primaryDark }}
                       >
-                        {activeSession.sessionType === "survey" ? (
-                          <span className="text-purple-700">Ranking</span>
-                        ) : activeSession.sessionType === "voting" ? (
-                          <span>
-                            📱 Mobilapp — Ja/Nej
-                            {activeSession.quickVoteCounts && (
-                              <span className="font-normal">
-                                {" · "}Ja {activeSession.quickVoteCounts.ja} /
-                                Nej {activeSession.quickVoteCounts.nej}
-                                {activeSession.quickVoteCounts.abstar > 0 &&
-                                  ` / Avstår ${activeSession.quickVoteCounts.abstar}`}
-                              </span>
-                            )}
-                          </span>
-                        ) : (
-                          <>
-                            Current phase:{" "}
-                            {activeSession.phase === "phase1"
-                              ? "Phase 1 (Rating)"
-                              : "Phase 2 (Debate & Voting)"}
-                          </>
-                        )}
+                        Current phase:{" "}
+                        {activeSession.phase === "phase1"
+                          ? "Phase 1 (Rating)"
+                          : "Phase 2 (Debate & Voting)"}
                       </p>
 
                       {/* Cover image upload */}
@@ -1087,31 +888,17 @@ function SessionsPanel() {
                         (typeof activeSession.createdBy === "object"
                           ? activeSession.createdBy._id
                           : activeSession.createdBy
-                        )?.toString() === session?.user?.id) &&
-                      (activeSession.sessionType === "survey" ? (
-                        <button
-                          onClick={() => archiveSession(activeSession._id)}
-                          className="px-6 py-2.5 bg-purple-600 text-white rounded-xl hover:bg-purple-700 font-bold shadow-md hover:shadow-lg transition-all"
-                        >
-                          Archive ranking
-                        </button>
-                      ) : (
+                        )?.toString() === session?.user?.id) && (
                         <button
                           onClick={() => closeSession(activeSession._id)}
                           className="px-6 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 font-bold shadow-md hover:shadow-lg transition-all"
                         >
                           Close session
                         </button>
-                      ))}
+                      )}
                   </div>
 
-                  {/* No LivePanel for "voting" sessions: its phase machinery
-                      (activeUsers, FinalVote counts, 75% conditions) doesn't
-                      apply to them — they'd poll forever showing zeros. Their
-                      Ja/Nej counts come from the sessions list instead. */}
                   {!activeSession.isOtherUserSession &&
-                    activeSession.sessionType !== "survey" &&
-                    activeSession.sessionType !== "voting" &&
                     (activeSession.phase === "phase1" ||
                       activeSession.phase === "phase2") && (
                       <LivePanel
@@ -1144,7 +931,7 @@ function SessionsPanel() {
                                 </p>
                               </div>
                               {activeSession.phase === "phase2" && (
-                                <div className="ml-2 flex-shrink-0">
+                                <div className="ml-2 shrink-0">
                                   {user.hasVoted ? (
                                     <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-green-100 text-green-800">
                                       ✓ Voted
@@ -1197,7 +984,7 @@ function SessionsPanel() {
                     className="font-bold text-lg"
                     style={{ color: primaryDark }}
                   >
-                    {sessionItem.place}
+                    {sessionItem.title}
                   </h3>
                   <p className="text-sm text-slate-600 mt-1">
                     Started:{" "}

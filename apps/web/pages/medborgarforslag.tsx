@@ -41,8 +41,7 @@ export default function MedborgarforslagPage() {
     try {
       const res = await fetch("/api/sessions/active");
       const data = await res.json();
-      const sessions = Array.isArray(data) ? data : [];
-      setActiveSessions(sessions.filter((s) => s.sessionType !== "municipal"));
+      setActiveSessions(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching sessions:", err);
     }
@@ -51,7 +50,6 @@ export default function MedborgarforslagPage() {
   usePusher({
     onNewSession: fetchActiveSessions,
     onPhaseChange: fetchActiveSessions,
-    onSessionArchived: fetchActiveSessions,
     onConnected: () => {},
     onError: () => {},
   });
@@ -521,19 +519,15 @@ function ProposalCard({ proposal, onRate, session }) {
 }
 
 function SessionCard({ session, onClick, t, primaryDark, accentColor }) {
-  const isSurvey = session.sessionType === "survey";
-
-  const phaseLabel = isSurvey
-    ? t("ranking.liveRankings") || "Live Rankings"
-    : session.phase === "phase1"
+  const phaseLabel =
+    session.phase === "phase1"
       ? t("phases.phase1") || "Phase 1 - Idea Collection"
       : session.phase === "phase2"
         ? t("phases.phase2") || "Phase 2 - Voting"
         : t("phases.closed") || "Closed";
 
-  const phaseColor = isSurvey
-    ? "bg-purple-100 text-purple-800"
-    : session.phase === "phase1"
+  const phaseColor =
+    session.phase === "phase1"
       ? "bg-blue-100 text-blue-800"
       : session.phase === "phase2"
         ? "bg-green-100 text-green-800"
@@ -558,7 +552,7 @@ function SessionCard({ session, onClick, t, primaryDark, accentColor }) {
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <h3 className="text-xl font-bold text-gray-900 mb-2 wrap-break-word group-hover:text-primary-700">
-            {session.place || "Unnamed Session"}
+            {session.title || "Unnamed Session"}
           </h3>
 
           <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -581,23 +575,6 @@ function SessionCard({ session, onClick, t, primaryDark, accentColor }) {
               <span className="flex items-center gap-1">
                 <Calendar className="w-4 h-4" />
                 {formatDate(session.startDate)}
-              </span>
-            )}
-            {isSurvey && session.archiveDate && (
-              <span className="flex items-center gap-1 text-purple-600">
-                <Clock className="w-4 h-4" />
-                {(() => {
-                  const now = new Date();
-                  const archive = new Date(session.archiveDate);
-                  const diff = archive.getTime() - now.getTime();
-                  if (diff <= 0) return t("ranking.rankingEnded") || "Ended";
-                  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                  const hours = Math.floor(
-                    (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
-                  );
-                  return days > 0 ? `${days}d ${hours}h` : `${hours}h`;
-                })()}{" "}
-                {t("ranking.timeRemaining") || "remaining"}
               </span>
             )}
           </div>

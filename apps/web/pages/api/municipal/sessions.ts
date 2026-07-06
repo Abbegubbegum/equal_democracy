@@ -4,20 +4,19 @@ import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
 import {
   User,
-  MunicipalSession,
-  Proposal,
-  Session,
-  Comment,
+  MunicipalMeeting,
+  Question,
+  QuestionComment,
 } from "../../../lib/models";
 import { csrfProtection } from "../../../lib/csrf";
-import { sendMunicipalSessionNotifications } from "../../../lib/municipal/notifications";
+import { sendMunicipalMeetingNotifications } from "../../../lib/municipal/notifications";
 import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("MunicipalSessions");
 
 /**
  * GET/PATCH/DELETE /api/municipal/sessions
- * Manage municipal sessions
+ * Manage municipal meetings
  * GET: Requires login
  * PATCH/DELETE: Superadmin only
  */
@@ -35,7 +34,7 @@ export default async function handler(
 
   const user = await User.findById(session.user.id);
 
-  // GET - List all municipal sessions (any logged-in user)
+  // GET - List all municipal meetings (any logged-in user)
   if (req.method === "GET") {
     try {
       const { status, limit, municipality } = req.query;
@@ -49,19 +48,19 @@ export default async function handler(
         query.municipality = m.charAt(0).toUpperCase() + m.slice(1);
       }
 
-      const sessions = await MunicipalSession.find(query)
+      const meetings = await MunicipalMeeting.find(query)
         .populate("createdBy", "name email")
         .sort({ meetingDate: -1 })
         .limit(limit ? parseInt(String(limit)) : 50);
 
-      return res.status(200).json({ sessions });
+      return res.status(200).json({ sessions: meetings });
     } catch (error) {
-      log.error("Failed to fetch sessions", { error: error.message });
-      return res.status(500).json({ message: "Failed to fetch sessions" });
+      log.error("Failed to fetch meetings", { error: error.message });
+      return res.status(500).json({ message: "Failed to fetch meetings" });
     }
   }
 
-  // PATCH - Update municipal session (or publish it) - Superadmin only
+  // PATCH - Update meeting (or publish it) - Superadmin only
   if (req.method === "PATCH") {
     if (!user || !user.isSuperAdmin) {
       return res.status(403).json({ message: "Superadmin access required" });
@@ -75,73 +74,53 @@ export default async function handler(
       const { sessionId, action, updates } = req.body;
 
       if (!sessionId) {
-        return res.status(400).json({ message: "Session ID required" });
+        return res.status(400).json({ message: "Meeting ID required" });
       }
 
-      const municipalSession = await MunicipalSession.findById(sessionId);
+      const meeting = await MunicipalMeeting.findById(sessionId);
 
-      if (!municipalSession) {
-        return res.status(404).json({ message: "Session not found" });
+      if (!meeting) {
+        return res.status(404).json({ message: "Meeting not found" });
       }
 
-      // Action: Publish (create sessions and proposals for each item)
+      // Action: Publish (spawn a Question for each item)
       if (action === "publish") {
-        if (municipalSession.status !== "draft") {
+        if (meeting.status !== "draft") {
           return res
             .status(400)
-            .json({ message: "Only draft sessions can be published" });
+            .json({ message: "Only draft meetings can be published" });
         }
 
-        // Format date for Session place field
-        const meetingDateObj = new Date(municipalSession.meetingDate);
-        const formattedDate = meetingDateObj.toISOString().slice(0, 10); // YYYY-MM-DD
+        // Questions close when the council meets, unless that date has
+        // already passed (shouldn't normally happen for a fresh publish).
+        const meetingDate = new Date(meeting.meetingDate);
+        meetingDate.setHours(23, 59, 59, 999);
+        const now = new Date();
+        const deadline =
+          meetingDate.getTime() > now.getTime()
+            ? meetingDate
+            : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-        // Create a standard Session and Proposals for each item
-        for (let i = 0; i < municipalSession.items.length; i++) {
-          const item = municipalSession.items[i];
+        for (let i = 0; i < meeting.items.length; i++) {
+          const item = meeting.items[i];
 
-          // Create Session place: "2026-01-19 - Item Title" (max 100 chars)
-          const maxTitleLength = 100 - formattedDate.length - 3; // "YYYY-MM-DD - " = 13 chars
-          const truncatedTitle =
-            item.title.length > maxTitleLength
-              ? item.title.substring(0, maxTitleLength - 3) + "..."
-              : item.title;
-          const sessionPlace = `${formattedDate} - ${truncatedTitle}`;
-
-          // Create a Session for this item (phase2 + voting)
-          const itemSession = new Session({
-            place: sessionPlace,
-            sessionType: "municipal",
+          const question = new Question({
+            text: item.title,
             status: "active",
-            phase: "phase2", // Skip phase1, go straight to debate
+            deadline,
+            imageUrl: item.imageUrl || null,
+            categories: item.categories || [],
             createdBy: user._id,
-            startDate: new Date(),
-            showUserCount: true,
-            noMotivation: false,
+            meetingId: meeting._id,
           });
 
-          await itemSession.save();
+          await question.save();
 
-          // Create a Proposal for this item
-          const proposal = new Proposal({
-            sessionId: itemSession._id,
-            title: item.title,
-            problem: "", // Description goes in initial arguments instead
-            solution: item.description,
-            authorId: user._id,
-            authorName: municipalSession.meetingType,
-            status: "top3", // Immediately promote to voting
-          });
-
-          await proposal.save();
-
-          // Create initial arguments as Comments
+          // Create initial arguments as QuestionComments
           for (const arg of item.initialArguments || []) {
-            const comment = new Comment({
-              proposalId: proposal._id,
-              sessionId: itemSession._id,
+            const comment = new QuestionComment({
+              questionId: question._id,
               userId: user._id,
-              authorName: municipalSession.meetingType,
               text: arg.text,
               type: arg.type,
             });
@@ -149,31 +128,30 @@ export default async function handler(
             await comment.save();
           }
 
-          // Update the item with references
-          item.proposalId = proposal._id;
-          item.sessionId = itemSession._id;
+          // Update the item with a reference to the spawned Question
+          item.questionId = question._id;
           item.status = "active";
         }
 
-        municipalSession.status = "active";
-        await municipalSession.save();
+        meeting.status = "active";
+        await meeting.save();
 
-        log.info("Session published", {
+        log.info("Meeting published", {
           sessionId,
-          itemCount: municipalSession.items.length,
+          itemCount: meeting.items.length,
         });
 
         // Send notifications to users based on categories
         try {
           const notificationResults =
-            await sendMunicipalSessionNotifications(municipalSession);
+            await sendMunicipalMeetingNotifications(meeting);
           log.info("Notifications sent", {
             sessionId,
             emails: notificationResults.emailsSent,
             sms: notificationResults.smsSent,
           });
-          municipalSession.notificationsSent = true;
-          await municipalSession.save();
+          meeting.notificationsSent = true;
+          await meeting.save();
         } catch (error) {
           log.error("Failed to send notifications", {
             sessionId,
@@ -183,27 +161,26 @@ export default async function handler(
         }
 
         return res.status(200).json({
-          message: "Session published successfully",
-          session: municipalSession,
+          message: "Meeting published successfully",
+          session: meeting,
         });
       }
 
-      // Action: Update items or session details
+      // Action: Update items or meeting details
       if (action === "update") {
-        if (updates.name) municipalSession.name = updates.name;
+        if (updates.name) meeting.name = updates.name;
         if (updates.meetingDate)
-          municipalSession.meetingDate = new Date(updates.meetingDate);
-        if (updates.meetingType)
-          municipalSession.meetingType = updates.meetingType;
+          meeting.meetingDate = new Date(updates.meetingDate);
+        if (updates.meetingType) meeting.meetingType = updates.meetingType;
         if (updates.items) {
           // Merge by _id instead of replacing wholesale — preserves
-          // imageUrl/totalStars/ratingCount/averageRating (set via the
-          // dedicated image-upload and rating endpoints) when an admin only
-          // edits an item's text or categories here.
+          // imageUrl (set via the dedicated image-upload endpoint) and
+          // questionId when an admin only edits an item's text or
+          // categories here.
           const existingById = new Map<string, any>(
-            municipalSession.items.map((it) => [String(it._id), it]),
+            meeting.items.map((it) => [String(it._id), it]),
           );
-          municipalSession.items = updates.items.map(
+          meeting.items = updates.items.map(
             (incoming: Record<string, unknown>) => {
               const existing =
                 incoming._id && existingById.get(String(incoming._id));
@@ -228,25 +205,25 @@ export default async function handler(
           );
         }
 
-        await municipalSession.save();
+        await meeting.save();
 
         return res.status(200).json({
-          message: "Session updated successfully",
-          session: municipalSession,
+          message: "Meeting updated successfully",
+          session: meeting,
         });
       }
 
       return res.status(400).json({ message: "Invalid action" });
     } catch (error) {
-      log.error("Failed to update session", { error: error.message });
+      log.error("Failed to update meeting", { error: error.message });
       return res.status(500).json({
-        message: "Failed to update session",
+        message: "Failed to update meeting",
         error: error.message,
       });
     }
   }
 
-  // DELETE - Delete municipal session - Superadmin only
+  // DELETE - Delete meeting - Superadmin only
   if (req.method === "DELETE") {
     if (!user || !user.isSuperAdmin) {
       return res.status(403).json({ message: "Superadmin access required" });
@@ -260,28 +237,28 @@ export default async function handler(
       const { sessionId } = req.query;
 
       if (!sessionId) {
-        return res.status(400).json({ message: "Session ID required" });
+        return res.status(400).json({ message: "Meeting ID required" });
       }
 
-      const municipalSession = await MunicipalSession.findById(sessionId);
+      const meeting = await MunicipalMeeting.findById(sessionId);
 
-      if (!municipalSession) {
-        return res.status(404).json({ message: "Session not found" });
+      if (!meeting) {
+        return res.status(404).json({ message: "Meeting not found" });
       }
 
-      // Only allow deletion of draft sessions
-      if (municipalSession.status !== "draft") {
+      // Only allow deletion of draft meetings
+      if (meeting.status !== "draft") {
         return res
           .status(400)
-          .json({ message: "Only draft sessions can be deleted" });
+          .json({ message: "Only draft meetings can be deleted" });
       }
 
-      await MunicipalSession.findByIdAndDelete(sessionId);
+      await MunicipalMeeting.findByIdAndDelete(sessionId);
 
-      return res.status(200).json({ message: "Session deleted successfully" });
+      return res.status(200).json({ message: "Meeting deleted successfully" });
     } catch (error) {
-      log.error("Failed to delete session", { error: error.message });
-      return res.status(500).json({ message: "Failed to delete session" });
+      log.error("Failed to delete meeting", { error: error.message });
+      return res.status(500).json({ message: "Failed to delete meeting" });
     }
   }
 

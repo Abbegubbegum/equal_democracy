@@ -26,10 +26,9 @@ export default async function handler(
     // Get all active sessions
     const activeSessions = await Session.find({
       status: "active",
-      sessionType: { $ne: "voting" },
     })
       .select(
-        "_id place phase startDate showUserCount noMotivation singleResult activeUsers sessionType archiveDate surveyDurationDays",
+        "_id title phase startDate showUserCount noMotivation singleResult activeUsers deadline",
       )
       .sort({ startDate: -1 })
       .lean();
@@ -37,16 +36,14 @@ export default async function handler(
     // Transform to include active user count
     const sessionsWithCount = activeSessions.map((s) => ({
       _id: s._id.toString(),
-      place: s.place,
+      title: s.title,
       phase: s.phase,
       startDate: s.startDate,
       showUserCount: s.showUserCount || false,
       noMotivation: s.noMotivation || false,
       singleResult: s.singleResult || false,
       activeUsersCount: s.activeUsers?.length || 0,
-      sessionType: s.sessionType || "standard",
-      archiveDate: s.archiveDate,
-      surveyDurationDays: s.surveyDurationDays,
+      deadline: s.deadline,
     }));
 
     return res.status(200).json(sessionsWithCount);

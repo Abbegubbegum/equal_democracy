@@ -2,7 +2,13 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
-import { Proposal, ThumbsUp, Comment, FinalVote } from "../../../lib/models";
+import {
+  Proposal,
+  ProposalRating,
+  Comment,
+  FinalVote,
+} from "../../../lib/models";
+import { getRatingAggregates } from "../../../lib/rating-helper";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("UserActivity");
@@ -30,7 +36,7 @@ export default async function handler(
       .sort({ createdAt: -1 })
       .lean();
 
-    const myThumbsUps = await ThumbsUp.find({ userId })
+    const myRatings = await ProposalRating.find({ userId })
       .populate("proposalId")
       .sort({ createdAt: -1 })
       .lean();
@@ -45,16 +51,22 @@ export default async function handler(
       .sort({ createdAt: -1 })
       .lean();
 
+    const ratings = await getRatingAggregates(
+      ProposalRating,
+      "proposalId",
+      myProposals.map((p) => p._id),
+    );
+
     const activity = {
       proposals: myProposals.map((p) => ({
         _id: p._id.toString(),
         title: p.title,
         description: p.description,
         status: p.status,
-        thumbsUpCount: p.thumbsUpCount,
+        ratingCount: ratings.get(p._id.toString())?.ratingCount || 0,
         createdAt: p.createdAt,
       })),
-      thumbsUps: myThumbsUps
+      ratings: myRatings
         .filter((t) => t.proposalId)
         .map((t) => ({
           _id: t._id.toString(),

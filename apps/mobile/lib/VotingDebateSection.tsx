@@ -55,15 +55,15 @@ function sortComments(list: VotingComment[]): VotingComment[] {
   });
 }
 
-// Self-contained inline för/emot debate section for a "voting"-type session —
+// Self-contained inline för/emot debate section for a Question —
 // mirrors the web for/against debate on standard sessions
-// (apps/web/pages/session/[id].tsx) but keyed by sessionId instead of
-// proposalId, since voting questions have no Proposal.
+// (apps/web/pages/session/[id].tsx) but keyed by questionId instead of
+// proposalId, since Questions have no Proposal.
 export default function VotingDebateSection({
-  sessionId,
+  questionId,
   canPost,
 }: {
-  sessionId: string;
+  questionId: string;
   canPost: boolean;
 }) {
   const [comments, setComments] = useState<VotingComment[]>([]);
@@ -79,13 +79,13 @@ export default function VotingDebateSection({
 
   useEffect(() => {
     load();
-  }, [sessionId]);
+  }, [questionId]);
 
   async function load() {
     setLoading(true);
     try {
       const data = await apiClient<VotingComment[]>(
-        `/api/mobile/voting-comments?sessionId=${sessionId}`,
+        `/api/mobile/questions/comments?questionId=${questionId}`,
       );
       setComments(sortComments(data));
     } catch {
@@ -100,10 +100,10 @@ export default function VotingDebateSection({
     setError(null);
     try {
       const created = await apiClient<VotingComment>(
-        "/api/mobile/voting-comments",
+        "/api/mobile/questions/comments",
         {
           method: "POST",
-          body: JSON.stringify({ sessionId, text: text.trim(), type }),
+          body: JSON.stringify({ questionId, text: text.trim(), type }),
         },
       );
       setComments((prev) => sortComments([...prev, created]));
@@ -156,7 +156,7 @@ export default function VotingDebateSection({
       const res = await apiClient<{
         averageRating: number;
         userRating: number;
-      }>("/api/mobile/voting-comments/rate", {
+      }>("/api/mobile/questions/comments/rate", {
         method: "POST",
         body: JSON.stringify({ commentId, rating }),
       });

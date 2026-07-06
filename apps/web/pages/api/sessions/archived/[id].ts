@@ -1,8 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
-import { Session, Proposal } from "@/lib/models";
+import { Session, Proposal, ProposalRating } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]";
+import { getRatingAggregates } from "@/lib/rating-helper";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("ArchivedSession");
@@ -29,14 +30,12 @@ export default async function handler(
   }
 
   try {
-    // Get the archived session
+    // Get the closed (archived) session
     const archivedSession = (await Session.findOne({
       _id: id,
-      status: "archived",
+      status: "closed",
     })
-      .select(
-        "_id place startDate endDate surveyDurationDays activeUsers sessionType",
-      )
+      .select("_id title startDate endDate activeUsers")
       .lean()) as any;
 
     if (!archivedSession) {
@@ -44,27 +43,38 @@ export default async function handler(
     }
 
     // Get all proposals for this session, sorted by rating
-    const proposals = await Proposal.find({ sessionId: id })
-      .select("_id title averageRating thumbsUpCount")
-      .sort({ averageRating: -1, thumbsUpCount: -1 })
+    const rawProposals = await Proposal.find({ sessionId: id })
+      .select("_id title")
       .lean();
+    const ratings = await getRatingAggregates(
+      ProposalRating,
+      "proposalId",
+      rawProposals.map((p) => p._id),
+    );
+    const proposals = rawProposals
+      .map((p) => {
+        const agg = ratings.get(p._id.toString());
+        return {
+          _id: p._id.toString(),
+          title: p.title,
+          averageRating: agg?.averageRating || 0,
+          ratingCount: agg?.ratingCount || 0,
+        };
+      })
+      .sort(
+        (a, b) =>
+          b.averageRating - a.averageRating || b.ratingCount - a.ratingCount,
+      );
 
     return res.status(200).json({
       session: {
         _id: archivedSession._id.toString(),
-        place: archivedSession.place,
+        title: archivedSession.title,
         startDate: archivedSession.startDate,
         endDate: archivedSession.endDate,
-        surveyDurationDays: archivedSession.surveyDurationDays || 6,
         participantCount: archivedSession.activeUsers?.length || 0,
-        sessionType: archivedSession.sessionType || "survey",
       },
-      proposals: proposals.map((p) => ({
-        _id: p._id.toString(),
-        title: p.title,
-        averageRating: p.averageRating || 0,
-        thumbsUpCount: p.thumbsUpCount || 0,
-      })),
+      proposals,
     });
   } catch (error) {
     log.error("Failed to fetch archived session", {

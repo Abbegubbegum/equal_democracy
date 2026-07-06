@@ -17,12 +17,11 @@ interface TopProposal {
   title: string;
   yesVotes: number;
   noVotes: number;
-  authorName: string;
 }
 
 interface ArchivedSession {
   id: string;
-  place: string;
+  title: string;
   startDate: string;
   endDate: string | null;
   status: string;
@@ -135,7 +134,7 @@ export default function ArchiveScreen() {
               activeOpacity={0.8}
             >
               <View style={styles.headerLeft}>
-                <Text style={styles.sessionPlace}>{session.place}</Text>
+                <Text style={styles.sessionPlace}>{session.title}</Text>
                 <Text style={styles.sessionDate}>
                   {new Date(session.startDate).toLocaleDateString("sv-SE", {
                     day: "numeric",

@@ -58,27 +58,6 @@ const UserSchema = new mongoose.Schema(
       min: 1,
       max: 50,
     },
-    // Membership & Citizen participation
-    isMember: {
-      type: Boolean,
-      default: false,
-      index: true,
-    },
-    userType: {
-      type: String,
-      enum: ["citizen", "member", "none"],
-      default: "none",
-      index: true,
-    },
-    // BankID verification (for future use)
-    bankIdVerified: {
-      type: Boolean,
-      default: false,
-    },
-    bankIdPersonalNumber: {
-      type: String,
-      // Encrypted personal number for verification
-    },
     interests: {
       type: [String],
       default: [],
@@ -96,22 +75,6 @@ const UserSchema = new mongoose.Schema(
     phoneNumber: {
       type: String,
       // For SMS notifications
-    },
-    // Voting tracking
-    lastCitizenVoteDate: {
-      type: Date,
-      // For tracking annual vote limit for citizens
-    },
-    votesUsedInCurrentYear: {
-      type: Number,
-      default: 0,
-      // Reset annually for citizens
-    },
-    // Council member permissions
-    canCloseQuestions: {
-      type: Boolean,
-      default: false,
-      // For fullmäktige representatives
     },
     // Email opt-out (unsubscribe from non-essential emails)
     emailOptOut: {
@@ -174,24 +137,13 @@ const ProposalSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    authorName: {
-      type: String,
-      required: true,
-    },
+    // "finalist" = promoted to the phase-2 yes/no vote.
+    // Rating aggregates are computed at read time from ProposalRating —
+    // no denormalized counters (they drift out of sync).
     status: {
       type: String,
-      enum: ["active", "top3", "archived"],
+      enum: ["active", "finalist", "archived"],
       default: "active",
-    },
-    thumbsUpCount: {
-      type: Number,
-      default: 0,
-    },
-    averageRating: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 5,
     },
     categories: {
       type: [String],
@@ -211,19 +163,14 @@ const ProposalSchema = new mongoose.Schema(
   },
 );
 
-// ThumbsUp Model (now supports 1-5 star rating)
-const ThumbsUpSchema = new mongoose.Schema(
+// ProposalRating Model — 1-5 star rating on a Proposal
+const ProposalRatingSchema = new mongoose.Schema(
   {
-    sessionId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Session",
-      required: true,
-      index: true,
-    },
     proposalId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Proposal",
       required: true,
+      index: true,
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -247,30 +194,22 @@ const ThumbsUpSchema = new mongoose.Schema(
   },
 );
 
-ThumbsUpSchema.index({ proposalId: 1, userId: 1 }, { unique: true });
+ProposalRatingSchema.index({ proposalId: 1, userId: 1 }, { unique: true });
 
-// Comment Model (supports for/against/neutral)
+// Comment Model (supports for/against/neutral). The session is derivable via
+// proposalId -> Proposal.sessionId; rating aggregates are computed at read
+// time from CommentRating.
 const CommentSchema = new mongoose.Schema(
   {
-    sessionId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Session",
-      required: true,
-      index: true,
-    },
-    // Optional: "voting"-type session debates have no Proposal — the
-    // Comment attaches to sessionId alone in that case.
     proposalId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Proposal",
+      required: true,
+      index: true,
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
-    },
-    authorName: {
-      type: String,
       required: true,
     },
     text: {
@@ -283,12 +222,6 @@ const CommentSchema = new mongoose.Schema(
       enum: ["for", "against", "neutral"],
       default: "neutral",
     },
-    averageRating: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 5,
-    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -299,15 +232,9 @@ const CommentSchema = new mongoose.Schema(
   },
 );
 
-// CommentRating Model - for rating comments/arguments (similar to ThumbsUp for proposals)
+// CommentRating Model - for rating comments/arguments (similar to ProposalRating)
 const CommentRatingSchema = new mongoose.Schema(
   {
-    sessionId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Session",
-      required: true,
-      index: true,
-    },
     commentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Comment",
@@ -334,14 +261,14 @@ const CommentRatingSchema = new mongoose.Schema(
   },
 );
 
-// Add index for efficient sorting by rating
-CommentSchema.index({ averageRating: -1, createdAt: -1 });
-
 CommentRatingSchema.index({ commentId: 1, userId: 1 }, { unique: true });
 
 // FinalVote Model
 const FinalVoteSchema = new mongoose.Schema(
   {
+    // Deliberately denormalized (also derivable via proposalId): a session
+    // has one vote per user across proposals in practice, and this supports
+    // the direct "has this user voted in this session?" lookup.
     sessionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Session",
@@ -375,25 +302,17 @@ const FinalVoteSchema = new mongoose.Schema(
 
 FinalVoteSchema.index({ proposalId: 1, userId: 1 }, { unique: true });
 
-// Session Model - represents a voting round/session
+// Session Model - a standard 2-phase live democracy session
 const SessionSchema = new mongoose.Schema(
   {
-    place: {
+    title: {
       type: String,
       required: true,
-      maxlength: [100, "Place name cannot be more than 100 characters"],
-    },
-    // Session type: "standard" (2-phase democracy), "survey" (phase1-only with time limit),
-    // "voting" (single question with Ja/Nej/Avstår, displayed on mobile Rösta tab)
-    sessionType: {
-      type: String,
-      enum: ["standard", "survey", "municipal", "voting"],
-      default: "standard",
-      index: true,
+      maxlength: [100, "Title cannot be more than 100 characters"],
     },
     status: {
       type: String,
-      enum: ["active", "closed", "archived"],
+      enum: ["active", "closed"],
       default: "active",
       index: true,
     },
@@ -425,23 +344,12 @@ const SessionSchema = new mongoose.Schema(
     endDate: {
       type: Date,
     },
-    // For survey sessions: when the session should be archived
-    archiveDate: {
-      type: Date,
-    },
-    // For "voting" sessions: required end-of-life date, set by the admin at
-    // creation time. Voting sessions are never auto-closed by sessionLimitHours
-    // (see check-session-timeout.ts) — only by reaching this deadline or a
-    // manual admin close.
+    // Per-session end-of-life, set at creation (replaces the old global
+    // Settings.sessionLimitHours). The daily cron closes active sessions
+    // whose deadline has passed; the all-users-voted auto-close can end a
+    // session earlier.
     deadline: {
       type: Date,
-    },
-    // Duration in days for survey sessions (default 6)
-    surveyDurationDays: {
-      type: Number,
-      default: 6,
-      min: 1,
-      max: 365,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -507,15 +415,19 @@ const SessionSchema = new mongoose.Schema(
   },
 );
 
-// TopProposal Model - winning proposals from closed sessions (top3 with yes-majority)
-const TopProposalSchema = new mongoose.Schema(
+// WinningProposal Model - winning proposals from closed sessions (finalists
+// with yes-majority). Deliberately an immutable denormalized snapshot
+// (session title, proposal title, votes copied at close time) — the archive
+// record must not change if live documents are edited or deleted. Author
+// names are NOT stored anywhere.
+const WinningProposalSchema = new mongoose.Schema(
   {
     sessionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Session",
       required: true,
     },
-    sessionPlace: {
+    sessionTitle: {
       type: String,
       required: true,
     },
@@ -542,10 +454,6 @@ const TopProposalSchema = new mongoose.Schema(
       required: false,
       default: "",
     },
-    authorName: {
-      type: String,
-      required: true,
-    },
     yesVotes: {
       type: Number,
       required: true,
@@ -564,8 +472,10 @@ const TopProposalSchema = new mongoose.Schema(
   },
 );
 
-// MunicipalSession Model - for council meetings (kommunfullmäktige)
-const MunicipalSessionSchema = new mongoose.Schema(
+// MunicipalMeeting Model - a council/board meeting (kommunfullmäktige): agenda
+// PDF metadata plus the AI-extracted agenda items. Activating an item spawns a
+// Question document (see items[].questionId) that carries the debate + votes.
+const MunicipalMeetingSchema = new mongoose.Schema(
   {
     name: {
       type: String,
@@ -622,29 +532,12 @@ const MunicipalSessionSchema = new mongoose.Schema(
           type: String,
           default: null,
         },
-        totalStars: {
-          type: Number,
-          default: 0,
-        },
-        ratingCount: {
-          type: Number,
-          default: 0,
-        },
-        averageRating: {
-          type: Number,
-          default: 0,
-          min: 0,
-          max: 5,
-        },
-        proposalId: {
-          // Link to created Proposal for voting
+        // Rating aggregates computed at read time from MunicipalItemRating —
+        // no denormalized totalStars/ratingCount/averageRating here.
+        questionId: {
+          // Link to the Question spawned for this item on activation
           type: mongoose.Schema.Types.ObjectId,
-          ref: "Proposal",
-        },
-        sessionId: {
-          // Link to created Session for this specific item
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "Session",
+          ref: "Question",
         },
         initialArguments: [
           {
@@ -704,10 +597,6 @@ const CitizenProposalSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    authorName: {
-      type: String,
-      required: true,
-    },
     status: {
       type: String,
       enum: [
@@ -720,40 +609,12 @@ const CitizenProposalSchema = new mongoose.Schema(
       default: "active",
       index: true,
     },
-    // Ranking data (open ranking, total stars)
-    totalStars: {
-      type: Number,
-      default: 0,
-      index: true, // For sorting by popularity
-    },
-    ratingCount: {
-      type: Number,
-      default: 0,
-    },
-    averageRating: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 5,
-    },
+    // Rating aggregates computed at read time from CitizenProposalRating —
+    // no denormalized totalStars/ratingCount/averageRating here. Sorting by
+    // popularity needs an aggregation pipeline instead of a plain .sort().
     imageUrl: {
       type: String,
       default: null,
-    },
-    // If selected for municipal session
-    selectedForMunicipalSession: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "MunicipalSession",
-    },
-    selectedAt: {
-      type: Date,
-    },
-    // Motion details if submitted
-    submittedAsMotionAt: {
-      type: Date,
-    },
-    motionNumber: {
-      type: String,
     },
     createdAt: {
       type: Date,
@@ -803,12 +664,12 @@ CitizenProposalRatingSchema.index(
   { unique: true },
 );
 
-// Municipal Item Rating Model — 1-5 star rating on a MunicipalSession item
+// Municipal Item Rating Model — 1-5 star rating on a MunicipalMeeting item
 const MunicipalItemRatingSchema = new mongoose.Schema(
   {
-    municipalSessionId: {
+    meetingId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "MunicipalSession",
+      ref: "MunicipalMeeting",
       required: true,
       index: true,
     },
@@ -895,12 +756,6 @@ const SettingsSchema = new mongoose.Schema(
       type: String,
       enum: ["default", "green", "red", "blue"],
       default: "default",
-    },
-    sessionLimitHours: {
-      type: Number,
-      default: 24,
-      min: 1,
-      max: 168, // Max 1 week
     },
     updatedAt: {
       type: Date,
@@ -1314,79 +1169,6 @@ const BudgetResultSchema = new mongoose.Schema(
   },
 );
 
-// Survey Model - represents a survey with a question and multiple choices
-const SurveySchema = new mongoose.Schema(
-  {
-    question: {
-      type: String,
-      required: [true, "Please provide a question"],
-      maxlength: [500, "Question cannot be more than 500 characters"],
-    },
-    choices: [
-      {
-        id: {
-          type: String,
-          required: true,
-        },
-        text: {
-          type: String,
-          required: true,
-          maxlength: [200, "Choice cannot be more than 200 characters"],
-        },
-      },
-    ],
-    status: {
-      type: String,
-      enum: ["active", "closed"],
-      default: "active",
-      index: true,
-    },
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    createdAt: {
-      type: Date,
-      default: Date.now,
-    },
-  },
-  {
-    timestamps: true,
-  },
-);
-
-// SurveyVote Model - tracks anonymous votes (by visitorId for non-logged-in users)
-const SurveyVoteSchema = new mongoose.Schema(
-  {
-    surveyId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Survey",
-      required: true,
-      index: true,
-    },
-    visitorId: {
-      type: String,
-      required: true,
-      index: true,
-    },
-    choiceId: {
-      type: String,
-      required: true,
-    },
-    createdAt: {
-      type: Date,
-      default: Date.now,
-    },
-  },
-  {
-    timestamps: true,
-  },
-);
-
-// Ensure one vote per visitor per survey
-SurveyVoteSchema.index({ surveyId: 1, visitorId: 1 }, { unique: true });
-
 type AnyModel = mongoose.Model<any>;
 
 function safeModel(name: string, schema: mongoose.Schema): AnyModel {
@@ -1398,17 +1180,18 @@ function safeModel(name: string, schema: mongoose.Schema): AnyModel {
 if (mongoose.models["User"]) delete mongoose.models["User"];
 export const User: AnyModel = mongoose.model("User", UserSchema);
 export const Proposal = safeModel("Proposal", ProposalSchema);
-export const ThumbsUp = safeModel("ThumbsUp", ThumbsUpSchema);
+export const ProposalRating = safeModel("ProposalRating", ProposalRatingSchema);
 export const Comment = safeModel("Comment", CommentSchema);
 export const CommentRating = safeModel("CommentRating", CommentRatingSchema);
 export const FinalVote = safeModel("FinalVote", FinalVoteSchema);
 export const LoginCode = safeModel("LoginCode", LoginCodeSchema);
-export const TopProposal = safeModel("TopProposal", TopProposalSchema);
+export const WinningProposal = safeModel(
+  "WinningProposal",
+  WinningProposalSchema,
+);
 export const SessionRequest = safeModel("SessionRequest", SessionRequestSchema);
 export const BudgetVote = safeModel("BudgetVote", BudgetVoteSchema);
 export const BudgetResult = safeModel("BudgetResult", BudgetResultSchema);
-export const Survey = safeModel("Survey", SurveySchema);
-export const SurveyVote = safeModel("SurveyVote", SurveyVoteSchema);
 export const CitizenProposalRating = safeModel(
   "CitizenProposalRating",
   CitizenProposalRatingSchema,
@@ -1436,13 +1219,13 @@ export const CitizenProposal: AnyModel = mongoose.model(
   CitizenProposalSchema,
 );
 
-// Force-refresh MunicipalSession and BudgetSession too — their item/category
+// Force-refresh MunicipalMeeting and BudgetSession too — their item/category
 // subdocument schemas change frequently (categories, images, ratings).
-if (mongoose.models["MunicipalSession"])
-  delete mongoose.models["MunicipalSession"];
-export const MunicipalSession: AnyModel = mongoose.model(
-  "MunicipalSession",
-  MunicipalSessionSchema,
+if (mongoose.models["MunicipalMeeting"])
+  delete mongoose.models["MunicipalMeeting"];
+export const MunicipalMeeting: AnyModel = mongoose.model(
+  "MunicipalMeeting",
+  MunicipalMeetingSchema,
 );
 
 if (mongoose.models["BudgetSession"]) delete mongoose.models["BudgetSession"];
@@ -1479,17 +1262,141 @@ BudgetArgumentSchema.index(
 
 export const BudgetArgument = safeModel("BudgetArgument", BudgetArgumentSchema);
 
-// QuickVote - Ja / Nej / Avstår votes on "voting"-type sessions (mobile Rösta tab)
-const QuickVoteSchema = new mongoose.Schema({
-  sessionId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Session",
-    required: true,
-    index: true,
+// Question - a single Ja/Nej question with its own votes and discussion.
+// Two origins: standalone questions created by admins (mobile Hem/Rösta tabs)
+// and questions spawned from a MunicipalMeeting agenda item (meetingId set).
+const QuestionSchema = new mongoose.Schema(
+  {
+    text: {
+      type: String,
+      required: [true, "Please provide the question text"],
+      maxlength: [300, "Question cannot be more than 300 characters"],
+    },
+    status: {
+      type: String,
+      enum: ["active", "closed"],
+      default: "active",
+      index: true,
+    },
+    // Required end-of-life date. Questions are never subject to
+    // Settings.sessionLimitHours — they close when the deadline passes
+    // (daily cron) or when an admin closes them manually.
+    deadline: {
+      type: Date,
+      required: true,
+    },
+    imageUrl: {
+      type: String,
+      default: null,
+    },
+    categories: {
+      type: [String],
+      default: [],
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      index: true,
+    },
+    // Set only for questions spawned from a municipal agenda item
+    meetingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "MunicipalMeeting",
+      index: true,
+    },
+    closedAt: {
+      type: Date,
+    },
   },
-  userId: { type: String, required: true },
-  choice: { type: String, enum: ["ja", "nej", "abstar"], required: true },
-  createdAt: { type: Date, default: Date.now },
-});
-QuickVoteSchema.index({ sessionId: 1, userId: 1 }, { unique: true });
-export const QuickVote = safeModel("QuickVote", QuickVoteSchema);
+  { timestamps: true },
+);
+
+// QuestionVote - Ja / Nej / Avstår vote on a Question
+const QuestionVoteSchema = new mongoose.Schema(
+  {
+    questionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Question",
+      required: true,
+      index: true,
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    choice: { type: String, enum: ["ja", "nej"], required: true },
+  },
+  { timestamps: true },
+);
+QuestionVoteSchema.index({ questionId: 1, userId: 1 }, { unique: true });
+
+// QuestionComment - för/emot/neutral discussion on a Question. Rating
+// aggregates are computed at read time from QuestionCommentRating.
+const QuestionCommentSchema = new mongoose.Schema(
+  {
+    questionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Question",
+      required: true,
+      index: true,
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    text: {
+      type: String,
+      required: [true, "Please provide comment text"],
+      maxlength: [1000, "Comment cannot be more than 1000 characters"],
+    },
+    type: {
+      type: String,
+      enum: ["for", "against", "neutral"],
+      default: "neutral",
+    },
+  },
+  { timestamps: true },
+);
+
+// QuestionCommentRating - 1-5 star rating on a QuestionComment
+const QuestionCommentRatingSchema = new mongoose.Schema(
+  {
+    commentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "QuestionComment",
+      required: true,
+      index: true,
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    rating: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5,
+    },
+  },
+  { timestamps: true },
+);
+QuestionCommentRatingSchema.index(
+  { commentId: 1, userId: 1 },
+  { unique: true },
+);
+
+// Force-refresh Question — its schema will iterate during the restructure
+if (mongoose.models["Question"]) delete mongoose.models["Question"];
+export const Question: AnyModel = mongoose.model("Question", QuestionSchema);
+export const QuestionVote = safeModel("QuestionVote", QuestionVoteSchema);
+export const QuestionComment = safeModel(
+  "QuestionComment",
+  QuestionCommentSchema,
+);
+export const QuestionCommentRating = safeModel(
+  "QuestionCommentRating",
+  QuestionCommentRatingSchema,
+);

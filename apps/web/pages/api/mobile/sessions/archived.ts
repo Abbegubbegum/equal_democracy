@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../../lib/mongodb";
-import { Session, TopProposal } from "../../../../lib/models";
+import { Session, WinningProposal } from "../../../../lib/models";
 import { verifyBearerToken } from "../../../../lib/mobile-jwt";
 import { createLogger } from "../../../../lib/logger";
 
@@ -23,29 +23,29 @@ export default async function handler(
     await connectDB();
 
     const sessions = await Session.find({
-      status: { $in: ["closed", "archived"] },
-      sessionType: { $nin: ["municipal", "voting"] },
+      status: "closed",
     })
-      .select("_id place startDate endDate status")
+      .select("_id title startDate endDate status")
       .sort({ startDate: -1 })
       .lean();
 
     const result = await Promise.all(
       sessions.map(async (session) => {
-        const topProposals = await TopProposal.find({ sessionId: session._id })
-          .select("title yesVotes noVotes authorName")
+        const winningProposals = await WinningProposal.find({
+          sessionId: session._id,
+        })
+          .select("title yesVotes noVotes")
           .lean();
         return {
           id: session._id.toString(),
-          place: session.place,
+          title: session.title,
           startDate: session.startDate,
           endDate: session.endDate || null,
           status: session.status,
-          topProposals: topProposals.map((tp) => ({
-            title: tp.title,
-            yesVotes: tp.yesVotes,
-            noVotes: tp.noVotes,
-            authorName: tp.authorName,
+          topProposals: winningProposals.map((wp) => ({
+            title: wp.title,
+            yesVotes: wp.yesVotes,
+            noVotes: wp.noVotes,
           })),
         };
       }),

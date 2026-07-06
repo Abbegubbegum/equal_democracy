@@ -25,10 +25,9 @@ export default async function handler(
 
     const sessions = await Session.find({
       status: "active",
-      sessionType: { $nin: ["municipal", "voting"] },
     })
       .select(
-        "_id place phase startDate sessionType activeUsers showUserCount imageUrl noMotivation categories",
+        "_id title phase startDate activeUsers showUserCount imageUrl noMotivation categories",
       )
       .sort({ startDate: -1 })
       .lean();
@@ -36,10 +35,9 @@ export default async function handler(
     return res.status(200).json(
       sessions.map((s) => ({
         id: s._id.toString(),
-        place: s.place,
+        title: s.title,
         phase: s.phase,
         startDate: s.startDate,
-        sessionType: s.sessionType || "standard",
         activeUsersCount: s.activeUsers?.length || 0,
         showUserCount: s.showUserCount || false,
         noMotivation: s.noMotivation || false,

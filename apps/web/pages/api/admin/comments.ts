@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../lib/mongodb";
-import { Comment, Proposal } from "../../../lib/models";
+import { Comment, Proposal, User } from "../../../lib/models";
 import { requireAdmin } from "../../../lib/admin";
 import { validateObjectId, toObjectId } from "../../../lib/validation";
 import { csrfProtection } from "../../../lib/csrf";
@@ -58,13 +58,25 @@ export default async function handler(
         proposals.map((p) => [p._id.toString(), p.title]),
       );
 
+      const userIds = [
+        ...new Set(data.map((c) => c.userId?.toString?.()).filter(Boolean)),
+      ];
+      const users = userIds.length
+        ? await User.find({ _id: { $in: userIds } })
+            .select("name")
+            .lean()
+        : [];
+      const userNameById = Object.fromEntries(
+        users.map((u) => [u._id.toString(), u.name]),
+      );
+
       return res.status(200).json(
         data.map((c) => ({
           id: c._id.toString(),
           proposalId: c.proposalId?.toString?.() || null,
           proposalTitle: proposalTitleById[c.proposalId?.toString?.()] || null,
           userId: c.userId?.toString?.() || null,
-          authorName: c.authorName,
+          authorName: userNameById[c.userId?.toString?.()] || null,
           text: c.text,
           createdAt: c.createdAt,
         })),

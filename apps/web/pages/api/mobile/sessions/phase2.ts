@@ -26,9 +26,8 @@ export default async function handler(
     const sessions = await Session.find({
       status: "active",
       phase: "phase2",
-      sessionType: { $nin: ["municipal", "voting"] },
     })
-      .select("_id place startDate onlyYesVotes imageUrl")
+      .select("_id title startDate onlyYesVotes imageUrl")
       .sort({ startDate: -1 })
       .lean();
 
@@ -58,7 +57,7 @@ export default async function handler(
 
         return {
           id: session._id.toString(),
-          place: session.place,
+          title: session.title,
           startDate: session.startDate,
           onlyYesVotes: session.onlyYesVotes || false,
           imageUrl: session.imageUrl || null,

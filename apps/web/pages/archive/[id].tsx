@@ -154,7 +154,7 @@ export default function ArchivedSessionPage() {
                   </span>
                 </div>
                 <h1 className="text-xl sm:text-2xl font-bold wrap-break-word">
-                  {archivedSession.place}
+                  {archivedSession.title}
                 </h1>
               </div>
             </div>
@@ -242,7 +242,7 @@ export default function ArchivedSessionPage() {
                           {(proposal.averageRating || 0).toFixed(2)}
                         </span>
                         <span className="text-xs text-gray-500">
-                          ({proposal.thumbsUpCount || 0})
+                          ({proposal.ratingCount || 0})
                         </span>
                       </div>
                     </div>

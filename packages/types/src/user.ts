@@ -1,7 +1,6 @@
 import type { BaseDocument } from "./base.js";
 
 export type AdminStatus = "none" | "pending" | "approved" | "denied";
-export type UserType = "citizen" | "member" | "none";
 export type NotificationPreference = "email" | "sms" | "both" | "none";
 
 export interface User extends BaseDocument {
@@ -15,17 +14,10 @@ export interface User extends BaseDocument {
   appliedForAdminAt?: string;
   organization?: string;
   requestedSessions?: number;
-  isMember: boolean;
-  userType: UserType;
-  bankIdVerified: boolean;
-  bankIdPersonalNumber?: string;
   interests: string[];
   expoPushToken?: string;
   notificationPreference: NotificationPreference;
   phoneNumber?: string;
-  lastCitizenVoteDate?: string;
-  votesUsedInCurrentYear: number;
-  canCloseQuestions: boolean;
   emailOptOut: boolean;
 }
 
@@ -37,5 +29,4 @@ export interface AuthUser {
   image?: string | null;
   isAdmin: boolean;
   isSuperAdmin: boolean;
-  municipality?: string;
 }

@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
-import { User, MunicipalSession } from "../../../lib/models";
+import { User, MunicipalMeeting } from "../../../lib/models";
 import { csrfProtection } from "../../../lib/csrf";
 import { extractAgendaFromURL } from "../../../lib/municipal/agenda-extractor";
 import { createLogger } from "../../../lib/logger";
@@ -79,7 +79,7 @@ export default async function handler(
     }
 
     // Create draft municipal session
-    const municipalSession = new MunicipalSession({
+    const meeting = new MunicipalMeeting({
       name:
         extractedData.meetingName ||
         `${meetingType}_${meetingDate.toISOString().slice(0, 10).replace(/-/g, "")}`,
@@ -101,21 +101,21 @@ export default async function handler(
       notificationsSent: false,
     });
 
-    await municipalSession.save();
+    await meeting.save();
 
     log.info("Draft session created", {
-      sessionId: municipalSession._id.toString(),
-      itemCount: municipalSession.items.length,
+      sessionId: meeting._id.toString(),
+      itemCount: meeting.items.length,
     });
 
     return res.status(201).json({
       message: "Agenda extracted successfully",
       session: {
-        _id: municipalSession._id.toString(),
-        name: municipalSession.name,
-        meetingDate: municipalSession.meetingDate,
-        itemCount: municipalSession.items.length,
-        items: municipalSession.items,
+        _id: meeting._id.toString(),
+        name: meeting.name,
+        meetingDate: meeting.meetingDate,
+        itemCount: meeting.items.length,
+        items: meeting.items,
       },
     });
   } catch (error) {

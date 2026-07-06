@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import * as Notifications from "expo-notifications";
 import { useFocusEffect, useNavigation } from "expo-router";
 import CelebrationModal from "../../lib/CelebrationModal";
@@ -46,6 +46,7 @@ export default function VoteScreen() {
   const [celebration, setCelebration] = useState(false);
   const [quota, setQuota] = useState<VotingQuota | null>(null);
   const [voteError, setVoteError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -55,16 +56,16 @@ export default function VoteScreen() {
   );
 
   async function load() {
-    setLoading(true);
+    if (!hasLoadedRef.current) setLoading(true);
     setFetchError(null);
     try {
       const [storedId, data] = await Promise.all([
         getItem(STORAGE_SELECTED_QUESTION),
-        apiClient<{ sessions: VotingSession[]; quota: VotingQuota }>(
-          "/api/mobile/sessions/voting",
+        apiClient<{ questions: VotingSession[]; quota: VotingQuota }>(
+          "/api/mobile/questions",
         ),
       ]);
-      const list = data?.sessions ?? [];
+      const list = data?.questions ?? [];
       setSessions(list);
       setQuota(data?.quota ?? null);
       setSelectedId(storedId);
@@ -78,6 +79,7 @@ export default function VoteScreen() {
       setFetchError(e.message);
     } finally {
       setLoading(false);
+      hasLoadedRef.current = true;
     }
   }
 
@@ -97,11 +99,11 @@ export default function VoteScreen() {
     setVoteError(null);
     try {
       const res = await apiClient<{ voteCounts: VoteCounts; userVote: string }>(
-        "/api/mobile/quick-vote",
+        "/api/mobile/questions/vote",
         {
           method: "POST",
           body: JSON.stringify({
-            sessionId: selectedSession.id,
+            questionId: selectedSession.id,
             choice: selected,
           }),
         },
@@ -248,7 +250,7 @@ export default function VoteScreen() {
         />
 
         <VotingDebateSection
-          sessionId={selectedSession.id}
+          questionId={selectedSession.id}
           canPost={selectedSession.isActive}
         />
       </ScrollView>
