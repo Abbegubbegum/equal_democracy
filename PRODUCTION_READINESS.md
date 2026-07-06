@@ -112,7 +112,7 @@ Acceptable for MVP. As the user base grows past ~500 push-enabled users, conside
 
 [apps/web/lib/pusher-broadcaster.ts:84](apps/web/lib/pusher-broadcaster.ts#L84) and [apps/web/lib/mongodb.ts:11](apps/web/lib/mongodb.ts#L11) cache instances on `global`. Each lambda instance has its own copy.
 
-- **MongoDB:** fine. Connection reuse within a warm lambda is the point.
+- **MongoDB:** fine, but pool size must stay capped. `connectDB()` sets `maxPoolSize: 10` (driver default is 100 **per lambda instance**) — without the cap, a few concurrent instances exhausted Atlas's shared-tier limit of 500 connections in production (2026-07-06), and Atlas rejected new TLS handshakes with `SSL alert number 80` / "connection pool was cleared". Keep per-request query parallelism bounded too: an N+1 `Promise.all` (one query per document) forces the driver to expand the pool toward its cap on every request — batch with `distinct`/aggregation instead (this was the live-panel bug that triggered the incident).
 - **Pusher broadcaster:** fine — Pusher itself is the source of truth.
 - **Caveat:** any future feature that tries to keep counters / sets / rate-limit state on `global` will silently desync across lambdas. Use Redis (Upstash) or the DB instead.
 
