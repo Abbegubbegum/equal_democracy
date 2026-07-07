@@ -16,18 +16,16 @@ export type {
 
 export type {
   AdminStatus,
-  UserType,
   NotificationPreference,
   User,
   AuthUser,
 } from "./user";
 
 export type {
-  SessionType,
   SessionStatus,
   SessionPhase,
   Session,
-  TopProposal,
+  WinningProposal,
   SessionRequest,
   AppLanguage,
   AppTheme,
@@ -39,11 +37,21 @@ export type {
   CommentType,
   FinalVoteChoice,
   Proposal,
-  ThumbsUp,
+  ProposalRating,
   Comment,
   CommentRating,
   FinalVote,
 } from "./proposal";
+
+export type {
+  QuestionStatus,
+  QuestionVoteChoice,
+  QuestionCommentType,
+  Question,
+  QuestionVote,
+  QuestionComment,
+  QuestionCommentRating,
+} from "./question";
 
 export type {
   BudgetSessionStatus,
@@ -63,15 +71,13 @@ export type {
 } from "./budget";
 
 export type {
-  MunicipalSessionStatus,
+  MunicipalMeetingStatus,
   MunicipalItemStatus,
   CitizenProposalStatus,
   MunicipalItemArgument,
   MunicipalItem,
-  MunicipalSession,
+  MunicipalMeeting,
   CitizenProposal,
   CitizenProposalRating,
   MunicipalItemRating,
 } from "./municipal";
-
-export type { SurveyStatus, SurveyChoice, Survey, SurveyVote } from "./survey";

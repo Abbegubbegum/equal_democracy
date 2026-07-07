@@ -2,7 +2,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAdmin } from "@/lib/admin";
 import { csrfProtection } from "@/lib/csrf";
 import connectDB from "@/lib/mongodb";
-import { CitizenProposal } from "@/lib/models";
+import { CitizenProposal, CitizenProposalRating, User } from "@/lib/models";
+import { getRatingAggregates } from "@/lib/rating-helper";
 
 const ALLOWED_STATUSES = [
   "active",
@@ -26,12 +27,36 @@ export default async function handler(
   if (req.method === "GET") {
     const proposals = await CitizenProposal.find({})
       .select(
-        "_id title description authorName status averageRating ratingCount imageUrl categories createdAt",
+        "_id title description authorId status imageUrl categories createdAt",
       )
       .sort({ createdAt: -1 })
       .lean();
 
-    return res.status(200).json(proposals);
+    const [ratings, authors] = await Promise.all([
+      getRatingAggregates(
+        CitizenProposalRating,
+        "proposalId",
+        proposals.map((p) => p._id),
+      ),
+      User.find({ _id: { $in: proposals.map((p) => p.authorId) } })
+        .select("name")
+        .lean(),
+    ]);
+    const authorNameById = Object.fromEntries(
+      authors.map((u) => [u._id.toString(), u.name]),
+    );
+
+    const withRatings = proposals.map((p) => {
+      const agg = ratings.get(p._id.toString());
+      return {
+        ...p,
+        authorName: authorNameById[p.authorId?.toString?.()] || null,
+        averageRating: agg?.averageRating || 0,
+        ratingCount: agg?.ratingCount || 0,
+      };
+    });
+
+    return res.status(200).json(withRatings);
   }
 
   if (req.method === "PATCH") {

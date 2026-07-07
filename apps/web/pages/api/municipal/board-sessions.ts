@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../lib/mongodb";
-import { MunicipalSession } from "../../../lib/models";
+import { MunicipalMeeting, MunicipalItemRating } from "../../../lib/models";
+import { getRatingAggregates } from "../../../lib/rating-helper";
 import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("BoardSessions");
@@ -70,10 +71,30 @@ export default async function handler(
       query.status = "active";
     }
 
-    const sessions = await MunicipalSession.find(query)
+    const meetings = await MunicipalMeeting.find(query)
       .sort({ meetingDate: -1 })
       .limit(50)
       .lean();
+
+    // Rating aggregates are no longer stored on the item — compute them at
+    // read time from MunicipalItemRating for every item across all meetings.
+    const allItemIds = meetings.flatMap((m) => m.items.map((it) => it._id));
+    const ratings = await getRatingAggregates(
+      MunicipalItemRating,
+      "itemId",
+      allItemIds,
+    );
+    const sessions = meetings.map((m) => ({
+      ...m,
+      items: m.items.map((it) => {
+        const agg = ratings.get(it._id.toString());
+        return {
+          ...it,
+          averageRating: agg?.averageRating || 0,
+          ratingCount: agg?.ratingCount || 0,
+        };
+      }),
+    }));
 
     return res.status(200).json({ sessions });
   } catch (error) {

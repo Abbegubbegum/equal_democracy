@@ -45,6 +45,7 @@ export const de = {
     home: "Startseite",
     applyForAdmin: "Als Admin bewerben",
     manageSessions: "Sitzungen verwalten",
+    manageQuestions: "Fragen verwalten",
   },
 
   // Admin

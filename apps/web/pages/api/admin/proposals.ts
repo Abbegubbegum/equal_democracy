@@ -3,12 +3,13 @@ import connectDB from "../../../lib/mongodb";
 import {
   Proposal,
   Comment,
-  ThumbsUp,
+  ProposalRating,
   FinalVote,
   Session,
 } from "../../../lib/models";
 import { requireAdmin } from "../../../lib/admin";
 import { csrfProtection } from "../../../lib/csrf";
+import { getRatingAggregates } from "../../../lib/rating-helper";
 import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("AdminProposals");
@@ -32,31 +33,37 @@ export default async function handler(
       ];
       const sessions = sessionIds.length
         ? await Session.find({ _id: { $in: sessionIds } })
-            .select("place")
+            .select("title")
             .lean()
         : [];
-      const sessionPlaceById = Object.fromEntries(
-        sessions.map((s) => [s._id.toString(), s.place]),
+      const sessionTitleById = Object.fromEntries(
+        sessions.map((s) => [s._id.toString(), s.title]),
+      );
+      const ratings = await getRatingAggregates(
+        ProposalRating,
+        "proposalId",
+        data.map((p) => p._id),
       );
 
       return res.status(200).json(
-        data.map((p) => ({
-          id: p._id.toString(),
-          sessionId: p.sessionId?.toString?.() || null,
-          sessionPlace: sessionPlaceById[p.sessionId?.toString?.()] || null,
-          title: p.title,
-          problem: p.problem,
-          solution: p.solution,
-          estimatedCost: p.estimatedCost,
-          status: p.status,
-          thumbsUpCount: p.thumbsUpCount,
-          averageRating: p.averageRating,
-          categories: p.categories || [],
-          imageUrl: p.imageUrl || null,
-          authorId: p.authorId?.toString?.() || null,
-          authorName: p.authorName,
-          createdAt: p.createdAt,
-        })),
+        data.map((p) => {
+          const agg = ratings.get(p._id.toString());
+          return {
+            id: p._id.toString(),
+            sessionId: p.sessionId?.toString?.() || null,
+            sessionTitle: sessionTitleById[p.sessionId?.toString?.()] || null,
+            title: p.title,
+            problem: p.problem,
+            solution: p.solution,
+            status: p.status,
+            ratingCount: agg?.ratingCount || 0,
+            averageRating: agg?.averageRating || 0,
+            categories: p.categories || [],
+            imageUrl: p.imageUrl || null,
+            authorId: p.authorId?.toString?.() || null,
+            createdAt: p.createdAt,
+          };
+        }),
       );
     }
 
@@ -64,15 +71,7 @@ export default async function handler(
       const { id, updates } = req.body;
       if (!id || typeof updates !== "object")
         return res.status(400).json({ message: "id and updates ir required" });
-      const allowed = [
-        "title",
-        "problem",
-        "solution",
-        "estimatedCost",
-        "status",
-        "thumbsUpCount",
-        "categories",
-      ];
+      const allowed = ["title", "problem", "solution", "status", "categories"];
       const $set = Object.fromEntries(
         Object.entries(updates).filter(([k]) => allowed.includes(k)),
       );
@@ -96,7 +95,7 @@ export default async function handler(
       if (!id) return res.status(400).json({ message: "id is required" });
       await Promise.all([
         Comment.deleteMany({ proposalId: id }),
-        ThumbsUp.deleteMany({ proposalId: id }),
+        ProposalRating.deleteMany({ proposalId: id }),
         FinalVote.deleteMany({ proposalId: id }),
       ]);
       await Proposal.findByIdAndDelete(id);

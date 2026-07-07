@@ -20,8 +20,7 @@ import { useConfig } from "../../lib/contexts/ConfigContext";
 import usePusher from "../../lib/hooks/usePusher";
 import { useLazySound } from "../../lib/hooks/useLazySound";
 
-// Standard session page - for 2-phase democracy sessions
-// Survey sessions are handled by /session/survey/[id].js
+// Standard 2-phase democracy session page
 
 // Helper function to format date and time consistently
 function formatDateTime(dateString) {
@@ -44,7 +43,7 @@ export default function SessionPage() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("home"); // 'home', 'create', 'vote'
   const [selectedProposal, setSelectedProposal] = useState(null);
-  const [placeName, setPlaceName] = useState("");
+  const [sessionTitle, setSessionTitle] = useState("");
   const [sessionImageUrl, setSessionImageUrl] = useState<string | null>(null);
   const [currentPhase, setCurrentPhase] = useState("phase1"); // 'phase1', 'phase2', 'closed'
   const [expandedRating, setExpandedRating] = useState(null);
@@ -84,7 +83,7 @@ export default function SessionPage() {
 
   const fetchWinningProposals = useCallback(async () => {
     try {
-      const res = await fetch(`/api/top-proposals?sessionId=${sessionId}`);
+      const res = await fetch(`/api/winning-proposals?sessionId=${sessionId}`);
       const data = await res.json();
       setWinningProposals(data);
     } catch (error) {
@@ -115,7 +114,7 @@ export default function SessionPage() {
       if (data.noActiveSession) {
         setHasActiveSession(false);
         setCurrentPhase(null);
-        setPlaceName("");
+        setSessionTitle("");
         setLoading(false);
         setSessionTypeVerified(true);
         return;
@@ -123,8 +122,8 @@ export default function SessionPage() {
 
       setHasActiveSession(true);
 
-      if (data.place) {
-        setPlaceName(data.place);
+      if (data.title) {
+        setSessionTitle(data.title);
       }
 
       if (data.imageUrl !== undefined) {
@@ -168,13 +167,6 @@ export default function SessionPage() {
         }
       }
 
-      // Redirect to survey page if this is a survey session
-      if (data.sessionType === "survey") {
-        router.replace(`/session/survey/${sessionId}`);
-        return;
-      }
-
-      // Session is not a survey, safe to render this page
       setSessionTypeVerified(true);
 
       if (data.phase) {
@@ -436,7 +428,7 @@ export default function SessionPage() {
           p._id === ratingData.proposalId
             ? {
                 ...p,
-                thumbsUpCount: ratingData.thumbsUpCount,
+                ratingCount: ratingData.ratingCount,
                 averageRating: ratingData.averageRating,
               }
             : p,
@@ -593,7 +585,7 @@ export default function SessionPage() {
 
   const handleThumbsUp = async (proposalId, rating = 5) => {
     try {
-      const res = await fetchWithCsrf("/api/thumbsup", {
+      const res = await fetchWithCsrf("/api/proposals/rate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ proposalId, rating, sessionId }),
@@ -796,7 +788,7 @@ export default function SessionPage() {
   }
 
   if (view === "vote") {
-    let topProposals = proposals.filter((p) => p.status === "top3");
+    let topProposals = proposals.filter((p) => p.status === "finalist");
     if (tiebreakerActive && tiebreakerProposalIds.length > 0) {
       topProposals = topProposals.filter((p) =>
         tiebreakerProposalIds.includes(p._id),
@@ -824,7 +816,6 @@ export default function SessionPage() {
     );
   }
 
-  // Home view - standard sessions only (surveys are handled by /session/survey/[id].js)
   const activeProposals = proposals
     .filter((p) => p.status === "active")
     .sort(
@@ -833,12 +824,12 @@ export default function SessionPage() {
     );
 
   let topProposals = proposals
-    .filter((p) => p.status === "top3")
+    .filter((p) => p.status === "finalist")
     .sort((a, b) => {
       if (b.averageRating !== a.averageRating) {
         return (b.averageRating || 0) - (a.averageRating || 0);
       }
-      return b.thumbsUpCount - a.thumbsUpCount;
+      return b.ratingCount - a.ratingCount;
     });
   if (tiebreakerActive && tiebreakerProposalIds.length > 0) {
     topProposals = topProposals.filter((p) =>
@@ -920,13 +911,8 @@ export default function SessionPage() {
             </div>
           </div>
           <h2 className="text-lg sm:text-xl font-medium wrap-break-word">
-            {hasActiveSession && placeName
-              ? (() => {
-                  const words = placeName.split(/\s+/);
-                  return words.length > 8
-                    ? words.slice(0, 8).join(" ") + "..."
-                    : placeName;
-                })()
+            {hasActiveSession && sessionTitle
+              ? sessionTitle
               : t("proposals.howToImproveYourSpace")}
           </h2>
         </div>
@@ -936,7 +922,7 @@ export default function SessionPage() {
         <div className="w-full h-48 sm:h-64 overflow-hidden">
           <img
             src={sessionImageUrl}
-            alt={placeName}
+            alt={sessionTitle}
             className="w-full h-full object-cover"
           />
         </div>
@@ -1243,7 +1229,7 @@ function ProposalCard({
 
   const checkIfVoted = useCallback(async () => {
     try {
-      const res = await fetch(`/api/thumbsup?proposalId=${proposal._id}`);
+      const res = await fetch(`/api/proposals/rate?proposalId=${proposal._id}`);
       const data = await res.json();
       setHasVoted(data.voted);
       setUserRating(data.rating || 0);
@@ -1413,7 +1399,7 @@ function ProposalCard({
           </h4>
           {proposal.authorId && (
             <span className="inline-block px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded whitespace-nowrap">
-              {t("proposal.yourProposal") || "Ditt förslag"}
+              {t("proposals.yourProposal") || "Ditt förslag"}
             </span>
           )}
         </div>
@@ -1523,7 +1509,7 @@ function ProposalCard({
       {!isPhase1 && (
         <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-100 text-primary-600 font-medium">
           <ThumbsUp className="w-5 h-5" />
-          <span className="font-bold">{proposal.thumbsUpCount}</span>
+          <span className="font-bold">{proposal.ratingCount}</span>
           {proposal.averageRating > 0 && (
             <span className="ml-2">⭐ {proposal.averageRating.toFixed(1)}</span>
           )}

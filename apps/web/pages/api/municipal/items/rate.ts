@@ -2,7 +2,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]";
 import connectDB from "../../../../lib/mongodb";
-import { MunicipalSession, MunicipalItemRating } from "../../../../lib/models";
+import { MunicipalMeeting, MunicipalItemRating } from "../../../../lib/models";
+import { getRatingAggregates } from "../../../../lib/rating-helper";
 import { csrfProtection } from "../../../../lib/csrf";
 import { createLogger } from "@/lib/logger";
 
@@ -10,7 +11,7 @@ const log = createLogger("MunicipalItemRate");
 
 /**
  * GET/POST /api/municipal/items/rate
- * Rate a municipal session item with 1-5 stars
+ * Rate a municipal meeting item with 1-5 stars
  */
 export default async function handler(
   req: NextApiRequest,
@@ -54,11 +55,11 @@ export default async function handler(
     }
 
     try {
-      const { municipalSessionId, itemId, rating } = req.body;
+      const { meetingId, itemId, rating } = req.body;
 
-      if (!municipalSessionId || !itemId || !rating) {
+      if (!meetingId || !itemId || !rating) {
         return res.status(400).json({
-          message: "municipalSessionId, itemId and rating are required",
+          message: "meetingId, itemId and rating are required",
         });
       }
 
@@ -68,20 +69,19 @@ export default async function handler(
         });
       }
 
-      const municipalSession =
-        await MunicipalSession.findById(municipalSessionId);
-      if (!municipalSession) {
-        return res.status(404).json({ message: "Session not found" });
+      const meeting = await MunicipalMeeting.findById(meetingId);
+      if (!meeting) {
+        return res.status(404).json({ message: "Meeting not found" });
       }
 
-      const item = municipalSession.items.find(
+      const item = meeting.items.find(
         (it) => String(it._id) === String(itemId),
       );
       if (!item) {
         return res.status(404).json({ message: "Item not found" });
       }
 
-      let existingRating = await MunicipalItemRating.findOne({
+      const existingRating = await MunicipalItemRating.findOne({
         itemId,
         userId: session.user.id,
       });
@@ -90,37 +90,27 @@ export default async function handler(
         existingRating.rating = rating;
         await existingRating.save();
       } else {
-        existingRating = new MunicipalItemRating({
-          municipalSessionId,
+        await MunicipalItemRating.create({
+          meetingId,
           itemId,
           userId: session.user.id,
           rating,
         });
-        await existingRating.save();
       }
 
-      const allRatings = await MunicipalItemRating.find({ itemId });
-      const totalStars = allRatings.reduce((sum, r) => sum + r.rating, 0);
-      const ratingCount = allRatings.length;
-      const averageRating = ratingCount > 0 ? totalStars / ratingCount : 0;
-
-      item.totalStars = totalStars;
-      item.ratingCount = ratingCount;
-      item.averageRating = averageRating;
-
-      await municipalSession.save();
+      const agg = (
+        await getRatingAggregates(MunicipalItemRating, "itemId", [itemId])
+      ).get(String(itemId)) || { averageRating: 0, ratingCount: 0 };
 
       log.info("Municipal item rated", {
         userId: session.user.id,
         itemId,
         newRating: rating,
-        totalStars,
       });
 
       return res.status(200).json({
-        totalStars,
-        ratingCount,
-        averageRating,
+        ratingCount: agg.ratingCount,
+        averageRating: agg.averageRating,
         userRating: rating,
       });
     } catch (error) {

@@ -45,6 +45,7 @@ export const en = {
     home: "Home",
     applyForAdmin: "Apply for admin",
     manageSessions: "Manage Sessions",
+    manageQuestions: "Manage Questions",
   },
 
   // Admin

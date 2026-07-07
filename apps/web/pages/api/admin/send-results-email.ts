@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
-import { Session, User, TopProposal, Settings } from "@/lib/models";
+import { Session, User, WinningProposal, Settings } from "@/lib/models";
 import { sendSessionResultsEmail } from "@/lib/email";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
@@ -47,8 +47,8 @@ export default async function handler(
       return res.status(404).json({ error: "Session not found" });
     }
 
-    // Get all top proposals from this session
-    const topProposals = await TopProposal.find({ sessionId: sessionId });
+    // Get all winning proposals from this session
+    const topProposals = await WinningProposal.find({ sessionId: sessionId });
 
     // Get all participants from the session's activeUsers array
     const participantIds = targetSession.activeUsers || [];
@@ -66,7 +66,7 @@ export default async function handler(
       try {
         await sendSessionResultsEmail(
           user.email,
-          targetSession.place,
+          targetSession.title,
           topProposals.map((tp) => ({
             title: tp.title,
             yesVotes: tp.yesVotes,

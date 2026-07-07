@@ -1,0 +1,448 @@
+// Equal Democracy — MongoDB schema export (generated from apps/web/lib/models.ts)
+// Paste this file into https://dbdiagram.io to get an interactive ER diagram.
+//
+// MongoDB has no real foreign keys — the Refs below reflect Mongoose `ref:`
+// fields and the string-based links used by the budget collections.
+// Tables suffixed "_Item"/"_Category"/etc. are EMBEDDED subdocument arrays,
+// not separate collections; they are split out here so relationships render.
+//
+// 2026-07 restructure: surveys removed entirely; "voting"/"municipal" session
+// subtypes replaced by the Question family (scripts/restructure-db.js migrates
+// existing data). Session now models only the standard live webapp session.
+
+//// ── Core / auth ─────────────────────────────────────────────
+
+Table User {
+  _id objectid [pk]
+  name varchar [not null]
+  email varchar [not null, unique]
+  isAdmin boolean [default: false]
+  isSuperAdmin boolean [default: false]
+  adminStatus varchar [note: 'none | pending | approved | denied']
+  sessionLimit int [default: 10]
+  remainingSessions int [default: 10]
+  appliedForAdminAt timestamp
+  organization varchar
+  requestedSessions int
+  interests "varchar[]"
+  expoPushToken varchar
+  notificationPreference varchar [note: 'email | sms | both | none']
+  phoneNumber varchar
+  emailOptOut boolean [default: false]
+  createdAt timestamp
+  updatedAt timestamp
+}
+
+Table LoginCode {
+  _id objectid [pk]
+  email varchar [not null]
+  codeHash varchar [not null]
+  attempts int [default: 0]
+  expiresAt timestamp [not null, note: 'TTL index — auto-deletes at expiry']
+  createdAt timestamp
+}
+
+Table Settings {
+  _id objectid [pk]
+  language varchar [note: 'sv | en | sr | es | de']
+  theme varchar [note: 'default | green | red | blue']
+  updatedAt timestamp
+}
+
+//// ── Standard live sessions ──────────────────────────────────
+
+Table Session {
+  _id objectid [pk]
+  title varchar [not null]
+  status varchar [note: 'active | closed']
+  phase varchar [note: 'phase1 | phase2 | closed']
+  activeUsers "objectid[]" [note: 'refs User — registered participants']
+  phase1TransitionScheduled timestamp
+  phase2TerminationScheduled timestamp
+  startDate timestamp
+  phase2StartTime timestamp
+  endDate timestamp
+  deadline timestamp [note: 'per-session end-of-life, set at creation (replaced global sessionLimitHours)']
+  createdBy objectid
+  maxOneProposalPerUser boolean [default: false]
+  showUserCount boolean [default: false]
+  noMotivation boolean [default: false]
+  singleResult boolean [default: false]
+  onlyYesVotes boolean [default: false]
+  tiebreakerActive boolean [default: false]
+  tiebreakerProposals "objectid[]" [note: 'refs Proposal']
+  tiebreakerScheduled timestamp
+  customTopCount int
+  imageUrl varchar
+  categories "varchar[]"
+  createdAt timestamp
+}
+
+Table Proposal {
+  _id objectid [pk]
+  sessionId objectid [not null]
+  title varchar [not null]
+  problem varchar
+  solution varchar
+  authorId objectid [not null]
+  status varchar [note: 'active | finalist | archived — finalist = promoted to phase-2 vote']
+  categories "varchar[]"
+  imageUrl varchar
+  createdAt timestamp
+  Note: 'rating aggregates computed at read time from ProposalRating'
+}
+
+Table ProposalRating {
+  _id objectid [pk]
+  proposalId objectid [not null]
+  userId objectid [not null]
+  rating int [not null, note: '1-5']
+  createdAt timestamp
+
+  indexes {
+    (proposalId, userId) [unique]
+  }
+}
+
+Table Comment {
+  _id objectid [pk]
+  proposalId objectid [not null, note: 'session derivable via Proposal.sessionId']
+  userId objectid [not null]
+  text varchar [not null]
+  type varchar [note: 'for | against | neutral']
+  createdAt timestamp
+  Note: 'rating aggregates computed at read time from CommentRating'
+}
+
+Table CommentRating {
+  _id objectid [pk]
+  commentId objectid [not null]
+  userId objectid [not null]
+  rating int [not null, note: '1-5']
+  createdAt timestamp
+
+  indexes {
+    (commentId, userId) [unique]
+  }
+}
+
+Table FinalVote {
+  _id objectid [pk]
+  sessionId objectid [not null]
+  proposalId objectid [not null]
+  userId objectid [not null]
+  choice varchar [not null, note: 'yes | no']
+  createdAt timestamp
+
+  indexes {
+    (proposalId, userId) [unique]
+  }
+}
+
+Table WinningProposal {
+  _id objectid [pk]
+  sessionId objectid [not null]
+  sessionTitle varchar [not null]
+  sessionStartDate timestamp [not null]
+  proposalId objectid [not null]
+  title varchar [not null]
+  problem varchar
+  solution varchar
+  yesVotes int [not null]
+  noVotes int [not null]
+  archivedAt timestamp
+  Note: 'deliberately an immutable denormalized snapshot taken at session close'
+}
+
+Table SessionRequest {
+  _id objectid [pk]
+  userId objectid [not null]
+  requestedSessions int [not null]
+  status varchar [note: 'pending | approved | denied']
+  processedAt timestamp
+  processedBy objectid
+  createdAt timestamp
+}
+
+//// ── Questions (Ja/Nej + discussion) ─────────────────────────
+// One model for both standalone mobile questions and municipal agenda items
+// (the latter carry a meetingId ref).
+
+Table Question {
+  _id objectid [pk]
+  text varchar [not null, note: 'the Ja/Nej question, max 300 chars']
+  status varchar [note: 'active | closed']
+  deadline timestamp [not null, note: 'closes via daily cron when passed; never subject to sessionLimitHours']
+  imageUrl varchar
+  categories "varchar[]"
+  createdBy objectid
+  meetingId objectid [note: 'set only for municipal agenda-item questions']
+  closedAt timestamp
+  createdAt timestamp
+  updatedAt timestamp
+}
+
+Table QuestionVote {
+  _id objectid [pk]
+  questionId objectid [not null]
+  userId objectid [not null]
+  choice varchar [not null, note: 'ja | nej']
+  createdAt timestamp
+
+  indexes {
+    (questionId, userId) [unique]
+  }
+}
+
+Table QuestionComment {
+  _id objectid [pk]
+  questionId objectid [not null]
+  userId objectid [not null]
+  text varchar [not null]
+  type varchar [note: 'for | against | neutral']
+  createdAt timestamp
+  Note: 'rating aggregates computed at read time from QuestionCommentRating'
+}
+
+Table QuestionCommentRating {
+  _id objectid [pk]
+  commentId objectid [not null]
+  userId objectid [not null]
+  rating int [not null, note: '1-5']
+  createdAt timestamp
+
+  indexes {
+    (commentId, userId) [unique]
+  }
+}
+
+//// ── Municipal (kommunfullmäktige) ───────────────────────────
+
+Table MunicipalMeeting {
+  _id objectid [pk]
+  name varchar [not null]
+  municipality varchar [not null, default: 'Vallentuna']
+  meetingDate timestamp [not null]
+  meetingTime varchar
+  meetingType varchar [not null, default: 'Kommunfullmäktige']
+  sourceUrl varchar [note: 'original agenda PDF']
+  status varchar [note: 'draft | active | closed | archived']
+  createdBy objectid [not null]
+  notificationsSent boolean [default: false]
+  createdAt timestamp
+}
+
+Table MunicipalMeeting_Item {
+  _id objectid [pk]
+  meetingId objectid [not null, note: 'EMBEDDED in MunicipalMeeting.items[]']
+  originalNumber varchar [note: 'original § number from agenda']
+  title varchar
+  description varchar
+  categories "varchar[]" [note: 'ALL_CATEGORIES tags']
+  imageUrl varchar
+  questionId objectid [note: 'Question spawned for this item on activation']
+  initialArguments "json[]" [note: '{ text, type: for | against }']
+  status varchar [note: 'draft | active | closed']
+  closedAt timestamp
+  closedBy objectid
+  Note: 'rating aggregates computed at read time from MunicipalItemRating'
+}
+
+Table MunicipalItemRating {
+  _id objectid [pk]
+  meetingId objectid [not null]
+  itemId objectid [not null, note: 'embedded item _id']
+  userId objectid [not null]
+  rating int [not null, note: '1-5']
+  createdAt timestamp
+
+  indexes {
+    (itemId, userId) [unique]
+  }
+}
+
+//// ── Citizen proposals (medborgarförslag) ────────────────────
+
+Table CitizenProposal {
+  _id objectid [pk]
+  title varchar [not null]
+  description varchar [not null]
+  categories "varchar[]"
+  authorId objectid [not null]
+  status varchar [note: 'active | selected | submitted_as_motion | rejected | archived']
+  imageUrl varchar
+  createdAt timestamp
+  Note: 'rating aggregates computed at read time from CitizenProposalRating'
+}
+
+Table CitizenProposalRating {
+  _id objectid [pk]
+  proposalId objectid [not null]
+  userId objectid [not null]
+  rating int [not null, note: '1-5']
+  createdAt timestamp
+
+  indexes {
+    (proposalId, userId) [unique]
+  }
+}
+
+//// ── Budget ──────────────────────────────────────────────────
+// NOTE: budget collections link via the STRING field BudgetSession.sessionId,
+// not the Mongo _id.
+
+Table BudgetSession {
+  _id objectid [pk]
+  sessionId varchar [not null, unique, note: 'string key used by all budget refs']
+  name varchar [not null]
+  municipality varchar [not null]
+  totalBudget float [not null]
+  status varchar [note: 'draft | active | closed']
+  createdBy objectid [not null]
+  startDate timestamp
+  endDate timestamp
+  taxBase float
+  defaultTaxRateKr float [default: 19]
+  minTaxRateKr float [default: 18]
+  maxTaxRateKr float [default: 21]
+  createdAt timestamp
+}
+
+Table BudgetSession_Category {
+  id varchar [pk, note: 'EMBEDDED in BudgetSession.categories[]']
+  budgetSessionId varchar [not null]
+  name varchar [not null]
+  defaultAmount float [not null]
+  minAmount float [not null]
+  isFixed boolean [default: false]
+  color varchar
+  tags "varchar[]"
+  imageUrl varchar
+  totalStars int [default: 0]
+  ratingCount int [default: 0]
+  averageRating float [default: 0]
+  subcategories "json[]" [note: '{ id, name, defaultAmount, minAmount, isFixed }']
+}
+
+Table BudgetSession_IncomeCategory {
+  id varchar [pk, note: 'EMBEDDED in BudgetSession.incomeCategories[]']
+  budgetSessionId varchar [not null]
+  name varchar [not null]
+  amount float [not null]
+  color varchar
+  isTaxRate boolean [default: false]
+  taxRatePercent float
+}
+
+Table BudgetVote {
+  _id objectid [pk]
+  sessionId varchar [not null, note: 'BudgetSession.sessionId (string)']
+  userId objectid [not null]
+  allocations "json[]" [note: '{ categoryId, amount, subcategories[] }']
+  incomeAllocations "json[]" [note: '{ categoryId, amount, taxRatePercent }']
+  totalExpenses float [not null]
+  totalIncome float [not null]
+  createdAt timestamp
+
+  indexes {
+    (sessionId, userId) [unique]
+  }
+}
+
+Table BudgetResult {
+  _id objectid [pk]
+  sessionId varchar [not null, unique, note: 'one result per BudgetSession']
+  medianAllocations "json[]" [note: '{ categoryId, medianAmount, percentageOfTotal, subcategories[] }']
+  medianIncomeAllocations "json[]" [note: '{ categoryId, medianAmount, medianTaxRatePercent }']
+  totalMedianExpenses float [not null]
+  totalMedianIncome float [not null]
+  balancedExpenses float [not null]
+  voterCount int [not null]
+  calculatedAt timestamp
+}
+
+Table BudgetArgument {
+  _id objectid [pk]
+  sessionId varchar [not null, note: 'BudgetSession.sessionId (string)']
+  userId objectid [not null]
+  userName varchar [not null]
+  categoryId varchar [not null]
+  categoryName varchar [not null]
+  direction varchar [not null, note: 'up | down']
+  text varchar [not null]
+  helpfulVotes "objectid[]" [note: 'refs User']
+  isHidden boolean [default: false]
+
+  indexes {
+    (sessionId, userId, categoryId, direction) [unique]
+  }
+}
+
+Table BudgetCategoryRating {
+  _id objectid [pk]
+  sessionId varchar [not null, note: 'BudgetSession.sessionId (string)']
+  categoryId varchar [not null]
+  userId objectid [not null]
+  rating int [not null, note: '1-5']
+  createdAt timestamp
+
+  indexes {
+    (sessionId, categoryId, userId) [unique]
+  }
+}
+
+//// ── Relationships ───────────────────────────────────────────
+
+// Standard sessions & proposals
+Ref: Proposal.sessionId > Session._id
+Ref: Proposal.authorId > User._id
+Ref: Session.createdBy > User._id
+Ref: ProposalRating.proposalId > Proposal._id
+Ref: ProposalRating.userId > User._id
+Ref: Comment.proposalId > Proposal._id
+Ref: Comment.userId > User._id
+Ref: CommentRating.commentId > Comment._id
+Ref: CommentRating.userId > User._id
+Ref: FinalVote.sessionId > Session._id
+Ref: FinalVote.proposalId > Proposal._id
+Ref: FinalVote.userId > User._id
+Ref: WinningProposal.sessionId > Session._id
+Ref: WinningProposal.proposalId > Proposal._id
+Ref: SessionRequest.userId > User._id
+Ref: SessionRequest.processedBy > User._id
+
+// Questions
+Ref: Question.createdBy > User._id
+Ref: Question.meetingId > MunicipalMeeting._id
+Ref: QuestionVote.questionId > Question._id
+Ref: QuestionVote.userId > User._id
+Ref: QuestionComment.questionId > Question._id
+Ref: QuestionComment.userId > User._id
+Ref: QuestionCommentRating.commentId > QuestionComment._id
+Ref: QuestionCommentRating.userId > User._id
+
+// Municipal
+Ref: MunicipalMeeting.createdBy > User._id
+Ref: MunicipalMeeting_Item.meetingId > MunicipalMeeting._id
+Ref: MunicipalMeeting_Item.questionId - Question._id
+Ref: MunicipalMeeting_Item.closedBy > User._id
+Ref: MunicipalItemRating.meetingId > MunicipalMeeting._id
+Ref: MunicipalItemRating.itemId > MunicipalMeeting_Item._id
+Ref: MunicipalItemRating.userId > User._id
+
+// Citizen proposals
+Ref: CitizenProposal.authorId > User._id
+Ref: CitizenProposalRating.proposalId > CitizenProposal._id
+Ref: CitizenProposalRating.userId > User._id
+
+// Budget (string-keyed)
+Ref: BudgetSession.createdBy > User._id
+Ref: BudgetSession_Category.budgetSessionId > BudgetSession.sessionId
+Ref: BudgetSession_IncomeCategory.budgetSessionId > BudgetSession.sessionId
+Ref: BudgetVote.sessionId > BudgetSession.sessionId
+Ref: BudgetVote.userId > User._id
+Ref: BudgetResult.sessionId - BudgetSession.sessionId
+Ref: BudgetArgument.sessionId > BudgetSession.sessionId
+Ref: BudgetArgument.userId > User._id
+Ref: BudgetCategoryRating.sessionId > BudgetSession.sessionId
+Ref: BudgetCategoryRating.userId > User._id

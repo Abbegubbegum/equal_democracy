@@ -27,14 +27,12 @@ export default async function handler(
       if (!settings) {
         // Create default settings if none exist
         settings = await Settings.create({
-          sessionLimitHours: 24,
           language: "sv",
           theme: "default",
         });
       }
 
       return res.status(200).json({
-        sessionLimitHours: settings.sessionLimitHours || 24,
         language: settings.language || "sv",
         theme: settings.theme || "default",
       });
@@ -52,16 +50,7 @@ export default async function handler(
         return res.status(403).json({ error: "Unauthorized" });
       }
 
-      const { sessionLimitHours, language, theme } = req.body;
-
-      if (sessionLimitHours !== undefined) {
-        const hours = Number(sessionLimitHours);
-        if (isNaN(hours) || hours < 1 || hours > 168) {
-          return res.status(400).json({
-            error: "Session limit must be between 1 and 168 hours",
-          });
-        }
-      }
+      const { language, theme } = req.body;
 
       if (language && !["sv", "en", "sr", "es", "de"].includes(language)) {
         return res.status(400).json({
@@ -80,14 +69,10 @@ export default async function handler(
 
       if (!settings) {
         settings = await Settings.create({
-          sessionLimitHours: sessionLimitHours || 24,
           language: language || "sv",
           theme: theme || "default",
         });
       } else {
-        if (sessionLimitHours !== undefined) {
-          settings.sessionLimitHours = Number(sessionLimitHours);
-        }
         if (language) {
           settings.language = language;
         }
@@ -99,7 +84,6 @@ export default async function handler(
       }
 
       return res.status(200).json({
-        sessionLimitHours: settings.sessionLimitHours,
         language: settings.language,
         theme: settings.theme,
       });

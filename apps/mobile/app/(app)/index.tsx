@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ export default function HomeScreen() {
   const [quota, setQuota] = useState<VotingQuota | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -36,14 +37,14 @@ export default function HomeScreen() {
   );
 
   async function load() {
-    setLoading(true);
+    if (!hasLoadedRef.current) setLoading(true);
     setFetchError(null);
     try {
       const data = await apiClient<{
-        sessions: VotingSession[];
+        questions: VotingSession[];
         quota: VotingQuota;
-      }>("/api/mobile/sessions/voting");
-      const available = (data.sessions ?? []).filter(
+      }>("/api/mobile/questions");
+      const available = (data.questions ?? []).filter(
         (s) => s.isActive && !s.userVote,
       );
       setSessions(available);
@@ -52,6 +53,7 @@ export default function HomeScreen() {
       setFetchError(e.message);
     } finally {
       setLoading(false);
+      hasLoadedRef.current = true;
     }
   }
 
@@ -131,7 +133,7 @@ export default function HomeScreen() {
               )}
               <View style={styles.cardTint} />
               <View style={styles.cardBottom}>
-                <Text style={styles.cardQuestion}>{s.question}</Text>
+                <Text style={styles.cardQuestion}>{s.text}</Text>
                 <TouchableOpacity
                   style={styles.väljBtn}
                   onPress={() => handleSelect(s.id)}

@@ -75,3 +75,13 @@ supported on this setup; see [CLAUDE.md](CLAUDE.md) for why.
 - **[PRODUCTION_READINESS.md](PRODUCTION_READINESS.md)** — serverless/Vercel deploy
   checklist and the patterns to avoid before shipping.
 - **[CHANGELOG.md](CHANGELOG.md)** — release history (Semantic Versioning).
+
+## License
+
+Copyright © 2026 Peer Norbäck and Vallentuna Framåt.
+
+Licensed under the **GNU Affero General Public License v3.0** (AGPL-3.0-only) — see
+[LICENSE](LICENSE) for the full text. In short: you may use, study, modify, and
+redistribute this software, but if you run a modified version to provide a service
+over a network, you must make your modified source available to the users of that
+service.

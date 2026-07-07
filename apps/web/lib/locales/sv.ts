@@ -45,6 +45,7 @@ export const sv = {
     home: "Hem",
     applyForAdmin: "Bli admin",
     manageSessions: "Hantera sessioner",
+    manageQuestions: "Hantera frågor",
   },
 
   // Admin

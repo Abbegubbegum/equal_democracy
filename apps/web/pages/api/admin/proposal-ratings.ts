@@ -1,12 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../lib/mongodb";
-import { ThumbsUp, User, Proposal } from "../../../lib/models";
+import { ProposalRating, User, Proposal } from "../../../lib/models";
 import { requireAdmin } from "../../../lib/admin";
 import { validateObjectId, toObjectId } from "../../../lib/validation";
 import { csrfProtection } from "../../../lib/csrf";
 import { createLogger } from "../../../lib/logger";
 
-const log = createLogger("AdminThumbs");
+const log = createLogger("AdminProposalRatings");
 
 export default async function handler(
   req: NextApiRequest,
@@ -41,7 +41,9 @@ export default async function handler(
         filter.userId = toObjectId(String(userId));
       }
 
-      const data = await ThumbsUp.find(filter).sort({ createdAt: -1 }).lean();
+      const data = await ProposalRating.find(filter)
+        .sort({ createdAt: -1 })
+        .lean();
 
       // Gather unique ids
       const userIds = [
@@ -79,6 +81,7 @@ export default async function handler(
           proposalTitle: proposalTitleById[t.proposalId?.toString?.()] || null,
           userId: t.userId?.toString?.() || null,
           userName: userNameById[t.userId?.toString?.()] || null,
+          rating: t.rating,
           createdAt: t.createdAt,
         })),
       );
@@ -87,9 +90,9 @@ export default async function handler(
     if (req.method === "DELETE") {
       const { id } = req.query;
       if (!id || !validateObjectId(String(id))) {
-        return res.status(400).json({ message: "Invalid thumbs up ID" });
+        return res.status(400).json({ message: "Invalid rating ID" });
       }
-      await ThumbsUp.findByIdAndDelete(toObjectId(String(id)));
+      await ProposalRating.findByIdAndDelete(toObjectId(String(id)));
       return res.status(204).end();
     }
 

@@ -2,7 +2,14 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { INTEREST_TO_CATEGORIES } from "@repo/types";
 import { requireAdmin } from "@/lib/admin";
 import connectDB from "@/lib/mongodb";
-import { MunicipalSession, BudgetSession, CitizenProposal } from "@/lib/models";
+import {
+  MunicipalMeeting,
+  BudgetSession,
+  CitizenProposal,
+  MunicipalItemRating,
+  CitizenProposalRating,
+} from "@/lib/models";
+import { getRatingAggregates } from "@/lib/rating-helper";
 
 /**
  * GET /api/admin/my-questions/overview?interest=<key>
@@ -30,36 +37,52 @@ export default async function handler(
     return (categories || []).some((c) => targetCategories.includes(c));
   };
 
-  const [municipalSessions, budgetSessions, citizenProposals] =
-    await Promise.all([
-      MunicipalSession.find({})
-        .select("name items")
-        .sort({ meetingDate: -1 })
-        .lean(),
-      BudgetSession.find({}).select("sessionId name categories").lean(),
-      CitizenProposal.find({})
-        .select(
-          "title description categories imageUrl averageRating ratingCount status createdAt",
-        )
-        .sort({ createdAt: -1 })
-        .lean(),
-    ]);
+  const [meetings, budgetSessions, citizenProposals] = await Promise.all([
+    MunicipalMeeting.find({})
+      .select("name items")
+      .sort({ meetingDate: -1 })
+      .lean(),
+    BudgetSession.find({}).select("sessionId name categories").lean(),
+    CitizenProposal.find({})
+      .select("title description categories imageUrl status createdAt")
+      .sort({ createdAt: -1 })
+      .lean(),
+  ]);
 
-  const municipalItems = municipalSessions.flatMap((s: any) =>
-    (s.items || [])
+  // Municipal items and citizen proposals no longer store rating aggregates —
+  // compute them at read time.
+  const allItemIds = meetings.flatMap((m: any) =>
+    (m.items || []).map((item: any) => item._id),
+  );
+  const itemRatings = await getRatingAggregates(
+    MunicipalItemRating,
+    "itemId",
+    allItemIds,
+  );
+  const proposalRatings = await getRatingAggregates(
+    CitizenProposalRating,
+    "proposalId",
+    citizenProposals.map((p: any) => p._id),
+  );
+
+  const municipalItems = meetings.flatMap((m: any) =>
+    (m.items || [])
       .filter((item: any) => matches(item.categories))
-      .map((item: any) => ({
-        id: String(item._id),
-        municipalSessionId: String(s._id),
-        sessionName: s.name,
-        title: item.title,
-        description: item.description,
-        categories: item.categories || [],
-        imageUrl: item.imageUrl || null,
-        averageRating: item.averageRating || 0,
-        ratingCount: item.ratingCount || 0,
-        status: item.status,
-      })),
+      .map((item: any) => {
+        const agg = itemRatings.get(String(item._id));
+        return {
+          id: String(item._id),
+          meetingId: String(m._id),
+          sessionName: m.name,
+          title: item.title,
+          description: item.description,
+          categories: item.categories || [],
+          imageUrl: item.imageUrl || null,
+          averageRating: agg?.averageRating || 0,
+          ratingCount: agg?.ratingCount || 0,
+          status: item.status,
+        };
+      }),
   );
 
   const budgetCategories = budgetSessions.flatMap((s: any) =>
@@ -80,16 +103,19 @@ export default async function handler(
 
   const filteredProposals = citizenProposals
     .filter((p: any) => matches(p.categories))
-    .map((p: any) => ({
-      id: String(p._id),
-      title: p.title,
-      description: p.description,
-      categories: p.categories || [],
-      imageUrl: p.imageUrl || null,
-      averageRating: p.averageRating || 0,
-      ratingCount: p.ratingCount || 0,
-      status: p.status,
-    }));
+    .map((p: any) => {
+      const agg = proposalRatings.get(String(p._id));
+      return {
+        id: String(p._id),
+        title: p.title,
+        description: p.description,
+        categories: p.categories || [],
+        imageUrl: p.imageUrl || null,
+        averageRating: agg?.averageRating || 0,
+        ratingCount: agg?.ratingCount || 0,
+        status: p.status,
+      };
+    });
 
   return res.status(200).json({
     municipalItems,

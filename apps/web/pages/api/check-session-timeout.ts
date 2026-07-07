@@ -1,17 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
-import { Session, Settings } from "@/lib/models";
+import { Session, Question } from "@/lib/models";
 import { closeSession } from "@/lib/session-close";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("SessionTimeout");
 
 /**
- * Closes any active standard/survey/municipal session that has exceeded
- * Settings.sessionLimitHours, and any active "voting" (mobile Ja/Nej) session
- * that has passed its own admin-set `deadline`. "voting" sessions are never
- * subject to sessionLimitHours — they run until their deadline or a manual
- * admin close.
+ * Closes any active Session or Question whose own `deadline` has passed.
+ * Both models carry their own deadline now — there is no global time limit.
  * Invoked by Vercel Cron (see apps/web/vercel.json) with a Bearer CRON_SECRET.
  */
 export default async function handler(
@@ -32,52 +29,17 @@ export default async function handler(
   try {
     await dbConnect();
 
-    // Get the session limit from settings
-    const settings = await Settings.findOne({});
-    const sessionLimitHours = settings?.sessionLimitHours || 24;
-
     const currentTime = new Date();
     const closedSessions = [];
 
-    // --- Standard/survey/municipal sessions: close on sessionLimitHours ---
-    const timedSessions = await Session.find({
+    // --- Standard sessions: close once their own deadline has passed ---
+    const dueSessions = await Session.find({
       status: "active",
-      sessionType: { $ne: "voting" },
-    });
-
-    for (const session of timedSessions) {
-      if (!session.startDate) continue;
-
-      const sessionStartTime = new Date(session.startDate);
-      const elapsedHours =
-        (currentTime.getTime() - sessionStartTime.getTime()) / (1000 * 60 * 60);
-
-      if (elapsedHours >= sessionLimitHours) {
-        log.info("Session exceeded time limit", {
-          sessionId: session._id.toString(),
-          elapsedHours: elapsedHours.toFixed(1),
-          limitHours: sessionLimitHours,
-        });
-
-        await closeSession(session);
-        closedSessions.push({
-          sessionId: session._id,
-          place: session.place,
-          elapsedHours: elapsedHours.toFixed(1),
-          limitHours: sessionLimitHours,
-        });
-      }
-    }
-
-    // --- "voting" (mobile Ja/Nej) sessions: close on their own deadline ---
-    const dueVotingSessions = await Session.find({
-      status: "active",
-      sessionType: "voting",
       deadline: { $lte: currentTime },
     });
 
-    for (const session of dueVotingSessions) {
-      log.info("Voting session reached deadline", {
+    for (const session of dueSessions) {
+      log.info("Session reached deadline", {
         sessionId: session._id.toString(),
         deadline: session.deadline,
       });
@@ -85,32 +47,58 @@ export default async function handler(
       await closeSession(session);
       closedSessions.push({
         sessionId: session._id,
-        place: session.place,
+        title: session.title,
         deadline: session.deadline,
       });
     }
 
-    const checked = timedSessions.length + dueVotingSessions.length;
+    // --- Questions: close once their own deadline has passed ---
+    const dueQuestions = await Question.find({
+      status: "active",
+      deadline: { $lte: currentTime },
+    });
+
+    const closedQuestions = [];
+    for (const question of dueQuestions) {
+      log.info("Question reached deadline", {
+        questionId: question._id.toString(),
+        deadline: question.deadline,
+      });
+
+      question.status = "closed";
+      question.closedAt = currentTime;
+      await question.save();
+
+      closedQuestions.push({
+        questionId: question._id,
+        text: question.text,
+        deadline: question.deadline,
+      });
+    }
+
+    const checked = dueSessions.length + dueQuestions.length;
 
     if (checked === 0) {
       return res.status(200).json({
-        message: "No active sessions to check",
+        message: "No active sessions or questions to check",
         checked: 0,
         closed: 0,
       });
     }
 
     return res.status(200).json({
-      message: `Checked ${checked} session(s), closed ${closedSessions.length}`,
+      message: `Checked ${checked} item(s), closed ${
+        closedSessions.length + closedQuestions.length
+      }`,
       checked,
-      closed: closedSessions.length,
+      closed: closedSessions.length + closedQuestions.length,
       closedSessions,
-      sessionLimitHours,
+      closedQuestions,
     });
   } catch (error) {
-    log.error("Failed to check session timeouts", { error: error.message });
+    log.error("Failed to check timeouts", { error: error.message });
     return res.status(500).json({
-      error: "Failed to check session timeouts",
+      error: "Failed to check timeouts",
       details: error.message,
     });
   }

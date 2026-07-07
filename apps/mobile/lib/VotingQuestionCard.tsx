@@ -12,10 +12,10 @@ export interface VoteCounts {
 
 export interface VotingSession {
   id: string;
-  question: string;
+  text: string;
   imageUrl: string | null;
   isActive: boolean;
-  startDate: string;
+  deadline?: string;
   createdAt: string;
   voteCounts: VoteCounts;
   userVote: "ja" | "nej" | null;
@@ -52,9 +52,7 @@ export function VotingQuestionCard({
   const pct = (n: number) => (total === 0 ? 0 : Math.round((n / total) * 100));
   const isPrimary = session.isActive;
   const showResults = session.userVote != null || !isPrimary;
-  const displayDate = new Date(
-    session.startDate || session.createdAt,
-  ).toLocaleDateString("sv-SE", {
+  const displayDate = new Date(session.createdAt).toLocaleDateString("sv-SE", {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -71,7 +69,7 @@ export function VotingQuestionCard({
         <Text style={styles.dateText}>{displayDate}</Text>
       </View>
 
-      <Text style={styles.question}>{session.question}</Text>
+      <Text style={styles.question}>{session.text}</Text>
 
       <View style={styles.alternatives}>
         {ALTS.map(({ key, label }) => {

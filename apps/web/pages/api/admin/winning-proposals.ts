@@ -1,11 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
-import { TopProposal } from "@/lib/models";
+import { WinningProposal } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import { createLogger } from "@/lib/logger";
 
-const log = createLogger("TopProposals");
+const log = createLogger("AdminWinningProposals");
 
 export default async function handler(
   req: NextApiRequest,
@@ -21,29 +21,30 @@ export default async function handler(
 
   if (req.method === "GET") {
     try {
-      // Get all top proposals, sorted by archived date (newest first)
-      const topProposals = await TopProposal.find().sort({
+      // Get all winning proposals, sorted by archived date (newest first)
+      const winningProposals = await WinningProposal.find().sort({
         archivedAt: -1,
       });
 
       // Format the response
-      const formatted = topProposals.map((tp) => ({
-        id: tp._id.toString(),
-        sessionPlace: tp.sessionPlace,
-        sessionStartDate: tp.sessionStartDate,
-        title: tp.title,
-        problem: tp.problem,
-        solution: tp.solution,
-        estimatedCost: tp.estimatedCost,
-        yesVotes: tp.yesVotes,
-        noVotes: tp.noVotes,
-        archivedAt: tp.archivedAt,
+      const formatted = winningProposals.map((wp) => ({
+        id: wp._id.toString(),
+        sessionTitle: wp.sessionTitle,
+        sessionStartDate: wp.sessionStartDate,
+        title: wp.title,
+        problem: wp.problem,
+        solution: wp.solution,
+        yesVotes: wp.yesVotes,
+        noVotes: wp.noVotes,
+        archivedAt: wp.archivedAt,
       }));
 
       return res.status(200).json(formatted);
     } catch (error) {
-      log.error("Failed to fetch top proposals", { error: error.message });
-      return res.status(500).json({ error: "Failed to fetch top proposals" });
+      log.error("Failed to fetch winning proposals", { error: error.message });
+      return res
+        .status(500)
+        .json({ error: "Failed to fetch winning proposals" });
     }
   }
 

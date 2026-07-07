@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../../lib/mongodb";
-import { CitizenProposal, CitizenProposalRating } from "../../../../lib/models";
+import { CitizenProposalRating } from "../../../../lib/models";
 import { verifyBearerToken } from "../../../../lib/mobile-jwt";
 import { createLogger } from "../../../../lib/logger";
 
@@ -45,15 +45,11 @@ export default async function handler(
     }
 
     const all = await CitizenProposalRating.find({ proposalId });
-    const totalStars = all.reduce((sum, r) => sum + r.rating, 0);
     const ratingCount = all.length;
-    const averageRating = totalStars / ratingCount;
-
-    await CitizenProposal.findByIdAndUpdate(proposalId, {
-      totalStars,
-      ratingCount,
-      averageRating,
-    });
+    const averageRating =
+      ratingCount > 0
+        ? all.reduce((sum, r) => sum + r.rating, 0) / ratingCount
+        : 0;
 
     return res
       .status(200)

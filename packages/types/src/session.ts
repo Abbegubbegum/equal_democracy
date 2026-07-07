@@ -1,12 +1,10 @@
 import type { BaseDocument } from "./base.js";
 
-export type SessionType = "standard" | "survey" | "municipal";
-export type SessionStatus = "active" | "closed" | "archived";
+export type SessionStatus = "active" | "closed";
 export type SessionPhase = "phase1" | "phase2" | "closed";
 
 export interface Session extends BaseDocument {
-  place: string;
-  sessionType: SessionType;
+  title: string;
   status: SessionStatus;
   phase: SessionPhase;
   activeUsers: string[];
@@ -15,8 +13,7 @@ export interface Session extends BaseDocument {
   startDate: string;
   phase2StartTime?: string;
   endDate?: string;
-  archiveDate?: string;
-  surveyDurationDays: number;
+  deadline?: string;
   createdBy?: string;
   maxOneProposalPerUser: boolean;
   showUserCount: boolean;
@@ -29,15 +26,14 @@ export interface Session extends BaseDocument {
   customTopCount?: number | null;
 }
 
-export interface TopProposal extends BaseDocument {
+export interface WinningProposal extends BaseDocument {
   sessionId: string;
-  sessionPlace: string;
+  sessionTitle: string;
   sessionStartDate: string;
   proposalId: string;
   title: string;
   problem: string;
   solution: string;
-  authorName: string;
   yesVotes: number;
   noVotes: number;
   archivedAt: string;
@@ -57,6 +53,5 @@ export type AppTheme = "default" | "green" | "red" | "blue";
 export interface Settings extends BaseDocument {
   language: AppLanguage;
   theme: AppTheme;
-  sessionLimitHours: number;
   updatedAt: string;
 }

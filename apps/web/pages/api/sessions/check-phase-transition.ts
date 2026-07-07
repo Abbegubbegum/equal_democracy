@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
-import { Session, Proposal, ThumbsUp } from "@/lib/models";
+import { Session, Proposal, ProposalRating } from "@/lib/models";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import broadcaster from "@/lib/pusher-broadcaster";
@@ -35,7 +35,6 @@ export default async function handler(
     const { sessionId } = req.query;
 
     // Get active session (with optional sessionId)
-    // Only standard sessions can transition to phase 2 (surveys stay in phase 1 until archived)
     const sessionQuery = sessionId
       ? { _id: sessionId, status: "active" }
       : { status: "active" };
@@ -43,11 +42,6 @@ export default async function handler(
     const activeSession = await Session.findOne(sessionQuery);
 
     if (!activeSession || activeSession.phase !== "phase1") {
-      return res.status(200).json({ shouldTransition: false });
-    }
-
-    // Survey sessions don't transition to phase 2 - they stay in phase 1 until archived
-    if (activeSession.sessionType === "survey") {
       return res.status(200).json({ shouldTransition: false });
     }
 
@@ -99,12 +93,10 @@ export default async function handler(
     const proposalIds = proposals.map((p) => p._id);
 
     // Count how many proposals have at least one rating
-    const ratedProposalsCount = await Promise.all(
-      proposalIds.map(async (id) => {
-        const count = await ThumbsUp.countDocuments({ proposalId: id });
-        return count > 0 ? 1 : 0;
-      }),
-    ).then((results) => results.reduce((sum, val) => sum + val, 0));
+    const ratedProposalIds = await ProposalRating.distinct("proposalId", {
+      proposalId: { $in: proposalIds },
+    });
+    const ratedProposalsCount = ratedProposalIds.length;
 
     const proposalsPercentage = (ratedProposalsCount / totalProposals) * 100;
 
@@ -112,8 +104,8 @@ export default async function handler(
     const activeUsersCount = activeSession.activeUsers?.length || 0;
 
     // Get unique users who have rated in this session
-    const usersWhoRated = await ThumbsUp.distinct("userId", {
-      sessionId: activeSession._id,
+    const usersWhoRated = await ProposalRating.distinct("userId", {
+      proposalId: { $in: proposalIds },
     });
     const usersWhoRatedCount = usersWhoRated.length;
 

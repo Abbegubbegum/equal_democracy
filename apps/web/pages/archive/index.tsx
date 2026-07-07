@@ -357,7 +357,7 @@ export default function ArchivePage() {
                       className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow"
                     >
                       <h3 className="font-semibold text-lg mb-2">
-                        {archivedSession.place}
+                        {archivedSession.title}
                       </h3>
                       <div className="flex items-center gap-4 text-sm text-gray-600">
                         {archivedSession.participantCount > 0 && (

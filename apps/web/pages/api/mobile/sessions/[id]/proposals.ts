@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../../../lib/mongodb";
-import { Proposal, ThumbsUp } from "../../../../../lib/models";
+import { Proposal, ProposalRating } from "../../../../../lib/models";
+import { getRatingAggregates } from "../../../../../lib/rating-helper";
 import { verifyBearerToken } from "../../../../../lib/mobile-jwt";
 import { createLogger } from "../../../../../lib/logger";
 
@@ -24,33 +25,42 @@ export default async function handler(
   if (req.method === "GET") {
     try {
       const proposals = await Proposal.find({ sessionId, status: "active" })
-        .select(
-          "_id title problem solution averageRating thumbsUpCount authorName createdAt",
-        )
-        .sort({ averageRating: -1, thumbsUpCount: -1 })
+        .select("_id title problem solution createdAt")
         .lean();
 
       const proposalIds = proposals.map((p) => p._id);
-      const userRatings = await ThumbsUp.find({
+      const ratings = await getRatingAggregates(
+        ProposalRating,
+        "proposalId",
+        proposalIds,
+      );
+      const userRatings = await ProposalRating.find({
         proposalId: { $in: proposalIds },
         userId: user.id,
       }).lean();
-      const ratingMap = Object.fromEntries(
+      const userRatingMap = Object.fromEntries(
         userRatings.map((r) => [r.proposalId.toString(), r.rating]),
       );
 
-      return res.status(200).json(
-        proposals.map((p) => ({
-          id: p._id.toString(),
-          title: p.title,
-          problem: p.problem || "",
-          solution: p.solution || "",
-          averageRating: p.averageRating || 0,
-          thumbsUpCount: p.thumbsUpCount || 0,
-          authorName: p.authorName,
-          userRating: ratingMap[p._id.toString()] || 0,
-        })),
-      );
+      const result = proposals
+        .map((p) => {
+          const agg = ratings.get(p._id.toString());
+          return {
+            id: p._id.toString(),
+            title: p.title,
+            problem: p.problem || "",
+            solution: p.solution || "",
+            averageRating: agg?.averageRating || 0,
+            ratingCount: agg?.ratingCount || 0,
+            userRating: userRatingMap[p._id.toString()] || 0,
+          };
+        })
+        .sort(
+          (a, b) =>
+            b.averageRating - a.averageRating || b.ratingCount - a.ratingCount,
+        );
+
+      return res.status(200).json(result);
     } catch (error) {
       log.error("Failed to fetch mobile proposals", { error: error.message });
       return res.status(500).json({ message: "Failed to fetch proposals" });
@@ -70,7 +80,6 @@ export default async function handler(
         problem: problem?.trim() || "",
         solution: solution?.trim() || "",
         authorId: user.id,
-        authorName: user.name || user.email,
         status: "active",
       });
 
@@ -80,8 +89,7 @@ export default async function handler(
         problem: proposal.problem,
         solution: proposal.solution,
         averageRating: 0,
-        thumbsUpCount: 0,
-        authorName: proposal.authorName,
+        ratingCount: 0,
       });
     } catch (error) {
       log.error("Failed to create mobile proposal", { error: error.message });

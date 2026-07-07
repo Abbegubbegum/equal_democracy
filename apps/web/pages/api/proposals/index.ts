@@ -2,13 +2,14 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
-import { Proposal, ThumbsUp, Comment } from "../../../lib/models";
+import { Proposal, ProposalRating, Comment } from "../../../lib/models";
 import {
   getActiveSession,
   registerActiveUser,
 } from "../../../lib/session-helper";
 import { csrfProtection } from "../../../lib/csrf";
 import { hasAdminAccess } from "../../../lib/admin-helper";
+import { getRatingAggregates } from "../../../lib/rating-helper";
 import broadcaster from "../../../lib/pusher-broadcaster";
 import { createLogger } from "../../../lib/logger";
 
@@ -51,29 +52,36 @@ export default async function handler(
         .sort({ createdAt: -1 })
         .lean();
 
-      const proposalsWithCounts = await Promise.all(
-        proposals.map(async (proposal) => {
-          const thumbsUpCount = await ThumbsUp.countDocuments({
-            proposalId: proposal._id,
-          });
-          const commentsCount = await Comment.countDocuments({
-            proposalId: proposal._id,
-          });
-
-          // Only include authorId and authorName if this is the user's own proposal
-          const isOwnProposal =
-            currentUserId && proposal.authorId.toString() === currentUserId;
-
-          return {
-            ...proposal,
-            _id: proposal._id.toString(),
-            authorId: isOwnProposal ? proposal.authorId.toString() : undefined,
-            authorName: isOwnProposal ? proposal.authorName : undefined,
-            thumbsUpCount,
-            commentsCount,
-          };
-        }),
+      const proposalIds = proposals.map((p) => p._id);
+      const ratings = await getRatingAggregates(
+        ProposalRating,
+        "proposalId",
+        proposalIds,
       );
+      const commentCounts = await Comment.aggregate([
+        { $match: { proposalId: { $in: proposalIds } } },
+        { $group: { _id: "$proposalId", count: { $sum: 1 } } },
+      ]);
+      const commentCountMap = new Map(
+        commentCounts.map((c) => [c._id.toString(), c.count]),
+      );
+
+      const proposalsWithCounts = proposals.map((proposal) => {
+        const agg = ratings.get(proposal._id.toString());
+
+        // Only include authorId if this is the user's own proposal
+        const isOwnProposal =
+          currentUserId && proposal.authorId.toString() === currentUserId;
+
+        return {
+          ...proposal,
+          _id: proposal._id.toString(),
+          authorId: isOwnProposal ? proposal.authorId.toString() : undefined,
+          averageRating: agg?.averageRating || 0,
+          ratingCount: agg?.ratingCount || 0,
+          commentsCount: commentCountMap.get(proposal._id.toString()) || 0,
+        };
+      });
 
       return res.status(200).json(proposalsWithCounts);
     } catch (error) {
@@ -122,7 +130,7 @@ export default async function handler(
         const userProposalCount = await Proposal.countDocuments({
           sessionId: activeSession._id,
           authorId: session.user.id,
-          status: { $in: ["active", "top3"] },
+          status: { $in: ["active", "finalist"] },
         });
 
         if (userProposalCount > 0) {
@@ -144,7 +152,7 @@ export default async function handler(
       const existingProposal = await Proposal.findOne({
         sessionId: activeSession._id,
         title: { $regex: new RegExp(`^${title.trim()}$`, "i") },
-        status: { $in: ["active", "top3"] },
+        status: { $in: ["active", "finalist"] },
       });
 
       if (existingProposal) {
@@ -160,16 +168,14 @@ export default async function handler(
         problem,
         solution,
         authorId: session.user.id,
-        authorName: session.user.name,
         status: "active",
-        thumbsUpCount: 0,
       });
 
       // Register user as active in session
       await registerActiveUser(session.user.id, activeSession._id.toString());
 
       // Broadcast new proposal event to all connected clients
-      // Note: authorId and authorName removed for anonymity
+      // Note: authorId removed for anonymity
       await broadcaster.broadcast("new-proposal", {
         _id: proposal._id.toString(),
         sessionId: proposal.sessionId.toString(),
@@ -177,7 +183,7 @@ export default async function handler(
         problem: proposal.problem,
         solution: proposal.solution,
         status: proposal.status,
-        thumbsUpCount: 0,
+        ratingCount: 0,
         averageRating: 0,
         yesVotes: 0,
         noVotes: 0,
@@ -207,14 +213,18 @@ export default async function handler(
 
     const { action, proposalIds } = req.body;
 
-    if (action === "moveToTop3" && proposalIds && Array.isArray(proposalIds)) {
+    if (
+      action === "moveToFinalist" &&
+      proposalIds &&
+      Array.isArray(proposalIds)
+    ) {
       try {
         await Proposal.updateMany(
           { _id: { $in: proposalIds } },
-          { $set: { status: "top3" } },
+          { $set: { status: "finalist" } },
         );
 
-        return res.status(200).json({ message: "Top 3 updated" });
+        return res.status(200).json({ message: "Finalists updated" });
       } catch (error) {
         log.error("Failed to update proposal", { error: error.message });
         return res.status(500).json({ message: "An error has occured" });

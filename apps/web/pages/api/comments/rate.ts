@@ -74,7 +74,6 @@ export default async function handler(
       } else {
         // Create new rating
         await CommentRating.create({
-          sessionId: activeSession._id,
           commentId,
           userId: session.user.id,
           rating,
@@ -88,10 +87,6 @@ export default async function handler(
       const ratings = await CommentRating.find({ commentId });
       const sum = ratings.reduce((acc, r) => acc + r.rating, 0);
       const averageRating = ratings.length > 0 ? sum / ratings.length : 0;
-
-      // Update comment with new average
-      comment.averageRating = averageRating;
-      await comment.save();
 
       // Broadcast comment rating update to all connected clients
       await broadcaster.broadcast("comment-rating-update", {

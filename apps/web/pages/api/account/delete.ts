@@ -5,11 +5,13 @@ import connectDB from "../../../lib/mongodb";
 import {
   User,
   Proposal,
-  ThumbsUp,
+  ProposalRating,
   Comment,
   CommentRating,
   FinalVote,
-  QuickVote,
+  QuestionVote,
+  QuestionComment,
+  QuestionCommentRating,
   CitizenProposal,
   CitizenProposalRating,
   BudgetVote,
@@ -39,7 +41,6 @@ export default async function handler(
   }
 
   const userId = user._id;
-  const userIdStr = userId.toString();
 
   // Delete blob images from citizen proposals authored by this user
   const ownProposals = await CitizenProposal.find({ authorId: userId }).select(
@@ -58,11 +59,13 @@ export default async function handler(
   // Delete all user-linked data in parallel
   await Promise.all([
     Proposal.deleteMany({ authorId: userId }),
-    ThumbsUp.deleteMany({ userId }),
+    ProposalRating.deleteMany({ userId }),
     Comment.deleteMany({ userId }),
     CommentRating.deleteMany({ userId }),
     FinalVote.deleteMany({ userId }),
-    QuickVote.deleteMany({ userId: userIdStr }),
+    QuestionVote.deleteMany({ userId }),
+    QuestionComment.deleteMany({ userId }),
+    QuestionCommentRating.deleteMany({ userId }),
     CitizenProposal.deleteMany({ authorId: userId }),
     CitizenProposalRating.deleteMany({ userId }),
     BudgetVote.deleteMany({ userId }),

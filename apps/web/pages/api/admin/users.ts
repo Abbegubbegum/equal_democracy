@@ -4,8 +4,11 @@ import {
   User,
   Proposal,
   Comment,
-  ThumbsUp,
+  ProposalRating,
   FinalVote,
+  QuestionVote,
+  QuestionComment,
+  QuestionCommentRating,
 } from "../../../lib/models";
 import { requireAdmin } from "../../../lib/admin";
 import { createLogger } from "../../../lib/logger";
@@ -78,8 +81,11 @@ export default async function handler(
       await Promise.all([
         Proposal.deleteMany({ authorId: id }),
         Comment.deleteMany({ userId: id }),
-        ThumbsUp.deleteMany({ userId: id }),
+        ProposalRating.deleteMany({ userId: id }),
         FinalVote.deleteMany({ userId: id }),
+        QuestionVote.deleteMany({ userId: id }),
+        QuestionComment.deleteMany({ userId: id }),
+        QuestionCommentRating.deleteMany({ userId: id }),
       ]);
       await User.findByIdAndDelete(id);
       return res.status(204).end();

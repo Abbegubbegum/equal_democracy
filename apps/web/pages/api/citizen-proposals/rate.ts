@@ -110,27 +110,22 @@ export default async function handler(
       // Recalculate proposal stats
       const allRatings = await CitizenProposalRating.find({ proposalId });
 
-      const totalStars = allRatings.reduce((sum, r) => sum + r.rating, 0);
       const ratingCount = allRatings.length;
-      const averageRating = ratingCount > 0 ? totalStars / ratingCount : 0;
-
-      proposal.totalStars = totalStars;
-      proposal.ratingCount = ratingCount;
-      proposal.averageRating = averageRating;
-
-      await proposal.save();
+      const averageRating =
+        ratingCount > 0
+          ? allRatings.reduce((sum, r) => sum + r.rating, 0) / ratingCount
+          : 0;
 
       log.info("Proposal rated", {
         userId: session.user.id,
         proposalId,
         oldRating,
         newRating: rating,
-        totalStars,
+        ratingCount,
       });
 
       return res.status(200).json({
         message: oldRating ? "Rating updated" : "Rating registered",
-        totalStars,
         ratingCount,
         averageRating,
         userRating: rating,

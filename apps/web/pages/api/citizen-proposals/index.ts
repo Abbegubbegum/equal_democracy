@@ -9,6 +9,7 @@ import {
 } from "../../../lib/models";
 import { ALL_CATEGORIES } from "@repo/types";
 import { csrfProtection } from "../../../lib/csrf";
+import { getRatingAggregates } from "../../../lib/rating-helper";
 import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("CitizenProposals");
@@ -45,25 +46,44 @@ export default async function handler(
         query.categories = String(category);
       }
 
-      // Determine sort order
-      let sortQuery = {};
-      if (sort === "recent") {
-        sortQuery = { createdAt: -1 };
-      } else {
-        // Default: sort by total stars (most popular first)
-        sortQuery = { totalStars: -1, createdAt: -1 };
-      }
+      const rawProposals = (await CitizenProposal.find(query).lean()) as any[];
+      const ratings = await getRatingAggregates(
+        CitizenProposalRating,
+        "proposalId",
+        rawProposals.map((p) => p._id),
+      );
 
-      const proposals = await CitizenProposal.find(query)
-        .sort(sortQuery)
-        .limit(100)
-        .lean();
+      const proposals = rawProposals.map((p) => {
+        const agg = ratings.get(p._id.toString());
+        return {
+          ...p,
+          averageRating: agg?.averageRating || 0,
+          ratingCount: agg?.ratingCount || 0,
+        };
+      });
+
+      // Determine sort order
+      if (sort === "recent") {
+        proposals.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+      } else {
+        // Default: sort by rating (most popular first)
+        proposals.sort(
+          (a, b) =>
+            b.averageRating - a.averageRating ||
+            b.ratingCount - a.ratingCount ||
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+      }
+      const limitedProposals = proposals.slice(0, 100);
 
       // If user is logged in, include their ratings
       if (session?.user?.id) {
         const userRatings = await CitizenProposalRating.find({
           userId: session.user.id,
-          proposalId: { $in: proposals.map((p) => p._id) },
+          proposalId: { $in: limitedProposals.map((p) => p._id) },
         }).lean();
 
         const ratingsMap = {};
@@ -72,18 +92,18 @@ export default async function handler(
         });
 
         // Add user ratings to proposals
-        proposals.forEach((p) => {
-          p.userRating = ratingsMap[p._id.toString()] || null;
-          p.isOwn = p.authorId.toString() === session.user.id;
+        limitedProposals.forEach((p) => {
+          (p as any).userRating = ratingsMap[p._id.toString()] || null;
+          (p as any).isOwn = p.authorId.toString() === session.user.id;
         });
       } else {
-        proposals.forEach((p) => {
-          p.userRating = null;
-          p.isOwn = false;
+        limitedProposals.forEach((p) => {
+          (p as any).userRating = null;
+          (p as any).isOwn = false;
         });
       }
 
-      return res.status(200).json({ proposals });
+      return res.status(200).json({ proposals: limitedProposals });
     } catch (error) {
       log.error("Failed to fetch proposals", { error: error.message });
       return res.status(500).json({ message: "Failed to fetch proposals" });
@@ -150,11 +170,7 @@ export default async function handler(
         description,
         categories,
         authorId: user._id,
-        authorName: user.name,
         status: "active",
-        totalStars: 0,
-        ratingCount: 0,
-        averageRating: 0,
       });
 
       await proposal.save();
@@ -172,7 +188,8 @@ export default async function handler(
           description: proposal.description,
           categories: proposal.categories,
           status: proposal.status,
-          totalStars: proposal.totalStars,
+          averageRating: 0,
+          ratingCount: 0,
           isOwn: true,
         },
       });

@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
-import { User, MunicipalSession, Session } from "../../../lib/models";
+import { User, MunicipalMeeting, Question } from "../../../lib/models";
 import { csrfProtection } from "../../../lib/csrf";
 import { createLogger } from "../../../lib/logger";
 
@@ -10,8 +10,8 @@ const log = createLogger("CloseItem");
 
 /**
  * POST /api/municipal/close-item
- * Close a specific item in a municipal session
- * For council members with canCloseQuestions permission
+ * Close a specific item in a municipal meeting
+ * Super admins only
  */
 export default async function handler(
   req: NextApiRequest,
@@ -35,11 +35,10 @@ export default async function handler(
     return res.status(404).json({ message: "User not found" });
   }
 
-  // Check if user has permission to close questions
-  if (!user.canCloseQuestions && !user.isSuperAdmin) {
+  // Only super admins may close items
+  if (!user.isSuperAdmin) {
     return res.status(403).json({
-      message:
-        "You do not have permission to close questions. Only council members can close items.",
+      message: "You do not have permission to close questions.",
     });
   }
 
@@ -48,23 +47,22 @@ export default async function handler(
   }
 
   try {
-    const { municipalSessionId, itemId } = req.body;
+    const { meetingId, itemId } = req.body;
 
-    if (!municipalSessionId || !itemId) {
+    if (!meetingId || !itemId) {
       return res
         .status(400)
-        .json({ message: "Municipal session ID and item ID required" });
+        .json({ message: "Meeting ID and item ID required" });
     }
 
-    const municipalSession =
-      await MunicipalSession.findById(municipalSessionId);
+    const meeting = await MunicipalMeeting.findById(meetingId);
 
-    if (!municipalSession) {
-      return res.status(404).json({ message: "Municipal session not found" });
+    if (!meeting) {
+      return res.status(404).json({ message: "Meeting not found" });
     }
 
     // Find the item
-    const item = municipalSession.items.id(itemId);
+    const item = meeting.items.id(itemId);
 
     if (!item) {
       return res.status(404).json({ message: "Item not found" });
@@ -79,16 +77,15 @@ export default async function handler(
     item.closedAt = new Date();
     item.closedBy = user._id;
 
-    // Also close the corresponding Session
-    if (item.sessionId) {
-      await Session.findByIdAndUpdate(item.sessionId, {
+    // Also close the corresponding Question
+    if (item.questionId) {
+      await Question.findByIdAndUpdate(item.questionId, {
         status: "closed",
-        phase: "closed",
-        endDate: new Date(),
+        closedAt: new Date(),
       });
     }
 
-    await municipalSession.save();
+    await meeting.save();
 
     log.info("Item closed", { itemId, title: item.title, closedBy: user.name });
 
