@@ -17,6 +17,8 @@ export const DEFAULT_CONFIG = {
   language: "sv",
   theme: "default",
   municipalityName: "Vallentuna",
+  // Swappable rightmost quick-nav tile on the public start page.
+  featureSlot: "info",
 };
 
 // Color themes
@@ -35,13 +37,13 @@ export const THEMES = {
         800: "#001c55",
         900: "#001440",
       },
-      // Secondary/Accent colors (base: #f8b60e)
+      // Secondary/Accent colors (base: #f5a623 — matches the mobile app's amber)
       accent: {
-        50: "#fef6e0",
-        100: "#fde9b3",
-        400: "#f8b60e",
-        500: "#e0a30d",
-        600: "#c8910b",
+        50: "#fef4e2",
+        100: "#fbe1b0",
+        400: "#f5a623",
+        500: "#db8f11",
+        600: "#b8790d",
       },
       // Success (green)
       success: {

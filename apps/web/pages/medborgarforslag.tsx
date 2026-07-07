@@ -1,108 +1,79 @@
-import { useEffect, useState, useCallback } from "react";
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  Fragment,
+  type FormEvent,
+} from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import Link from "next/link";
-import {
-  Star,
-  Plus,
-  TrendingUp,
-  Clock,
-  Award,
-  Users,
-  Calendar,
-  ChevronRight,
-} from "lucide-react";
+import { ArrowLeft, Plus, X } from "lucide-react";
 import { fetchWithCsrf } from "../lib/fetch-with-csrf";
-import { useTranslation } from "../lib/hooks/useTranslation";
 import { useConfig } from "../lib/contexts/ConfigContext";
-import usePusher from "../lib/hooks/usePusher";
-import { ALL_CATEGORIES } from "@repo/types";
+import { INTEREST_AREAS, INTEREST_TO_CATEGORIES } from "@repo/types";
+import MajReviewSheet from "../components/MajReviewSheet";
+
+interface Proposal {
+  _id: string;
+  title: string;
+  description: string;
+  imageUrl?: string | null;
+  categories: string[];
+  averageRating: number;
+  ratingCount: number;
+  rank: number | null;
+  inGrace: boolean;
+  userRating: number | null;
+  isOwn: boolean;
+}
 
 export default function MedborgarforslagPage() {
   const { data: session } = useSession();
   const router = useRouter();
-  const { t } = useTranslation();
   const { theme } = useConfig();
-  const [proposals, setProposals] = useState([]);
+
+  const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState("list"); // 'list' or 'create'
-  const [sortBy, setSortBy] = useState("popular"); // 'popular' or 'recent'
-  const [filterCategory, setFilterCategory] = useState(null);
-  const [activeSessions, setActiveSessions] = useState([]);
+  const [view, setView] = useState<"list" | "create">("list");
+  const [filterCategory, setFilterCategory] = useState<string | null>(null);
 
-  // Create form
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-
-  const fetchActiveSessions = useCallback(async () => {
-    try {
-      const res = await fetch("/api/sessions/active");
-      const data = await res.json();
-      setActiveSessions(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Error fetching sessions:", err);
-    }
-  }, []);
-
-  usePusher({
-    onNewSession: fetchActiveSessions,
-    onPhaseChange: fetchActiveSessions,
-    onConnected: () => {},
-    onError: () => {},
-  });
-
-  useEffect(() => {
-    if (session) {
-      fetchActiveSessions();
-    }
-  }, [session, fetchActiveSessions]);
-
-  useEffect(() => {
-    fetchProposals();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortBy, filterCategory]);
-
-  const fetchProposals = async () => {
+  const fetchProposals = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      if (sortBy === "recent") params.append("sort", "recent");
       if (filterCategory) params.append("category", filterCategory);
-
       const res = await fetch(`/api/citizen-proposals?${params.toString()}`);
       const data = await res.json();
-      setProposals(data.proposals || []);
-    } catch (err) {
-      console.error("Error fetching proposals:", err);
+      setProposals(Array.isArray(data.proposals) ? data.proposals : []);
+    } catch {
+      /* keep old list */
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterCategory]);
 
-  const handleRate = async (proposalId, rating) => {
+  useEffect(() => {
+    fetchProposals();
+  }, [fetchProposals]);
+
+  const handleRate = async (proposalId: string, rating: number) => {
     if (!session) {
       router.push("/login");
       return;
     }
-
     try {
       const res = await fetchWithCsrf("/api/citizen-proposals/rate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ proposalId, rating }),
       });
-
       if (res.ok) {
         const data = await res.json();
-        // Update proposal in list
         setProposals((prev) =>
           prev.map((p) =>
             p._id === proposalId
               ? {
                   ...p,
-                  totalStars: data.totalStars,
                   ratingCount: data.ratingCount,
                   averageRating: data.averageRating,
                   userRating: data.userRating,
@@ -111,482 +82,496 @@ export default function MedborgarforslagPage() {
           ),
         );
       }
-    } catch (err) {
-      console.error("Error rating proposal:", err);
+    } catch {
+      /* ignore */
     }
   };
 
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    if (!session) {
-      router.push("/login");
-      return;
-    }
-
-    try {
-      const res = await fetchWithCsrf("/api/citizen-proposals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          description,
-          categories: selectedCategories,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setTitle("");
-        setDescription("");
-        setSelectedCategories([]);
-        setView("list");
-        await fetchProposals();
-      } else {
-        setError(data.message || "Failed to create proposal");
-      }
-    } catch (err) {
-      console.error("Error creating proposal:", err);
-      setError("Ett fel uppstod");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const toggleCategory = (cat) => {
-    if (selectedCategories.includes(cat)) {
-      setSelectedCategories(selectedCategories.filter((c) => c !== cat));
-    } else {
-      if (selectedCategories.length < 3) {
-        setSelectedCategories([...selectedCategories, cat]);
-      }
-    }
-  };
-
-  const accentColor = theme?.colors?.accent[400] || "#f8b60e";
-  const primaryDark = theme?.colors?.primary[800] || "#001c55";
+  const primaryColor = theme?.colors?.primary?.[600] || "#002d75";
+  const primaryDark = theme?.colors?.primary?.[800] || "#001c55";
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-primary-600 text-white p-6 shadow">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">Idéer</h1>
-              <p className="text-primary-100">
-                Föreslå idéer och delta i omröstningar
-              </p>
+    <div className="min-h-screen bg-[#f7f8fb]">
+      {/* Header */}
+      <header
+        className="text-white px-4 sm:px-6 pt-5 pb-8 shadow-lg"
+        style={{
+          background: `linear-gradient(to right, ${primaryColor}, ${primaryDark})`,
+        }}
+      >
+        <div className="max-w-2xl mx-auto">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <img
+                src="/app-icon-tight.svg"
+                alt=""
+                className="h-9 w-auto shrink-0"
+              />
+              <div className="leading-none">
+                <div className="text-base font-black tracking-widest text-white">
+                  VALLENTUNA
+                </div>
+                <div className="text-xs font-extrabold text-white mt-0.5">
+                  Framåt
+                </div>
+              </div>
             </div>
-            <Link
-              href="/"
-              className="px-4 py-2 bg-yellow-400 text-gray-900 hover:bg-yellow-500 rounded-lg font-medium"
+            <button
+              onClick={() => router.push("/")}
+              className="inline-flex items-center gap-1.5 text-white/85 hover:text-accent-400 text-sm font-semibold whitespace-nowrap transition-colors"
             >
-              {t("common.backToStart")}
-            </Link>
+              <ArrowLeft className="w-4 h-4" />
+              Till startsidan
+            </button>
           </div>
+          <h1 className="mt-6 text-3xl sm:text-4xl font-black tracking-tight">
+            Förslag
+          </h1>
+          <p className="mt-1 text-primary-100 text-sm sm:text-base">
+            Rösta på och lämna förslag för Vallentuna.
+          </p>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto p-6">
-        {/* Active sessions */}
-        {activeSessions.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-700 mb-3">
-              Aktiva omröstningar
-            </h2>
-            <div className="grid gap-4">
-              {activeSessions.map((s) => (
-                <SessionCard
-                  key={s._id}
-                  session={s}
-                  onClick={() => router.push(`/session/${s._id}`)}
-                  t={t}
-                  primaryDark={primaryDark}
-                  accentColor={accentColor}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Navigation */}
-        <div className="mb-6 flex flex-wrap gap-3 items-center justify-between">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setView("list")}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                view === "list"
-                  ? "bg-white text-primary-600 shadow"
-                  : "text-gray-600 hover:bg-white/50"
-              }`}
-            >
-              Alla Förslag
-            </button>
-            <button
-              onClick={() => {
-                if (!session) {
-                  router.push("/login");
-                } else {
-                  setView("create");
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {view === "list" ? (
+          <>
+            {/* Toolbar */}
+            <div className="flex items-center gap-3 flex-wrap mb-3">
+              <button
+                onClick={() =>
+                  session ? setView("create") : router.push("/login")
                 }
-              }}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                view === "create"
-                  ? "bg-white text-primary-600 shadow"
-                  : "text-gray-600 hover:bg-white/50"
-              }`}
-            >
-              <Plus className="w-4 h-4 inline mr-1" />
-              Skapa Förslag
-            </button>
-          </div>
-
-          {view === "list" && (
-            <div className="flex gap-2">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="px-3 py-2 bg-white rounded-lg border text-sm"
+                className="inline-flex items-center gap-1.5 bg-accent-400 text-primary-800 font-extrabold text-sm px-4 py-2.5 rounded-btn hover:bg-accent-500 transition-colors"
               >
-                <option value="popular">
-                  <TrendingUp className="w-4 h-4 inline mr-1" />
-                  Mest Populära
-                </option>
-                <option value="recent">
-                  <Clock className="w-4 h-4 inline mr-1" />
-                  Senaste
-                </option>
-              </select>
-
+                <Plus className="w-4 h-4" /> Nytt förslag
+              </button>
               <select
                 value={filterCategory || ""}
                 onChange={(e) => setFilterCategory(e.target.value || null)}
-                className="px-3 py-2 bg-white rounded-lg border text-sm"
+                className="ml-auto bg-white border border-black/10 rounded-xl px-3 py-2 text-sm text-gray-600"
               >
-                <option value="">Alla Kategorier</option>
-                {ALL_CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
+                <option value="">Alla kategorier</option>
+                {(() => {
+                  // groupLabel marks the START of the geographic group; split
+                  // there so the geo areas land in their own <optgroup>.
+                  const geoStart = INTEREST_AREAS.findIndex(
+                    (a) => a.groupLabel,
+                  );
+                  const thematic = INTEREST_AREAS.slice(0, geoStart);
+                  const geo = INTEREST_AREAS.slice(geoStart);
+                  return (
+                    <>
+                      {thematic.map((a) => (
+                        <option key={a.key} value={a.key}>
+                          {a.label}
+                        </option>
+                      ))}
+                      <optgroup label={INTEREST_AREAS[geoStart].groupLabel}>
+                        {geo.map((a) => (
+                          <option key={a.key} value={a.key}>
+                            {a.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    </>
+                  );
+                })()}
               </select>
             </div>
-          )}
-        </div>
 
-        {/* List View */}
-        {view === "list" && (
-          <div className="space-y-4">
+            {/* Transparency */}
+            <div className="flex gap-2.5 items-start bg-[#eef4ff] border border-[#d4e2fb] rounded-xl px-3.5 py-2.5 text-sm text-[#274b8c] leading-snug mb-6">
+              <span>🏛️</span>
+              <span>
+                Förslagen rankas efter era betyg. Den{" "}
+                <b className="text-[#1a3a72]">högst rankade</b> lämnas varje
+                månad som motion till kommunfullmäktige.
+              </span>
+            </div>
+
             {loading ? (
-              <div className="text-center py-12 text-gray-500">Laddar...</div>
+              <div className="text-center py-12 text-gray-500">Laddar…</div>
             ) : proposals.length === 0 ? (
-              <div className="bg-white rounded-lg shadow p-12 text-center">
+              <div className="bg-white rounded-card border border-black/5 p-10 text-center">
                 <p className="text-gray-500 mb-4">
-                  Inga förslag än. Var först att föreslå en idé!
+                  Inga förslag än. Bli först att lämna ett!
                 </p>
                 <button
-                  onClick={() => {
-                    if (!session) {
-                      router.push("/login");
-                    } else {
-                      setView("create");
-                    }
-                  }}
-                  className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                  onClick={() =>
+                    session ? setView("create") : router.push("/login")
+                  }
+                  className="inline-flex items-center gap-1.5 bg-accent-400 text-primary-800 font-extrabold text-sm px-5 py-2.5 rounded-btn hover:bg-accent-500"
                 >
-                  <Plus className="w-4 h-4 inline mr-2" />
-                  Skapa Förslag
+                  <Plus className="w-4 h-4" /> Nytt förslag
                 </button>
               </div>
             ) : (
-              proposals.map((proposal) => (
-                <ProposalCard
-                  key={proposal._id}
-                  proposal={proposal}
-                  onRate={handleRate}
-                  session={session}
-                />
-              ))
-            )}
-          </div>
-        )}
-
-        {/* Create View */}
-        {view === "create" && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-2xl font-bold mb-4">Skapa Idé</h2>
-
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-800 text-sm">
-                {error}
+              <div className="space-y-4">
+                {proposals.map((p) => (
+                  <ProposalCard
+                    key={p._id}
+                    p={p}
+                    session={session}
+                    onRate={handleRate}
+                  />
+                ))}
               </div>
             )}
-
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Titel *
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="T.ex. 'Bygg fler cykelbanor i centrum'"
-                  className="w-full px-4 py-2 border rounded-lg"
-                  maxLength={200}
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  {title.length}/200 tecken
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Beskrivning *
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Beskriv ditt förslag i detalj..."
-                  rows={6}
-                  className="w-full px-4 py-2 border rounded-lg"
-                  maxLength={2000}
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  {description.length}/2000 tecken
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Kategorier * (välj 1-3)
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {ALL_CATEGORIES.map((cat) => {
-                    const isSelected = selectedCategories.includes(cat);
-                    return (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => toggleCategory(cat)}
-                        className={`px-3 py-2 rounded-lg text-sm transition-colors ${
-                          isSelected
-                            ? "bg-primary-600 text-white"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                        }`}
-                      >
-                        {cat}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  {selectedCategories.length}/3 valda
-                </p>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setView("list")}
-                  className="px-6 py-3 border rounded-lg hover:bg-gray-50"
-                >
-                  Avbryt
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting || selectedCategories.length === 0}
-                  className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400"
-                >
-                  {submitting ? "Skapar..." : "Skapa Idé"}
-                </button>
-              </div>
-            </form>
-          </div>
+          </>
+        ) : (
+          <CreateForm
+            onCancel={() => setView("list")}
+            onCreated={async () => {
+              setView("list");
+              await fetchProposals();
+            }}
+          />
         )}
       </main>
     </div>
   );
 }
 
-function ProposalCard({ proposal, onRate, session }) {
-  const [expanded, setExpanded] = useState(false);
+function ProposalCard({
+  p,
+  session,
+  onRate,
+}: {
+  p: Proposal;
+  session: any;
+  onRate: (id: string, rating: number) => void;
+}) {
+  const leader = p.rank === 1;
 
   return (
-    <div className="bg-white rounded-lg shadow hover:shadow-md transition-shadow">
-      <div className="p-6">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
-              {proposal.title}
-            </h3>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {proposal.status === "selected" && (
-                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full font-semibold">
-                  ⭐ Utvald
-                </span>
-              )}
-              {proposal.status === "submitted_as_motion" && (
-                <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full font-semibold">
-                  ✅ Inlämnad som motion
-                </span>
-              )}
-              {proposal.categories.map((cat) => (
-                <span
-                  key={cat}
-                  className="px-2 py-1 bg-primary-100 text-primary-800 text-xs rounded-full"
-                >
-                  {cat}
-                </span>
-              ))}
-              {proposal.isOwn && (
-                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full font-medium">
-                  Ditt förslag
-                </span>
-              )}
-            </div>
-          </div>
+    <div
+      className={`relative flex flex-col justify-end rounded-[20px] overflow-hidden shadow-[0_14px_32px_-20px_rgba(0,20,64,0.6)] ${
+        leader ? "ring-[3px] ring-accent-400 min-h-[255px]" : "min-h-[230px]"
+      }`}
+    >
+      {/* Background */}
+      {p.imageUrl ? (
+        <img
+          src={p.imageUrl}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-400 to-primary-600" />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
 
-          {/* Total Stars */}
-          <div className="flex flex-col items-center ml-4">
-            <div className="flex items-center gap-1 text-yellow-500">
-              <Award className="w-6 h-6" />
-              <span className="text-2xl font-bold">{proposal.totalStars}</span>
-            </div>
-            <p className="text-xs text-gray-500">
-              {proposal.ratingCount} röster
-            </p>
-          </div>
-        </div>
+      {/* Rank badge */}
+      <div
+        className={`absolute top-3 left-3 z-10 w-10 h-10 rounded-full flex items-center justify-center font-black tabular-nums border ${
+          leader
+            ? "bg-accent-400 text-primary-800 border-white"
+            : "bg-black/50 text-white border-white/25"
+        }`}
+      >
+        {p.rank}
+      </div>
+      {p.inGrace && (
+        <span className="absolute top-3.5 right-3.5 z-10 text-[0.7rem] font-bold text-white bg-green-700/85 rounded-full px-2.5 py-1">
+          🌱 Nytt förslag
+        </span>
+      )}
 
-        {/* Description */}
-        <p className={`text-gray-700 mb-4 ${!expanded && "line-clamp-3"}`}>
-          {proposal.description}
+      {/* Content */}
+      <div className="relative z-[1] p-4 sm:p-5 text-white">
+        {leader && (
+          <span className="inline-flex items-center gap-1 text-[0.66rem] font-extrabold uppercase tracking-wide text-primary-800 bg-accent-400 rounded-full px-2.5 py-1 mb-2">
+            👑 Månadens etta · på väg till fullmäktige
+          </span>
+        )}
+        <h2 className="text-xl font-extrabold leading-tight drop-shadow-[0_1px_8px_rgba(0,0,0,0.4)]">
+          {p.title}
+        </h2>
+        <p className="text-sm text-white/85 leading-snug mt-1.5 line-clamp-2">
+          {p.description}
         </p>
 
-        {proposal.description.length > 150 && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-primary-600 text-sm font-medium hover:underline mb-4"
-          >
-            {expanded ? "Visa mindre" : "Läs mer"}
-          </button>
+        {p.categories?.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2.5">
+            {p.categories.map((cat) => (
+              <span
+                key={cat}
+                className="text-[0.7rem] font-semibold bg-white/20 text-white rounded-full px-2.5 py-0.5 backdrop-blur-sm"
+              >
+                {cat}
+              </span>
+            ))}
+          </div>
         )}
 
         {/* Rating */}
-        <div className="border-t pt-4">
-          <p className="text-sm text-gray-600 mb-2">
-            {proposal.userRating
-              ? "Din röst: "
-              : "Ge ditt stöd (1-5 stjärnor):"}
-          </p>
-          <div className="flex gap-1">
+        <div className="flex items-center gap-3 mt-3.5 flex-wrap">
+          <div className="flex gap-0.5">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
                 key={star}
-                onClick={() => onRate(proposal._id, star)}
+                onClick={() => onRate(p._id, star)}
                 disabled={!session}
-                className="transition-transform hover:scale-125 disabled:opacity-50"
                 title={
                   !session ? "Logga in för att rösta" : `Ge ${star} stjärnor`
                 }
+                className={`text-2xl leading-none transition-transform hover:scale-110 disabled:hover:scale-100 ${
+                  star <= (p.userRating || 0)
+                    ? "text-accent-400"
+                    : "text-white/35"
+                }`}
               >
-                <Star
-                  className={`w-8 h-8 ${
-                    star <= (proposal.userRating || 0)
-                      ? "fill-yellow-400 text-yellow-400"
-                      : "text-gray-300"
-                  }`}
-                />
+                ★
               </button>
             ))}
           </div>
-          {!session && (
-            <p className="text-xs text-gray-500 mt-2">
-              Logga in för att rösta på förslag
-            </p>
-          )}
+          <span className="text-sm text-white/90">
+            <b className="text-white">
+              {p.averageRating ? p.averageRating.toFixed(1) : "–"}
+            </b>{" "}
+            · {p.ratingCount} röster
+          </span>
         </div>
+        {!session && (
+          <p className="text-xs text-white/60 mt-1.5">
+            Logga in för att rösta på förslag
+          </p>
+        )}
       </div>
     </div>
   );
 }
 
-function SessionCard({ session, onClick, t, primaryDark, accentColor }) {
-  const phaseLabel =
-    session.phase === "phase1"
-      ? t("phases.phase1") || "Phase 1 - Idea Collection"
-      : session.phase === "phase2"
-        ? t("phases.phase2") || "Phase 2 - Voting"
-        : t("phases.closed") || "Closed";
+function CreateForm({
+  onCancel,
+  onCreated,
+}: {
+  onCancel: () => void;
+  onCreated: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
+  const [image, setImage] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [error, setError] = useState("");
+  const [review, setReview] = useState<{
+    corrected: string | null;
+    concise: string | null;
+  } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const phaseColor =
-    session.phase === "phase1"
-      ? "bg-blue-100 text-blue-800"
-      : session.phase === "phase2"
-        ? "bg-green-100 text-green-800"
-        : "bg-gray-100 text-gray-800";
+  const toggle = (cat: string) => {
+    setSelected((prev) =>
+      prev.includes(cat)
+        ? prev.filter((c) => c !== cat)
+        : prev.length < 3
+          ? [...prev, cat]
+          : prev,
+    );
+  };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("sv-SE", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  // Step 1: on submit, let MAJ review the text first (fail-open).
+  const runReview = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !description.trim() || selected.length === 0) return;
+    setError("");
+    setReviewing(true);
+    try {
+      const res = await fetchWithCsrf("/api/maj/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: description, kind: "proposal" }),
+      });
+      const data = res.ok
+        ? await res.json()
+        : { corrected: null, concise: null };
+      setReview(data);
+    } catch {
+      setReview({ corrected: null, concise: null });
+    } finally {
+      setReviewing(false);
+    }
+  };
+
+  // Step 2: publish with the final (possibly MAJ-improved) description.
+  const publish = async (finalDescription: string) => {
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetchWithCsrf("/api/citizen-proposals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          description: finalDescription,
+          // `selected` holds INTEREST_AREAS keys; expand to the raw categories
+          // the model/filter/display use (same convention as the questions form).
+          categories: Array.from(
+            new Set(selected.flatMap((k) => INTEREST_TO_CATEGORIES[k] || [])),
+          ),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || "Kunde inte skapa förslaget");
+        setReview(null);
+        return;
+      }
+      const proposalId = data.proposal?._id;
+      if (image && proposalId) {
+        const fd = new FormData();
+        fd.append("proposalId", String(proposalId));
+        fd.append("image", image);
+        await fetch("/api/citizen-proposals/image", {
+          method: "POST",
+          body: fd,
+        }).catch(() => {});
+      }
+      onCreated();
+    } catch {
+      setError("Ett fel uppstod");
+      setReview(null);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <button
-      onClick={onClick}
-      className="w-full bg-white rounded-2xl shadow-md hover:shadow-lg transition-all duration-200 p-6 text-left group hover:scale-[1.02]"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <h3 className="text-xl font-bold text-gray-900 mb-2 wrap-break-word group-hover:text-primary-700">
-            {session.title || "Unnamed Session"}
-          </h3>
-
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <span
-              className={`px-3 py-1 rounded-full text-sm font-medium ${phaseColor}`}
-            >
-              {phaseLabel}
-            </span>
-            {session.activeUsersCount > 0 && (
-              <span className="flex items-center gap-1 text-sm text-gray-500">
-                <Users className="w-4 h-4" />
-                {session.activeUsersCount}{" "}
-                {t("sessions.activeUsers") || "active"}
-              </span>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
-            {session.startDate && (
-              <span className="flex items-center gap-1">
-                <Calendar className="w-4 h-4" />
-                {formatDate(session.startDate)}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div
-          className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform"
-          style={{ backgroundColor: accentColor }}
+    <div className="bg-white rounded-card border border-black/5 shadow-[0_10px_30px_-22px_rgba(0,20,64,0.5)] p-5 sm:p-6">
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-xl font-extrabold text-gray-800">Nytt förslag</h2>
+        <button
+          onClick={onCancel}
+          className="text-gray-400 hover:text-gray-700"
+          aria-label="Stäng"
         >
-          <ChevronRight className="w-6 h-6" style={{ color: primaryDark }} />
-        </div>
+          <X className="w-5 h-5" />
+        </button>
       </div>
-    </button>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-sm">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={runReview} className="space-y-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+            Rubrik
+          </label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="T.ex. 'Bygg fler cykelbanor i centrum'"
+            className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary-600/30"
+            maxLength={200}
+            required
+          />
+          <p className="text-xs text-gray-400 mt-1">{title.length}/200</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+            Beskrivning
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Beskriv ditt förslag…"
+            rows={6}
+            className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary-600/30 resize-y"
+            maxLength={2000}
+            required
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            {description.length}/2000
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+            Kategorier (välj 1–3)
+          </label>
+          <div className="flex flex-wrap gap-2 items-center">
+            {INTEREST_AREAS.map((area) => {
+              const on = selected.includes(area.key);
+              return (
+                <Fragment key={area.key}>
+                  {area.groupLabel && (
+                    <div className="w-full text-xs font-semibold text-gray-500 uppercase tracking-wide mt-2 mb-0.5">
+                      {area.groupLabel}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => toggle(area.key)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                      on
+                        ? "bg-primary-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {area.label}
+                  </button>
+                </Fragment>
+              );
+            })}
+          </div>
+          <p className="text-xs text-gray-400 mt-1">
+            {selected.length}/3 valda
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+            Bild (valfritt)
+          </label>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            onChange={(e) => setImage(e.target.files?.[0] ?? null)}
+            className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer"
+          />
+          {image && (
+            <p className="text-xs text-green-600 mt-1">✓ {image.name}</p>
+          )}
+        </div>
+
+        <div className="flex gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-5 py-2.5 rounded-btn border border-gray-200 text-gray-600 font-bold hover:bg-gray-50"
+          >
+            Avbryt
+          </button>
+          <button
+            type="submit"
+            disabled={reviewing || submitting || selected.length === 0}
+            className="flex-1 px-5 py-2.5 rounded-btn bg-accent-400 text-primary-800 font-extrabold hover:bg-accent-500 disabled:opacity-40"
+          >
+            {reviewing ? "MAJ tittar…" : "Skicka förslag"}
+          </button>
+        </div>
+      </form>
+
+      {review && (
+        <MajReviewSheet
+          originalText={description}
+          review={review}
+          kind="proposal"
+          hasImage={!!image}
+          onPickImage={() => fileRef.current?.click()}
+          onPublish={(finalText) => publish(finalText)}
+          onCancel={() => setReview(null)}
+        />
+      )}
+    </div>
   );
 }

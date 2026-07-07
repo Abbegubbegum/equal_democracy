@@ -1,17 +1,14 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Fragment } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import { Calendar, ArrowLeft, Sparkles } from "lucide-react";
-import { GEOGRAPHIC_CATEGORIES, THEMATIC_CATEGORIES } from "@repo/types";
+import { ArrowLeft, Sparkles, Pencil } from "lucide-react";
+import { INTEREST_AREAS, INTEREST_TO_CATEGORIES } from "@repo/types";
 import { fetchWithCsrf } from "../lib/fetch-with-csrf";
 import { useConfig } from "../lib/contexts/ConfigContext";
-import { useTranslation } from "../lib/hooks/useTranslation";
 
 export default function ManageQuestionsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { theme } = useConfig();
-  const { t } = useTranslation();
 
   useEffect(() => {
     if (status === "loading") return;
@@ -23,59 +20,308 @@ export default function ManageQuestionsPage() {
   if (status === "loading") return <div className="p-8">Loading…</div>;
   if (!session?.user?.isAdmin && !session?.user?.isSuperAdmin) return null;
 
-  const primaryColor = theme?.primaryColor || "#00236a";
-  const primaryDark = theme?.primaryDark || "#001440";
-  const accentColor = theme?.accentColor || "#fbbf24";
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header
-        className="text-white p-4 sm:p-6 shadow-lg"
-        style={{
-          background: `linear-gradient(to right, ${primaryColor}, ${primaryDark})`,
-        }}
-      >
+    <div className="min-h-screen bg-[#f7f8fb]">
+      <header className="text-white px-4 sm:px-6 pt-5 pb-6 shadow-lg bg-gradient-to-r from-primary-600 to-primary-800">
         <div className="max-w-4xl mx-auto">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-            <div className="flex items-center gap-3">
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
-                style={{ backgroundColor: accentColor }}
-              >
-                <Calendar className="w-6 h-6" style={{ color: primaryDark }} />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-bold wrap-break-word">
-                  {t("nav.manageQuestions") || "Manage Questions"}
-                </h1>
-                <p className="text-primary-100 text-xs sm:text-sm wrap-break-word">
-                  {t("manageQuestions.subtitle") ||
-                    "Create and manage Ja/Nej questions for the mobile app"}
-                </p>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <img
+                src="/app-icon-tight.svg"
+                alt=""
+                className="h-9 w-auto shrink-0"
+              />
+              <div className="leading-none">
+                <div className="text-base font-black tracking-widest text-white">
+                  VALLENTUNA
+                </div>
+                <div className="text-xs font-extrabold text-white mt-0.5">
+                  Framåt
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 text-sm">
               <button
-                onClick={() => router.push("/manage-sessions")}
-                className="text-white/80 hover:text-white font-medium whitespace-nowrap text-sm underline underline-offset-2"
+                onClick={() => router.push("/manage-content")}
+                className="text-white/80 hover:text-accent-400 font-semibold whitespace-nowrap transition-colors"
               >
-                Webapp-sessioner →
+                Hantera innehåll →
               </button>
               <button
                 onClick={() => router.push("/")}
-                className="text-white hover:opacity-80 font-medium whitespace-nowrap flex items-center gap-2 text-sm"
+                className="inline-flex items-center gap-1.5 text-white/85 hover:text-accent-400 font-semibold whitespace-nowrap transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
-                {t("common.backToHome") || "Back to home"}
+                Till startsidan
               </button>
             </div>
           </div>
+          <h1 className="mt-5 text-2xl sm:text-3xl font-black tracking-tight">
+            Frågor
+          </h1>
+          <p className="mt-1 text-primary-100 text-sm">
+            Ja/Nej-frågor för mobilappens Hem-flik.
+          </p>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
         <QuestionsPanel />
       </main>
+    </div>
+  );
+}
+
+// Inline edit of a question's title/text (fix typos after the fact).
+function EditableQuestionTitle({
+  question,
+  color,
+}: {
+  question: any;
+  color: string;
+}) {
+  const [text, setText] = useState(question.text);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(question.text);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    const t = draft.trim();
+    if (!t) return;
+    setSaving(true);
+    try {
+      const res = await fetchWithCsrf(`/api/admin/questions/${question._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: t }),
+      });
+      if (res.ok) {
+        setText(t);
+        setEditing(false);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || "Kunde inte spara rubriken");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div>
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          maxLength={300}
+          rows={2}
+          className="w-full border-2 border-slate-300 rounded-lg px-3 py-2 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-primary-600/30 resize-none"
+        />
+        <div className="flex gap-2 mt-1.5">
+          <button
+            onClick={save}
+            disabled={saving}
+            className="text-xs font-bold px-3 py-1.5 rounded-lg bg-accent-400 text-primary-800 disabled:opacity-50"
+          >
+            {saving ? "Sparar…" : "Spara"}
+          </button>
+          <button
+            onClick={() => {
+              setDraft(text);
+              setEditing(false);
+            }}
+            className="text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600"
+          >
+            Avbryt
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-2">
+      <h3 className="font-bold text-xl wrap-break-word" style={{ color }}>
+        {text}
+      </h3>
+      <button
+        onClick={() => {
+          setDraft(text);
+          setEditing(true);
+        }}
+        title="Redigera rubrik"
+        className="shrink-0 mt-1.5 text-slate-400 hover:text-slate-700"
+      >
+        <Pencil className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+// The category picker uses the 12 grouped INTEREST_AREAS (same as the mobile
+// interest picker). On save we expand the selected interest keys into the raw
+// ALL_CATEGORIES strings the model/filtering/display still use.
+function expandInterests(keys: string[]): string[] {
+  return Array.from(
+    new Set(keys.flatMap((k) => INTEREST_TO_CATEGORIES[k] || [])),
+  );
+}
+
+const ARG_TYPE_DOT: Record<string, string> = {
+  for: "#22c55e",
+  against: "#ef4444",
+  neutral: "#9ca3af",
+};
+
+// Admin moderation of a question's för/emot arguments: view, edit text, delete.
+function QuestionArguments({ questionId }: { questionId: string }) {
+  const [open, setOpen] = useState(false);
+  const [comments, setComments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+
+  async function loadComments() {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/questions/comments?questionId=${questionId}`,
+      );
+      if (res.ok) setComments(await res.json());
+    } finally {
+      setLoading(false);
+      setLoaded(true);
+    }
+  }
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && !loaded) loadComments();
+  }
+
+  async function saveEdit(id: string) {
+    const text = editText.trim();
+    if (!text) return;
+    const res = await fetchWithCsrf("/api/questions/comments", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commentId: id, text }),
+    });
+    if (res.ok) {
+      setComments((prev) =>
+        prev.map((c) => (c._id === id ? { ...c, text } : c)),
+      );
+      setEditingId(null);
+    } else {
+      const d = await res.json().catch(() => ({}));
+      alert(d.message || "Kunde inte spara ändringen");
+    }
+  }
+
+  async function del(id: string) {
+    if (!confirm("Ta bort det här argumentet?")) return;
+    const res = await fetchWithCsrf("/api/questions/comments", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commentId: id }),
+    });
+    if (res.ok) setComments((prev) => prev.filter((c) => c._id !== id));
+    else alert("Kunde inte ta bort argumentet");
+  }
+
+  return (
+    <div className="pt-3 border-t border-green-200">
+      <button
+        onClick={toggle}
+        className="inline-flex items-center gap-1.5 text-sm font-bold text-primary-600"
+      >
+        {open ? "Dölj argument ▲" : "Visa argument ▼"}
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-2">
+          {loading ? (
+            <p className="text-sm text-slate-400">Laddar…</p>
+          ) : comments.length === 0 ? (
+            <p className="text-sm text-slate-400">Inga argument än.</p>
+          ) : (
+            comments.map((c) => (
+              <div
+                key={c._id}
+                className="bg-white rounded-xl border border-slate-200 p-3"
+              >
+                <div className="flex items-start gap-2.5">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0"
+                    style={{
+                      backgroundColor:
+                        ARG_TYPE_DOT[c.type] || ARG_TYPE_DOT.neutral,
+                    }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    {editingId === c._id ? (
+                      <>
+                        <textarea
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          maxLength={1000}
+                          rows={3}
+                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-600/30 resize-y"
+                        />
+                        <div className="flex gap-2 mt-1.5">
+                          <button
+                            onClick={() => saveEdit(c._id)}
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg bg-accent-400 text-primary-800"
+                          >
+                            Spara
+                          </button>
+                          <button
+                            onClick={() => setEditingId(null)}
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600"
+                          >
+                            Avbryt
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                          {c.text}
+                        </p>
+                        <div className="flex items-center gap-3 mt-1.5">
+                          <span className="text-xs text-slate-400">
+                            ★{" "}
+                            {c.averageRating > 0
+                              ? c.averageRating.toFixed(1)
+                              : "—"}
+                          </span>
+                          <button
+                            onClick={() => {
+                              setEditingId(c._id);
+                              setEditText(c.text);
+                            }}
+                            className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                          >
+                            Redigera
+                          </button>
+                          <button
+                            onClick={() => del(c._id)}
+                            className="text-xs font-semibold text-red-600 hover:text-red-700"
+                          >
+                            Ta bort
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -99,8 +345,8 @@ function QuestionsPanel() {
     {},
   );
 
-  const accentColor = theme?.accentColor || "#fbbf24";
-  const primaryDark = theme?.primaryDark || "#001440";
+  const accentColor = theme?.colors?.accent?.[400] || "#f5a623";
+  const primaryDark = theme?.colors?.primary?.[900] || "#001440";
 
   const loadQuestions = useCallback(async () => {
     setLoading(true);
@@ -135,7 +381,17 @@ function QuestionsPanel() {
       });
       if (res.ok) {
         const data = await res.json();
-        setCategories(data.categories ?? []);
+        const rawCats: string[] = data.categories ?? [];
+        // Map the AI's raw-category suggestions back to interest areas.
+        setCategories(
+          INTEREST_AREAS.filter((a) =>
+            (INTEREST_TO_CATEGORIES[a.key] || []).some((c) =>
+              rawCats.includes(c),
+            ),
+          )
+            .map((a) => a.key)
+            .slice(0, 3),
+        );
       }
     } catch {
       // fail silently
@@ -144,9 +400,13 @@ function QuestionsPanel() {
     }
   };
 
-  const toggleCategory = (cat: string) => {
+  const toggleCategory = (key: string) => {
     setCategories((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
+      prev.includes(key)
+        ? prev.filter((c) => c !== key)
+        : prev.length < 3
+          ? [...prev, key]
+          : prev,
     );
   };
 
@@ -193,7 +453,7 @@ function QuestionsPanel() {
         body: JSON.stringify({
           text: newText.trim(),
           deadline: newDeadline,
-          categories,
+          categories: expandInterests(categories),
         }),
       });
 
@@ -267,10 +527,10 @@ function QuestionsPanel() {
   return (
     <div className="space-y-6">
       {!session?.user?.isSuperAdmin && (
-        <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-card p-4">
           <p className="text-sm text-blue-800">
-            <strong>Note:</strong> You can only see and manage questions that
-            you created.
+            <strong>Obs:</strong> Du ser och hanterar bara frågor som du själv
+            har skapat.
           </p>
         </div>
       )}
@@ -315,7 +575,7 @@ function QuestionsPanel() {
                 }}
               >
                 <Sparkles className="w-3 h-3" />
-                {suggesting ? "Tänker…" : "XAI föreslår"}
+                {suggesting ? "Tänker…" : "AI föreslår"}
               </button>
             </div>
 
@@ -323,62 +583,39 @@ function QuestionsPanel() {
               Avgör vilka användare som får push-notiser om detta innehåll.
             </p>
 
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-              Plats
-            </p>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {GEOGRAPHIC_CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => toggleCategory(cat)}
-                  className="px-3 py-1 text-xs font-semibold rounded-full border-2 transition-all"
-                  style={
-                    categories.includes(cat)
-                      ? {
-                          backgroundColor: primaryDark,
-                          borderColor: primaryDark,
-                          color: "#fff",
-                        }
-                      : {
-                          backgroundColor: "#f9fafb",
-                          borderColor: "#d1d5db",
-                          color: "#555",
-                        }
-                  }
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-              Ämne
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {THEMATIC_CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => toggleCategory(cat)}
-                  className="px-3 py-1 text-xs font-semibold rounded-full border-2 transition-all"
-                  style={
-                    categories.includes(cat)
-                      ? {
-                          backgroundColor: primaryDark,
-                          borderColor: primaryDark,
-                          color: "#fff",
-                        }
-                      : {
-                          backgroundColor: "#f9fafb",
-                          borderColor: "#d1d5db",
-                          color: "#555",
-                        }
-                  }
-                >
-                  {cat}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2 items-center">
+              {INTEREST_AREAS.map((area) => {
+                const on = categories.includes(area.key);
+                return (
+                  <Fragment key={area.key}>
+                    {area.groupLabel && (
+                      <div className="w-full text-xs font-semibold text-slate-500 uppercase tracking-wide mt-2 mb-0.5">
+                        {area.groupLabel}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => toggleCategory(area.key)}
+                      className="px-3 py-1 text-xs font-semibold rounded-full border-2 transition-all"
+                      style={
+                        on
+                          ? {
+                              backgroundColor: primaryDark,
+                              borderColor: primaryDark,
+                              color: "#fff",
+                            }
+                          : {
+                              backgroundColor: "#f9fafb",
+                              borderColor: "#d1d5db",
+                              color: "#555",
+                            }
+                      }
+                    >
+                      {area.label}
+                    </button>
+                  </Fragment>
+                );
+              })}
             </div>
           </div>
 
@@ -457,12 +694,7 @@ function QuestionsPanel() {
               >
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <h3
-                      className="font-bold text-xl wrap-break-word"
-                      style={{ color: primaryDark }}
-                    >
-                      {q.text}
-                    </h3>
+                    <EditableQuestionTitle question={q} color={primaryDark} />
                     <p className="text-sm text-slate-600 mt-1">
                       Deadline:{" "}
                       {new Date(q.deadline).toLocaleDateString("sv-SE", {
@@ -528,6 +760,8 @@ function QuestionsPanel() {
                     Stäng fråga
                   </button>
                 </div>
+
+                <QuestionArguments questionId={q._id} />
               </div>
             ))}
           </div>

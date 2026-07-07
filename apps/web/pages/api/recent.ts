@@ -102,7 +102,7 @@ export default async function handler(
         type: "idea",
         icon: "💡",
         title: i.title,
-        subtitle: "Idé",
+        subtitle: "Förslag",
         date: i.createdAt,
         link: "/medborgarforslag",
       })),

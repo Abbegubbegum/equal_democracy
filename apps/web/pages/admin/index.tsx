@@ -6,17 +6,16 @@ import {
   Users,
   Settings,
   Calendar,
-  Vote,
   Trophy,
   Mail,
   PlusCircle,
-  FileText,
   Sparkles,
   Lightbulb,
   ImagePlus,
   FileEdit,
   Pencil,
   ChevronDown,
+  ArrowLeft,
 } from "lucide-react";
 import { ALL_CATEGORIES } from "@repo/types";
 import { fetchWithCsrf } from "../../lib/fetch-with-csrf";
@@ -40,54 +39,55 @@ export default function AdminPage() {
   if (!session?.user?.isSuperAdmin) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-slate-800 text-white p-6 shadow">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-accent-400 rounded-full flex items-center justify-center">
-              <Shield className="w-5 h-5 text-slate-900" />
+    <div className="min-h-screen bg-[#f7f8fb]">
+      <header className="text-white px-4 sm:px-6 pt-5 pb-6 shadow-lg bg-gradient-to-r from-primary-600 to-primary-800">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <img
+                src="/app-icon-tight.svg"
+                alt=""
+                className="h-9 w-auto shrink-0"
+              />
+              <div className="leading-none">
+                <div className="text-base font-black tracking-widest text-white">
+                  VALLENTUNA
+                </div>
+                <div className="text-xs font-extrabold text-white mt-0.5">
+                  Framåt
+                </div>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold">Super Admin Panel</h1>
-              <p className="text-slate-300 text-sm">
-                Full control over users, sessions, and system settings
-              </p>
-            </div>
+            <button
+              onClick={() => router.push("/")}
+              className="inline-flex items-center gap-1.5 text-white/85 hover:text-accent-400 text-sm font-semibold whitespace-nowrap transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Till startsidan
+            </button>
           </div>
-          <button
-            onClick={() => router.push("/")}
-            className="px-4 py-2 bg-white hover:bg-gray-100 text-slate-900 font-medium rounded-lg transition-colors shadow-sm"
-          >
-            Back to home
-          </button>
+          <h1 className="mt-5 text-2xl sm:text-3xl font-black tracking-tight">
+            Admin
+          </h1>
+          <p className="mt-1 text-primary-100 text-sm">
+            Hantera användare, innehåll och inställningar.
+          </p>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto p-6 space-y-6">
         <nav className="flex gap-2 flex-wrap items-center">
           <Tab
-            label="Mina frågor"
-            icon={<FileText className="w-4 h-4" />}
+            label="Hantera innehåll"
+            icon={<FileEdit className="w-4 h-4" />}
             active={false}
-            onClick={() => router.push("/admin/my-questions")}
+            onClick={() => router.push("/manage-content")}
           />
           <Tab
-            label="Rösta"
-            icon={<Vote className="w-4 h-4" />}
-            active={false}
-            onClick={() => router.push("/manage-questions")}
-          />
-          <Tab
-            label="Webapp"
+            label="Livesessioner"
             icon={<Calendar className="w-4 h-4" />}
             active={false}
             onClick={() => router.push("/manage-sessions")}
-          />
-          <Tab
-            label="Förslag"
-            icon={<FileEdit className="w-4 h-4" />}
-            active={tab === "content"}
-            onClick={() => setTab("content")}
           />
           <MoreMenu tab={tab} setTab={setTab} router={router} />
         </nav>
@@ -109,10 +109,10 @@ function Tab({ label, icon, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 rounded-xl border text-sm font-medium flex items-center gap-2 ${
+      className={`px-3.5 py-2 rounded-btn border text-sm font-bold flex items-center gap-2 transition-colors ${
         active
-          ? "bg-white border-slate-300 shadow"
-          : "bg-slate-100 border-slate-200 hover:bg-white"
+          ? "bg-primary-600 text-white border-primary-600"
+          : "bg-white border-black/5 text-gray-600 hover:bg-[#fafbfe]"
       }`}
     >
       {icon}
@@ -127,13 +127,14 @@ const MORE_ITEMS: {
   icon: typeof Trophy;
   route?: string;
 }[] = [
-  { key: "top-proposals", label: "Top Proposals", icon: Trophy },
-  { key: "admin-applications", label: "Admin Applications", icon: Shield },
-  { key: "session-requests", label: "Session Requests", icon: PlusCircle },
-  { key: "email", label: "Email", icon: Mail },
-  { key: "users", label: "Users", icon: Users },
-  { key: "settings", label: "Settings", icon: Settings },
-  { key: "clean", label: "Clean", icon: Sparkles },
+  { key: "content", label: "Förslag & sessioner", icon: FileEdit },
+  { key: "top-proposals", label: "Toppförslag", icon: Trophy },
+  { key: "admin-applications", label: "Admin-ansökningar", icon: Shield },
+  { key: "session-requests", label: "Sessionsförfrågningar", icon: PlusCircle },
+  { key: "email", label: "Utskick", icon: Mail },
+  { key: "users", label: "Användare", icon: Users },
+  { key: "settings", label: "Inställningar", icon: Settings },
+  { key: "clean", label: "Städa", icon: Sparkles },
 ];
 
 function MoreMenu({ tab, setTab, router }) {
@@ -144,10 +145,10 @@ function MoreMenu({ tab, setTab, router }) {
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className={`px-4 py-2 rounded-xl border text-sm font-medium flex items-center gap-2 ${
+        className={`px-3.5 py-2 rounded-btn border text-sm font-bold flex items-center gap-2 transition-colors ${
           active
-            ? "bg-white border-slate-300 shadow"
-            : "bg-slate-100 border-slate-200 hover:bg-white"
+            ? "bg-primary-600 text-white border-primary-600"
+            : "bg-white border-black/5 text-gray-600 hover:bg-[#fafbfe]"
         }`}
       >
         Mer
@@ -156,7 +157,7 @@ function MoreMenu({ tab, setTab, router }) {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="absolute z-20 mt-2 w-56 bg-white border border-black/5 rounded-card shadow-lg overflow-hidden">
             {MORE_ITEMS.map(({ key, label, icon: Icon, route }) => (
               <button
                 key={key}
@@ -184,6 +185,7 @@ function SettingsPanel({ isSuperAdmin }) {
   const [sessionLimitHours, setSessionLimitHours] = useState(24);
   const [language, setLanguage] = useState("sv");
   const [theme, setTheme] = useState("default");
+  const [featureSlot, setFeatureSlot] = useState("info");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -197,6 +199,7 @@ function SettingsPanel({ isSuperAdmin }) {
         setSessionLimitHours(data.sessionLimitHours || 24);
         setLanguage(data.language || "sv");
         setTheme(data.theme || "default");
+        setFeatureSlot(data.featureSlot || "info");
       } else {
         console.error("Error loading settings:", res.status);
       }
@@ -227,6 +230,7 @@ function SettingsPanel({ isSuperAdmin }) {
       const body: Record<string, unknown> = {
         language,
         theme,
+        featureSlot,
       };
 
       // Only include sessionLimitHours if user is superadmin
@@ -304,6 +308,31 @@ function SettingsPanel({ isSuperAdmin }) {
             Spanish/Serbian→Red
           </p>
         </div>
+
+        {isSuperAdmin && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Aktivitetsruta (startsidans högra snabbnav-ruta)
+            </label>
+            <select
+              value={featureSlot}
+              onChange={(e) => setFeatureSlot(e.target.value)}
+              className="w-full max-w-md border border-slate-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="info">Info (standard) → /about</option>
+              <option value="budget">Budget → /budget</option>
+              <option value="arkiv">Arkiv → /archive</option>
+              <option value="livesession">
+                Livesession → aktiva sessionen
+              </option>
+            </select>
+            <p className="text-sm text-slate-500 mt-1">
+              Styr vilken aktivitet som visas längst till höger i startsidans
+              snabbnav. Byt hit t.ex. &quot;Budget&quot; när ni lanserar en ny
+              budget.
+            </p>
+          </div>
+        )}
 
         {isSuperAdmin && (
           <div>
@@ -1553,7 +1582,7 @@ function ContentPanel() {
               : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
           }`}
         >
-          Medborgarförslag
+          Förslag
         </button>
         <button
           onClick={() => setContentType("session")}
@@ -1717,9 +1746,7 @@ function CitizenProposalsPanel() {
             <Lightbulb className="w-5 h-5 text-yellow-600" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-800">
-              Medborgarförslag
-            </h2>
+            <h2 className="text-xl font-bold text-slate-800">Förslag</h2>
             <p className="text-sm text-slate-500">
               {proposals.length} förslag totalt
             </p>

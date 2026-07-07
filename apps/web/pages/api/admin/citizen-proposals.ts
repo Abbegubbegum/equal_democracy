@@ -4,9 +4,11 @@ import { csrfProtection } from "@/lib/csrf";
 import connectDB from "@/lib/mongodb";
 import { CitizenProposal, CitizenProposalRating, User } from "@/lib/models";
 import { getRatingAggregates } from "@/lib/rating-helper";
+import { rankActiveProposals } from "@/lib/forslag-ranking";
 
 const ALLOWED_STATUSES = [
   "active",
+  "motion",
   "archived",
   "selected",
   "submitted_as_motion",
@@ -27,7 +29,7 @@ export default async function handler(
   if (req.method === "GET") {
     const proposals = await CitizenProposal.find({})
       .select(
-        "_id title description authorId status imageUrl categories createdAt",
+        "_id title description authorId status imageUrl categories createdAt motionAt fullmaktigeOutcome fullmaktigeDecisionAt",
       )
       .sort({ createdAt: -1 })
       .lean();
@@ -46,13 +48,28 @@ export default async function handler(
       authors.map((u) => [u._id.toString(), u.name]),
     );
 
+    // Rank the active stack (score = votes × avg³) so the admin page can render
+    // rank number, #1 marker and the grace/risk status per proposal.
+    const rankById = new Map(
+      rankActiveProposals(
+        proposals.filter((p) => p.status === "active") as any[],
+        ratings,
+      ).map((p) => [p._id.toString(), p]),
+    );
+
     const withRatings = proposals.map((p) => {
       const agg = ratings.get(p._id.toString());
+      const r = rankById.get(p._id.toString());
       return {
         ...p,
         authorName: authorNameById[p.authorId?.toString?.()] || null,
         averageRating: agg?.averageRating || 0,
         ratingCount: agg?.ratingCount || 0,
+        score: r ? Math.round(r.score) : null,
+        rank: r ? r.rank : null,
+        ageDays: r ? r.ageDays : null,
+        inGrace: r ? r.inGrace : false,
+        atRisk: r ? r.atRisk : false,
       };
     });
 
@@ -60,8 +77,43 @@ export default async function handler(
   }
 
   if (req.method === "PATCH") {
-    const { id, status, title, description, categories } = req.body;
+    const { id, status, title, description, categories, action } = req.body;
     if (!id) return res.status(400).json({ error: "Missing id" });
+
+    // Manual override: lift a proposal off the stack as a motion right now.
+    if (action === "sendAsMotion") {
+      try {
+        await CitizenProposal.findByIdAndUpdate(id, {
+          $set: { status: "motion", motionAt: new Date() },
+        });
+      } catch (e: any) {
+        return res.status(400).json({ error: e.message || "Update failed" });
+      }
+      return res.status(200).json({ ok: true });
+    }
+
+    // Elected representative reports fullmäktige's decision on a motion.
+    if (action === "setFullmaktigeOutcome") {
+      const { outcome, decisionDate } = req.body;
+      if (outcome != null && !["approved", "rejected"].includes(outcome)) {
+        return res.status(400).json({ error: "Invalid outcome" });
+      }
+      try {
+        await CitizenProposal.findByIdAndUpdate(id, {
+          $set: {
+            fullmaktigeOutcome: outcome || null,
+            fullmaktigeDecisionAt: outcome
+              ? decisionDate
+                ? new Date(decisionDate)
+                : new Date()
+              : null,
+          },
+        });
+      } catch (e: any) {
+        return res.status(400).json({ error: e.message || "Update failed" });
+      }
+      return res.status(200).json({ ok: true });
+    }
 
     const $set: Record<string, unknown> = {};
     if (status !== undefined) {

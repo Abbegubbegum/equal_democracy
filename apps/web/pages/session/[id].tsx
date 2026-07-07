@@ -841,7 +841,7 @@ export default function SessionPage() {
     currentPhase === "phase1" ? activeProposals : topProposals;
 
   const primaryColor = theme.colors.primary[600] || "#002d75";
-  const accentColor = theme.colors.accent[400] || "#f8b60e";
+  const accentColor = theme.colors.accent[400] || "#f5a623";
   const primaryDark = theme.colors.primary[800] || "#001c55";
 
   return (

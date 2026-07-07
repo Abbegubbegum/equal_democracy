@@ -177,7 +177,7 @@ Vallentuna Framåt
             )
             .join("")}
         </ol>
-        <p style="margin-top:24px;padding:16px;background:#fef6e0;border-left:4px solid #f8b60e">
+        <p style="margin-top:24px;padding:16px;background:#fef4e2;border-left:4px solid #f5a623">
           ${t(language, "email.sessionResults.electionPromise")}
         </p>
       `

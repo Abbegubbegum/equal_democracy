@@ -133,7 +133,7 @@ export default function RaderaPage() {
               <li>Ditt konto och din profil</li>
               <li>Dina förslag och kommentarer</li>
               <li>Dina röster och betyg</li>
-              <li>Dina medborgarförslag och bilder</li>
+              <li>Dina inskickade förslag och bilder</li>
               <li>Dina budgetröster</li>
             </ul>
           </div>

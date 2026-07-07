@@ -35,6 +35,7 @@ export default async function handler(
       return res.status(200).json({
         language: settings.language || "sv",
         theme: settings.theme || "default",
+        featureSlot: settings.featureSlot || "info",
       });
     } catch (error) {
       log.error("Failed to fetch settings", { error: error.message });
@@ -50,7 +51,7 @@ export default async function handler(
         return res.status(403).json({ error: "Unauthorized" });
       }
 
-      const { language, theme } = req.body;
+      const { language, theme, featureSlot } = req.body;
 
       if (language && !["sv", "en", "sr", "es", "de"].includes(language)) {
         return res.status(400).json({
@@ -64,6 +65,16 @@ export default async function handler(
         });
       }
 
+      if (
+        featureSlot &&
+        !["info", "budget", "arkiv", "livesession"].includes(featureSlot)
+      ) {
+        return res.status(400).json({
+          error:
+            "Invalid featureSlot (must be info, budget, arkiv, or livesession)",
+        });
+      }
+
       // Update or create settings
       let settings = await Settings.findOne();
 
@@ -71,6 +82,7 @@ export default async function handler(
         settings = await Settings.create({
           language: language || "sv",
           theme: theme || "default",
+          featureSlot: featureSlot || "info",
         });
       } else {
         if (language) {
@@ -79,6 +91,9 @@ export default async function handler(
         if (theme) {
           settings.theme = theme;
         }
+        if (featureSlot) {
+          settings.featureSlot = featureSlot;
+        }
         settings.updatedAt = new Date();
         await settings.save();
       }
@@ -86,6 +101,7 @@ export default async function handler(
       return res.status(200).json({
         language: settings.language,
         theme: settings.theme,
+        featureSlot: settings.featureSlot,
       });
     } catch (error) {
       log.error("Failed to update settings", { error: error.message });

@@ -2,6 +2,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session, Question } from "@/lib/models";
 import { closeSession } from "@/lib/session-close";
+import {
+  runMonthlyMotion,
+  cullExpiredProposals,
+} from "@/lib/forslag-maintenance";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("SessionTimeout");
@@ -76,24 +80,24 @@ export default async function handler(
       });
     }
 
-    const checked = dueSessions.length + dueQuestions.length;
+    // --- Förslag stack maintenance: take the monthly motion (#1) first (so
+    //     culling recomputes ranks without it), then cull the stragglers ---
+    const motion = await runMonthlyMotion(currentTime);
+    const culledProposals = await cullExpiredProposals(currentTime);
 
-    if (checked === 0) {
-      return res.status(200).json({
-        message: "No active sessions or questions to check",
-        checked: 0,
-        closed: 0,
-      });
-    }
+    const checked = dueSessions.length + dueQuestions.length;
+    const closed = closedSessions.length + closedQuestions.length;
 
     return res.status(200).json({
-      message: `Checked ${checked} item(s), closed ${
-        closedSessions.length + closedQuestions.length
-      }`,
+      message: `Checked ${checked} item(s), closed ${closed}; motion ${
+        motion ? "taken" : "none"
+      }, culled ${culledProposals.length} proposal(s)`,
       checked,
-      closed: closedSessions.length + closedQuestions.length,
+      closed,
       closedSessions,
       closedQuestions,
+      motion,
+      culledProposals,
     });
   } catch (error) {
     log.error("Failed to check timeouts", { error: error.message });
