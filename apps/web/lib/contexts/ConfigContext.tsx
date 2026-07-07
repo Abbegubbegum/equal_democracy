@@ -31,6 +31,7 @@ export function ConfigProvider({ children }) {
               theme: data.theme || DEFAULT_CONFIG.theme,
               municipalityName:
                 data.municipalityName || DEFAULT_CONFIG.municipalityName,
+              featureSlot: data.featureSlot || DEFAULT_CONFIG.featureSlot,
             });
             setIsLoading(false);
             if (Date.now() - timestamp < CACHE_TTL) {
@@ -55,6 +56,7 @@ export function ConfigProvider({ children }) {
               theme: data.theme || DEFAULT_CONFIG.theme,
               municipalityName:
                 data.municipalityName || DEFAULT_CONFIG.municipalityName,
+              featureSlot: data.featureSlot || DEFAULT_CONFIG.featureSlot,
             };
             setConfig(newConfig);
             try {

@@ -2,82 +2,74 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import {
-  Calendar,
   ArrowLeft,
   Radio,
   Minus,
   Plus,
   Sparkles,
+  ChevronDown,
 } from "lucide-react";
 import { GEOGRAPHIC_CATEGORIES, THEMATIC_CATEGORIES } from "@repo/types";
 import { fetchWithCsrf } from "../lib/fetch-with-csrf";
 import { useConfig } from "../lib/contexts/ConfigContext";
-import { useTranslation } from "../lib/hooks/useTranslation";
 import usePusher from "../lib/hooks/usePusher";
 
 export default function ManageSessionsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { theme } = useConfig();
-  const { t } = useTranslation();
 
+  // Livesessions are a superadmin-only tool (used for live meetings).
   useEffect(() => {
     if (status === "loading") return;
     if (!session) router.replace("/login");
-    else if (!session.user?.isAdmin && !session.user?.isSuperAdmin)
-      router.replace("/");
+    else if (!session.user?.isSuperAdmin) router.replace("/");
   }, [status, session, router]);
 
   if (status === "loading") return <div className="p-8">Loading…</div>;
-  if (!session?.user?.isAdmin && !session?.user?.isSuperAdmin) return null;
-
-  const primaryColor = theme?.primaryColor || "#00236a";
-  const primaryDark = theme?.primaryDark || "#001440";
-  const accentColor = theme?.accentColor || "#fbbf24";
+  if (!session?.user?.isSuperAdmin) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header
-        className="text-white p-4 sm:p-6 shadow-lg"
-        style={{
-          background: `linear-gradient(to right, ${primaryColor}, ${primaryDark})`,
-        }}
-      >
+    <div className="min-h-screen bg-[#f7f8fb]">
+      <header className="text-white px-4 sm:px-6 pt-5 pb-6 shadow-lg bg-gradient-to-r from-primary-600 to-primary-800">
         <div className="max-w-4xl mx-auto">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-            <div className="flex items-center gap-3">
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
-                style={{ backgroundColor: accentColor }}
-              >
-                <Calendar className="w-6 h-6" style={{ color: primaryDark }} />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-bold wrap-break-word">
-                  {t("nav.manageSessions") || "Manage Sessions"}
-                </h1>
-                <p className="text-primary-100 text-xs sm:text-sm wrap-break-word">
-                  {t("manageSessions.subtitle") ||
-                    "Create and manage two-phase democracy sessions"}
-                </p>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <img
+                src="/app-icon-tight.svg"
+                alt=""
+                className="h-9 w-auto shrink-0"
+              />
+              <div className="leading-none">
+                <div className="text-base font-black tracking-widest text-white">
+                  VALLENTUNA
+                </div>
+                <div className="text-xs font-extrabold text-white mt-0.5">
+                  Framåt
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 text-sm">
               <button
                 onClick={() => router.push("/manage-questions")}
-                className="text-white/80 hover:text-white font-medium whitespace-nowrap text-sm underline underline-offset-2"
+                className="text-white/80 hover:text-accent-400 font-semibold whitespace-nowrap transition-colors"
               >
                 Ja/Nej-frågor →
               </button>
               <button
                 onClick={() => router.push("/")}
-                className="text-white hover:opacity-80 font-medium whitespace-nowrap flex items-center gap-2 text-sm"
+                className="inline-flex items-center gap-1.5 text-white/85 hover:text-accent-400 font-semibold whitespace-nowrap transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
-                {t("common.backToHome") || "Back to home"}
+                Till startsidan
               </button>
             </div>
           </div>
+          <h1 className="mt-5 text-2xl sm:text-3xl font-black tracking-tight">
+            Livesessioner
+          </h1>
+          <p className="mt-1 text-primary-100 text-sm">
+            Tvåfas-sessioner för livemöten – förslag, debatt och slutröstning.
+          </p>
         </div>
       </header>
 
@@ -112,12 +104,10 @@ function SessionsPanel() {
   const [sessionImages, setSessionImages] = useState<Record<string, string>>(
     {},
   );
-  const [language, setLanguage] = useState("sv");
-  const [themeValue, setThemeValue] = useState("default");
-  const [, setSettingsLoaded] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const accentColor = theme?.accentColor || "#fbbf24";
-  const primaryDark = theme?.primaryDark || "#001440";
+  const accentColor = theme?.colors?.accent?.[400] || "#f5a623";
+  const primaryDark = theme?.colors?.primary?.[900] || "#001440";
 
   const loadSessions = useCallback(async () => {
     setLoading(true);
@@ -178,52 +168,10 @@ function SessionsPanel() {
     }
   }, []);
 
-  const loadSettings = useCallback(async () => {
-    try {
-      const res = await fetch("/api/settings");
-      if (res.ok) {
-        const data = await res.json();
-        setLanguage(data.language || "sv");
-        setThemeValue(data.theme || "default");
-        setSettingsLoaded(true);
-      } else {
-        console.error("Error loading settings:", res.status);
-      }
-    } catch (error) {
-      console.error("Error loading settings:", error);
-    }
-  }, []);
-
   useEffect(() => {
     loadSessions();
     loadSessionLimit();
-    loadSettings();
-  }, [loadSessions, loadSessionLimit, loadSettings]);
-
-  const saveSettings = async () => {
-    try {
-      const res = await fetchWithCsrf("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          language,
-          theme: themeValue,
-        }),
-      });
-
-      if (res.ok) {
-        // Settings saved successfully, will reload page after session creation
-        return true;
-      } else {
-        const error = await res.json();
-        console.error("Error saving settings:", error);
-        return false;
-      }
-    } catch (error) {
-      console.error("Error saving settings:", error);
-      return false;
-    }
-  };
+  }, [loadSessions, loadSessionLimit]);
 
   const suggestCategories = async () => {
     if (!newTitle.trim()) return;
@@ -253,7 +201,7 @@ function SessionsPanel() {
 
   const createSession = async () => {
     if (!newTitle) {
-      setMessage("Title required");
+      setMessage("Titel krävs");
       return;
     }
 
@@ -271,9 +219,6 @@ function SessionsPanel() {
     setMessage("");
 
     try {
-      // Save settings first
-      const settingsSaved = await saveSettings();
-
       const res = await fetchWithCsrf("/api/admin/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -291,36 +236,29 @@ function SessionsPanel() {
 
       if (res.ok) {
         const data = await res.json();
-        if (data.isLastSession) {
-          setMessage(
-            "Session created! This was your last available session. You can request more sessions below.",
-          );
-        } else {
-          setMessage("Session created!");
-        }
-
-        // Reload page to apply new settings if they were saved
-        if (settingsSaved) {
-          setTimeout(() => {
-            window.location.reload();
-          }, 1500);
-        } else {
-          loadSessions();
-          loadSessionLimit();
-          setNewTitle("");
-          setMaxOneProposalPerUser(false);
-          setOnlyYesVotes(false);
-          setNewDeadline("");
-          setCategories([]);
-          setTimeout(() => setMessage(""), data.isLastSession ? 5000 : 3000);
-        }
+        setMessage(
+          data.isLastSession
+            ? "Session skapad! Det var din sista tillgängliga session – du kan begära fler nedan."
+            : "Session skapad!",
+        );
+        loadSessions();
+        loadSessionLimit();
+        setNewTitle("");
+        setMaxOneProposalPerUser(false);
+        setShowUserCount(false);
+        setNoMotivation(false);
+        setSingleResult(false);
+        setOnlyYesVotes(false);
+        setNewDeadline("");
+        setCategories([]);
+        setTimeout(() => setMessage(""), data.isLastSession ? 5000 : 3000);
       } else {
         const error = await res.json();
-        setMessage(`Error: ${error.error}`);
+        setMessage(`Fel: ${error.error}`);
       }
     } catch (error) {
       console.error("Error creating session:", error);
-      setMessage("Could not create session");
+      setMessage("Kunde inte skapa session");
     }
 
     setCreating(false);
@@ -559,131 +497,112 @@ function SessionsPanel() {
             </div>
 
             <div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={maxOneProposalPerUser}
-                  onChange={(e) => setMaxOneProposalPerUser(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                />
-                <span className="text-sm font-semibold text-slate-700">
-                  Max one proposal each
-                </span>
-              </label>
-              <p className="text-xs text-slate-500 mt-1 ml-6">
-                Limit all users (except admins) to one proposal per session
-              </p>
-            </div>
-
-            <div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showUserCount}
-                  onChange={(e) => setShowUserCount(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                />
-                <span className="text-sm font-semibold text-slate-700">
-                  Show user count
-                </span>
-              </label>
-              <p className="text-xs text-slate-500 mt-1 ml-6">
-                Display the number of active users in the header
-              </p>
-            </div>
-
-            <div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={noMotivation}
-                  onChange={(e) => setNoMotivation(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                />
-                <span className="text-sm font-semibold text-slate-700">
-                  No motivation
-                </span>
-              </label>
-              <p className="text-xs text-slate-500 mt-1 ml-6">
-                Hide problem and solution fields, only show proposal title
-              </p>
-            </div>
-
-            <div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={singleResult}
-                  onChange={(e) => setSingleResult(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                />
-                <span className="text-sm font-semibold text-slate-700">
-                  Single result
-                </span>
-              </label>
-              <p className="text-xs text-slate-500 mt-1 ml-6">
-                Only one winner: proposal with highest result (yes votes - no
-                votes)
-              </p>
-            </div>
-
-            <div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={onlyYesVotes}
-                  onChange={(e) => setOnlyYesVotes(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                />
-                <span className="text-sm font-semibold text-slate-700">
-                  Only yes-votes
-                </span>
-              </label>
-              <p className="text-xs text-slate-500 mt-1 ml-6">
-                Replace the no-button with &quot;Next proposal&quot;. Users
-                browse in a loop and confirm before voting.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Language
-              </label>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="w-full border-2 border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent transition-all"
+              <button
+                type="button"
+                onClick={() => setShowAdvanced((v) => !v)}
+                className="flex items-center gap-1.5 text-sm font-bold text-primary-600"
               >
-                <option value="sv">Svenska</option>
-                <option value="en">English</option>
-                <option value="sr">Српски (Serbian)</option>
-                <option value="es">Español</option>
-                <option value="de">Deutsch</option>
-              </select>
-              <p className="text-xs text-slate-500 mt-1">
-                Select which language to use in the entire application
-              </p>
-            </div>
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform ${
+                    showAdvanced ? "rotate-180" : ""
+                  }`}
+                />
+                Avancerat
+              </button>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Color Theme
-              </label>
-              <select
-                value={themeValue}
-                onChange={(e) => setThemeValue(e.target.value)}
-                className="w-full border-2 border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent transition-all"
-              >
-                <option value="default">
-                  Blue/Yellow - Sweden, English (Default)
-                </option>
-                <option value="green">Green - Germany, Activism</option>
-                <option value="red">Red/Gold - Spain, Serbia</option>
-              </select>
-              <p className="text-xs text-slate-500 mt-1">
-                Recommendations: Swedish/English→Blue, German→Green,
-                Spanish/Serbian→Red
-              </p>
+              {showAdvanced && (
+                <div className="mt-3 space-y-3">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={maxOneProposalPerUser}
+                      onChange={(e) =>
+                        setMaxOneProposalPerUser(e.target.checked)
+                      }
+                      className="w-4 h-4 mt-0.5 rounded border-slate-300 text-primary-600 focus:ring-2 focus:ring-primary-500"
+                    />
+                    <span>
+                      <span className="text-sm font-semibold text-slate-700 block">
+                        Max ett förslag per person
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        Begränsa alla (utom admins) till ett förslag per
+                        session.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showUserCount}
+                      onChange={(e) => setShowUserCount(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 rounded border-slate-300 text-primary-600 focus:ring-2 focus:ring-primary-500"
+                    />
+                    <span>
+                      <span className="text-sm font-semibold text-slate-700 block">
+                        Visa antal deltagare
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        Visa antalet aktiva användare i sidhuvudet.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={noMotivation}
+                      onChange={(e) => setNoMotivation(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 rounded border-slate-300 text-primary-600 focus:ring-2 focus:ring-primary-500"
+                    />
+                    <span>
+                      <span className="text-sm font-semibold text-slate-700 block">
+                        Ingen motivering
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        Dölj problem-/lösningsfält, visa bara förslagets titel.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={singleResult}
+                      onChange={(e) => setSingleResult(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 rounded border-slate-300 text-primary-600 focus:ring-2 focus:ring-primary-500"
+                    />
+                    <span>
+                      <span className="text-sm font-semibold text-slate-700 block">
+                        Ett enda resultat
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        Bara en vinnare: förslaget med högst resultat (ja −
+                        nej).
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={onlyYesVotes}
+                      onChange={(e) => setOnlyYesVotes(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 rounded border-slate-300 text-primary-600 focus:ring-2 focus:ring-primary-500"
+                    />
+                    <span>
+                      <span className="text-sm font-semibold text-slate-700 block">
+                        Endast ja-röster
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        Ersätt nej-knappen med &quot;Nästa förslag&quot;. Man
+                        bläddrar i en loop och bekräftar innan röst.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
 
             {!session?.user?.isSuperAdmin && remainingSessions !== null && (
@@ -704,7 +623,7 @@ function SessionsPanel() {
                 color: primaryDark,
               }}
             >
-              {creating ? "Starting..." : "Start session"}
+              {creating ? "Skapar…" : "Skapa session"}
             </button>
 
             {message && (
@@ -1035,7 +954,7 @@ function LivePanel({ sessionId, onPhaseAdvanced }) {
   const pollRef = useRef(null);
   const lastAdjustRef = useRef(0);
 
-  const primaryDark = theme?.primaryDark || "#001440";
+  const primaryDark = theme?.colors?.primary?.[900] || "#001440";
 
   const executeTermination = useCallback(async () => {
     try {

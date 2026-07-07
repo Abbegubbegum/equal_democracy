@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { Calendar, TrendingUp, CheckCircle } from "lucide-react";
+import { ArrowLeft, TrendingUp, Calendar } from "lucide-react";
 import Link from "next/link";
-import { useTranslation } from "../../../lib/hooks/useTranslation";
+import { useConfig } from "../../../lib/contexts/ConfigContext";
 
 export async function getServerSideProps({ params }) {
   const VALID_MUNICIPALITIES = ["vallentuna"];
@@ -14,10 +14,10 @@ export async function getServerSideProps({ params }) {
 
 export default function BoardArchivePage() {
   const router = useRouter();
+  const { theme } = useConfig();
   const { municipality: municipalityParam, board: boardParam } = router.query;
   const municipality = String(municipalityParam || "");
   const board = String(boardParam || "");
-  const { t } = useTranslation();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,139 +43,133 @@ export default function BoardArchivePage() {
   };
 
   if (!municipality || !board) {
-    return <div className="p-8">Laddar...</div>;
+    return (
+      <div className="min-h-screen bg-[#f7f8fb] flex items-center justify-center">
+        <div className="text-xl text-gray-500">Laddar…</div>
+      </div>
+    );
   }
 
+  const primaryColor = theme?.colors?.primary?.[600] || "#002d75";
+  const primaryDark = theme?.colors?.primary?.[800] || "#001c55";
+
+  const hasItems = sessions.some(
+    (s) => s.items.filter((i) => i.status === "closed").length > 0,
+  );
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-slate-700 text-white p-6 shadow">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2 capitalize">
-                {board.replace(/-/g, " ")} - Arkiv
-              </h1>
-              <p className="text-slate-300 capitalize">{municipality} kommun</p>
+    <div className="min-h-screen bg-[#f7f8fb]">
+      <header
+        className="text-white px-4 sm:px-6 pt-5 pb-8 shadow-lg"
+        style={{
+          background: `linear-gradient(to right, ${primaryColor}, ${primaryDark})`,
+        }}
+      >
+        <div className="max-w-2xl mx-auto">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <img
+                src="/app-icon-tight.svg"
+                alt=""
+                className="h-9 w-auto shrink-0"
+              />
+              <div className="leading-none">
+                <div className="text-base font-black tracking-widest text-white">
+                  VALLENTUNA
+                </div>
+                <div className="text-xs font-extrabold text-white mt-0.5">
+                  Framåt
+                </div>
+              </div>
             </div>
-            <Link
-              href="/"
-              className="px-4 py-2 bg-yellow-400 text-gray-900 hover:bg-yellow-500 rounded-lg font-medium"
+            <button
+              onClick={() => router.push(`/${municipality}/${board}`)}
+              className="inline-flex items-center gap-1.5 text-white/85 hover:text-accent-400 text-sm font-semibold whitespace-nowrap transition-colors"
             >
-              {t("common.backToStart")}
-            </Link>
+              <ArrowLeft className="w-4 h-4" />
+              Aktiva frågor
+            </button>
           </div>
+          <h1 className="mt-6 text-2xl sm:text-3xl font-black tracking-tight capitalize">
+            {board.replace(/-/g, " ")} – arkiv
+          </h1>
+          <p className="mt-1 text-primary-100 text-sm sm:text-base capitalize">
+            {municipality} kommun
+          </p>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto p-6">
-        {/* Navigation */}
-        <div className="mb-6 flex gap-2">
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {/* Sub-nav */}
+        <div className="flex gap-2 mb-5">
           <Link
             href={`/${municipality}/${board}`}
-            className="px-4 py-2 bg-white text-gray-700 hover:bg-gray-100 rounded-lg font-medium"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-black/5 text-gray-600 text-sm font-semibold rounded-btn hover:bg-[#fafbfe]"
           >
-            <TrendingUp className="w-4 h-4 inline mr-2" />
-            Aktiva Frågor
+            <TrendingUp className="w-4 h-4" />
+            Aktiva frågor
           </Link>
-          <button className="px-4 py-2 bg-white text-slate-700 shadow rounded-lg font-medium">
-            <CheckCircle className="w-4 h-4 inline mr-2" />
+          <span className="px-3.5 py-2 bg-primary-600 text-white text-sm font-bold rounded-btn">
             Arkiv
-          </button>
+          </span>
         </div>
 
-        {/* Archived Sessions */}
         {loading ? (
-          <div className="text-center py-12 text-gray-500">Laddar...</div>
-        ) : sessions.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-12 text-center">
-            <p className="text-gray-500 mb-4">Inga arkiverade frågor ännu</p>
+          <div className="text-center py-12 text-gray-500">Laddar…</div>
+        ) : !hasItems ? (
+          <div className="bg-white rounded-card border border-black/5 p-10 text-center text-gray-500">
+            Inga arkiverade frågor ännu.
           </div>
         ) : (
-          <div className="space-y-4">
-            {sessions.map((municipalSession) => (
-              <div key={municipalSession._id} className="space-y-4">
-                {municipalSession.items
-                  .filter((item) => item.status === "closed")
-                  .map((item, idx) => {
-                    // Format date for each item
-                    const itemDate = new Date(
-                      municipalSession.meetingDate,
-                    ).toLocaleDateString("sv-SE", {
-                      year: "numeric",
-                      month: "2-digit",
-                      day: "2-digit",
-                    });
-                    const itemTime = municipalSession.meetingTime || "18:00";
-                    const dateTimeStr = `${itemDate} ${itemTime}`;
-
-                    return (
-                      <div
-                        key={idx}
-                        className="border-l-4 border-gray-400 pl-4 hover:bg-gray-50 p-4 rounded bg-white shadow-sm"
-                      >
-                        <div className="flex items-start justify-between mb-2 gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Calendar className="w-4 h-4 text-gray-500" />
-                              <span className="text-sm font-medium text-gray-600">
-                                {dateTimeStr}
-                              </span>
-                              <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded-full ml-2">
-                                Avslutad
-                              </span>
-                            </div>
-                            <h3 className="font-bold text-xl mb-2 text-gray-900">
-                              {item.title}
-                            </h3>
-                          </div>
-                          {item.imageUrl && (
-                            <img
-                              src={item.imageUrl}
-                              alt=""
-                              className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
-                            />
-                          )}
+          <div className="space-y-3">
+            {sessions.map((municipalSession) =>
+              municipalSession.items
+                .filter((item) => item.status === "closed")
+                .map((item) => {
+                  const dateStr = new Date(
+                    municipalSession.meetingDate,
+                  ).toLocaleDateString("sv-SE", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  });
+                  return (
+                    <div
+                      key={item._id}
+                      className="bg-white rounded-card border border-black/5 shadow-[0_8px_22px_-18px_rgba(0,20,64,0.4)] p-4 flex gap-3.5"
+                    >
+                      {item.imageUrl && (
+                        <img
+                          src={item.imageUrl}
+                          alt=""
+                          className="w-16 h-16 rounded-xl object-cover shrink-0"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {dateStr}
+                          <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[0.62rem] font-bold uppercase tracking-wide">
+                            Avslutad
+                          </span>
                         </div>
-                        <p className="text-gray-700 mb-3 leading-relaxed">
+                        <h3 className="font-bold text-gray-800 mt-1">
+                          {item.title}
+                        </h3>
+                        <p className="text-sm text-gray-500 line-clamp-2 mt-0.5">
                           {item.description}
                         </p>
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {item.categories.map((cat) => (
-                            <span
-                              key={cat}
-                              className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded-full"
-                            >
-                              {cat}
-                            </span>
-                          ))}
-                        </div>
                         {item.ratingCount > 0 && (
-                          <p className="text-xs text-amber-600 mb-2">
+                          <p className="text-xs text-accent-500 mt-1.5">
                             ★ {item.averageRating.toFixed(1)} (
                             {item.ratingCount})
                           </p>
                         )}
-                        {item.closedAt && (
-                          <p className="text-xs text-gray-500 mb-2">
-                            Avslutad:{" "}
-                            {new Date(item.closedAt).toLocaleDateString(
-                              "sv-SE",
-                            )}
-                          </p>
-                        )}
-                        {item.sessionId && (
-                          <Link
-                            href={`/session/${item.sessionId}`}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium"
-                          >
-                            Visa Resultat
-                          </Link>
-                        )}
                       </div>
-                    );
-                  })}
-              </div>
-            ))}
+                    </div>
+                  );
+                }),
+            )}
           </div>
         )}
       </main>

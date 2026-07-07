@@ -18,6 +18,11 @@ export interface ModerationResult {
   message: string;
 }
 
+export interface ReviewResult {
+  corrected: string | null; // spelling/grammar-fixed version, or null if clean
+  concise: string | null; // shorter/clearer version, or null if already tight
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -154,5 +159,58 @@ Regler:
     return { status, message: parsed.message ?? "" };
   } catch {
     return { status: "ok", message: "" };
+  }
+}
+
+/**
+ * MAJ writing assistant: given a draft proposal or argument, suggest a
+ * spelling/grammar-corrected version and a more concise version (each null if
+ * nothing to improve). Never changes the content/opinion — only the wording.
+ * Fails open (returns nulls) so AI outages never block posting.
+ */
+export async function reviewContent(options: {
+  text: string;
+  kind: "proposal" | "argument";
+}): Promise<ReviewResult> {
+  const { text, kind } = options;
+  const label = kind === "proposal" ? "medborgarförslag" : "debattargument";
+
+  const system = `Du är MAJ, en hjälpsam skrivassistent för en svensk kommunal demokratiplattform. En medborgare har skrivit ett ${label}. Din uppgift är att hjälpa dem skriva tydligare — INTE att censurera eller ändra åsikten.
+
+Svara med ENBART ett JSON-objekt på en rad:
+{"corrected": <sträng eller null>, "concise": <sträng eller null>}
+
+- "corrected": om texten har stavfel, saknade versaler (t.ex. ortnamn/egennamn som "Vallentuna"), eller tydliga grammatikfel — ge en rättad version med EXAKT samma innehåll och ton. Annars null.
+- "concise": om texten kan bli kortare och tydligare utan att tappa innehåll — ge en stramare version. Annars null.
+
+Regler:
+• Ändra ALDRIG innehållet, åsikten eller sakuppgifter — bara språket.
+• Behåll svenska och medborgarens egen röst.
+• Är texten redan korrekt och koncis: {"corrected": null, "concise": null}
+• Inga förklaringar, bara JSON.`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: AI_MODELS.fast,
+      max_tokens: 500,
+      system,
+      messages: [{ role: "user", content: text.trim().slice(0, 1500) }],
+    });
+
+    const raw = ((response.content[0] as any).text ?? "").trim();
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+    const match = cleaned.match(/\{.*\}/s);
+    if (!match) return { corrected: null, concise: null };
+
+    const parsed: { corrected?: unknown; concise?: unknown } = JSON.parse(
+      match[0],
+    );
+    const orig = text.trim();
+    const norm = (v: unknown) =>
+      typeof v === "string" && v.trim() && v.trim() !== orig ? v.trim() : null;
+
+    return { corrected: norm(parsed.corrected), concise: norm(parsed.concise) };
+  } catch {
+    return { corrected: null, concise: null };
   }
 }

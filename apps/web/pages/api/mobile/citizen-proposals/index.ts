@@ -7,6 +7,7 @@ import { put, del } from "@vercel/blob";
 import connectDB from "../../../../lib/mongodb";
 import { CitizenProposal, CitizenProposalRating } from "../../../../lib/models";
 import { getRatingAggregates } from "../../../../lib/rating-helper";
+import { rankActiveProposals } from "../../../../lib/forslag-ranking";
 import { verifyBearerToken } from "../../../../lib/mobile-jwt";
 import { ALL_CATEGORIES } from "@repo/types";
 import { createLogger } from "../../../../lib/logger";
@@ -38,7 +39,7 @@ export default async function handler(
       if (existing >= CITIZEN_PROPOSAL_LIMIT) {
         return res.status(403).json({
           message:
-            "Du har redan lämnat ditt medborgarförslag — varje medlem får lämna ett förslag fram till valet den 13 september.",
+            "Du har redan lämnat ditt förslag — varje medlem får lämna ett förslag fram till valet den 13 september.",
         });
       }
     }
@@ -134,9 +135,10 @@ export default async function handler(
     return res.status(405).json({ message: "Method not allowed" });
 
   try {
-    const proposals = await CitizenProposal.find({
-      status: { $in: ["active", "selected", "submitted_as_motion"] },
-    })
+    // The Förslag stack is the active proposals only — motion/archived have
+    // left it. Ranked by score = ratingCount × avg³ (shared with web + admin),
+    // so mobile, web and the admin all agree on order + rank number.
+    const proposals = await CitizenProposal.find({ status: "active" })
       .select("_id title description imageUrl status createdAt")
       .lean();
 
@@ -154,27 +156,22 @@ export default async function handler(
     );
     const canSubmit = user.isAdmin || ownCount < CITIZEN_PROPOSAL_LIMIT;
 
-    const sortedProposals = proposals
-      .map((p) => {
-        const agg = ratings.get(p._id.toString());
-        return {
-          id: p._id.toString(),
-          title: p.title,
-          description: p.description,
-          imageUrl: (p as any).imageUrl ?? null,
-          status: p.status,
-          averageRating: agg?.averageRating || 0,
-          ratingCount: agg?.ratingCount || 0,
-          userRating: userRatingMap[p._id.toString()] || 0,
-          createdAt: p.createdAt,
-        };
-      })
-      .sort(
-        (a, b) =>
-          b.averageRating - a.averageRating ||
-          b.ratingCount - a.ratingCount ||
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      );
+    const sortedProposals = rankActiveProposals(
+      proposals as any[],
+      ratings,
+    ).map((p: any) => ({
+      id: p._id.toString(),
+      title: p.title,
+      description: p.description,
+      imageUrl: p.imageUrl ?? null,
+      status: p.status,
+      averageRating: p.averageRating,
+      ratingCount: p.ratingCount,
+      score: Math.round(p.score),
+      rank: p.rank,
+      userRating: userRatingMap[p._id.toString()] || 0,
+      createdAt: p.createdAt,
+    }));
 
     return res.status(200).json({
       proposals: sortedProposals,

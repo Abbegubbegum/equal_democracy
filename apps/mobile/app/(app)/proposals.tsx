@@ -33,6 +33,8 @@ interface CitizenProposal {
   averageRating: number;
   ratingCount: number;
   userRating: number;
+  rank?: number;
+  score?: number;
 }
 
 // ─── Full-screen proposal block ───────────────────────────────────────────────
@@ -109,10 +111,25 @@ function ProposalBlock({
       )}
       <View style={styles.overlay} />
 
-      {/* Rank badge — top-left */}
-      <View style={[styles.rankBadge, { top: insetTop + 16 }]}>
-        <Text style={styles.rankText}>#{rank}</Text>
+      {/* Rank badge — top-right (amber for the leader) */}
+      <View
+        style={[
+          styles.rankBadge,
+          rank === 1 && styles.rankBadgeLeader,
+          { top: insetTop + 16 },
+        ]}
+      >
+        <Text style={[styles.rankText, rank === 1 && styles.rankTextLeader]}>
+          #{rank}
+        </Text>
       </View>
+
+      {/* #1 stands on turn to become a motion to fullmäktige */}
+      {rank === 1 && (
+        <View style={[styles.leaderBadge, { top: insetTop + 16 }]}>
+          <Text style={styles.leaderText}>👑 Nästa motion</Text>
+        </View>
+      )}
 
       {/* Text card — centred in the image */}
       <View
@@ -567,14 +584,11 @@ export default function ProposalsScreen() {
     averageRating: number,
     ratingCount: number,
   ) {
+    // Keep the server's score order (rank stays stable until the next refresh);
+    // re-sorting live would jump the user around in the full-screen pager.
     setProposals((prev) =>
-      [
-        ...prev.map((p) =>
-          p.id === id ? { ...p, userRating, averageRating, ratingCount } : p,
-        ),
-      ].sort(
-        (a, b) =>
-          b.averageRating - a.averageRating || b.ratingCount - a.ratingCount,
+      prev.map((p) =>
+        p.id === id ? { ...p, userRating, averageRating, ratingCount } : p,
       ),
     );
   }
@@ -673,7 +687,7 @@ export default function ProposalsScreen() {
           <ProposalBlock
             key={index}
             proposal={proposal}
-            rank={(index % Math.max(proposals.length, 1)) + 1}
+            rank={proposal.rank ?? (index % Math.max(proposals.length, 1)) + 1}
             height={containerH}
             insetTop={insets.top}
             insetBottom={insets.bottom}
@@ -739,6 +753,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   rankText: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  rankBadgeLeader: { backgroundColor: "#f5a623", borderColor: "#fff" },
+  rankTextLeader: { color: "#002d75" },
+  leaderBadge: {
+    position: "absolute",
+    left: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f5a623",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  leaderText: { color: "#002d75", fontSize: 12, fontWeight: "800" },
 
   // Text card centred in the image
   contentWrapper: {

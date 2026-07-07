@@ -7,12 +7,21 @@ import {
   CitizenProposal,
   CitizenProposalRating,
 } from "../../../lib/models";
-import { ALL_CATEGORIES } from "@repo/types";
+import { ALL_CATEGORIES, INTEREST_TO_CATEGORIES } from "@repo/types";
 import { csrfProtection } from "../../../lib/csrf";
 import { getRatingAggregates } from "../../../lib/rating-helper";
+import { rankActiveProposals } from "../../../lib/forslag-ranking";
 import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("CitizenProposals");
+
+// The `category` query param is an INTEREST_AREAS key (from the filter
+// dropdown). Expand it to the raw categories stored on proposals and match any
+// of them. Falls back to an exact match so a raw category value still works.
+function categoryFilter(category: string): unknown {
+  const mapped = INTEREST_TO_CATEGORIES[category];
+  return mapped && mapped.length ? { $in: mapped } : category;
+}
 
 /**
  * GET/POST /api/citizen-proposals
@@ -26,24 +35,57 @@ export default async function handler(
 
   const session = await getServerSession(req, res, authOptions);
 
-  // GET - List all active citizen proposals (public, no auth required)
+  // GET - List the active proposal stack, ranked by score (public, no auth)
   if (req.method === "GET") {
     try {
-      const { status, category, sort } = req.query;
+      const { category, status } = req.query;
 
-      const query: Record<string, unknown> = {};
+      // Archive / non-stack view (e.g. Arkiv Hem tab): any status (or "all"),
+      // newest first, no ranking. Includes the fullmäktige outcome fields.
+      if (status && status !== "active") {
+        const q: Record<string, unknown> = {};
+        if (status !== "all") q.status = String(status);
+        if (category) q.categories = categoryFilter(String(category));
 
-      // Filter by status (default: show active + selected + submitted_as_motion;
-      // "all" returns everything including rejected/archived)
-      if (status && status !== "all") {
-        query.status = String(status);
-      } else if (!status) {
-        query.status = { $in: ["active", "selected", "submitted_as_motion"] };
+        const raw = (await CitizenProposal.find(q)
+          .sort({ createdAt: -1 })
+          .lean()) as any[];
+        const ratings = await getRatingAggregates(
+          CitizenProposalRating,
+          "proposalId",
+          raw.map((p) => p._id),
+        );
+        const ratingsMap: Record<string, number> = {};
+        if (session?.user?.id) {
+          const ur = await CitizenProposalRating.find({
+            userId: session.user.id,
+            proposalId: { $in: raw.map((p) => p._id) },
+          }).lean();
+          ur.forEach((r) => {
+            ratingsMap[r.proposalId.toString()] = r.rating;
+          });
+        }
+
+        const proposals = raw.map((p) => {
+          const agg = ratings.get(p._id.toString());
+          return {
+            ...p,
+            averageRating: agg?.averageRating || 0,
+            ratingCount: agg?.ratingCount || 0,
+            userRating: ratingsMap[p._id.toString()] || null,
+            isOwn: session?.user?.id
+              ? p.authorId?.toString() === session.user.id
+              : false,
+          };
+        });
+        return res.status(200).json({ proposals });
       }
 
-      // Filter by category (string category name; matches array membership)
+      // The public stack is the active proposals only — motion/archived have
+      // already left it. Ranked by score = ratingCount × avg³ (shared helper).
+      const query: Record<string, unknown> = { status: "active" };
       if (category) {
-        query.categories = String(category);
+        query.categories = categoryFilter(String(category));
       }
 
       const rawProposals = (await CitizenProposal.find(query).lean()) as any[];
@@ -53,57 +95,29 @@ export default async function handler(
         rawProposals.map((p) => p._id),
       );
 
-      const proposals = rawProposals.map((p) => {
-        const agg = ratings.get(p._id.toString());
-        return {
-          ...p,
-          averageRating: agg?.averageRating || 0,
-          ratingCount: agg?.ratingCount || 0,
-        };
-      });
+      const ranked = rankActiveProposals(rawProposals, ratings).slice(0, 100);
 
-      // Determine sort order
-      if (sort === "recent") {
-        proposals.sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-        );
-      } else {
-        // Default: sort by rating (most popular first)
-        proposals.sort(
-          (a, b) =>
-            b.averageRating - a.averageRating ||
-            b.ratingCount - a.ratingCount ||
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-        );
-      }
-      const limitedProposals = proposals.slice(0, 100);
-
-      // If user is logged in, include their ratings
+      // Attach the viewer's own rating (if logged in).
+      const ratingsMap: Record<string, number> = {};
       if (session?.user?.id) {
         const userRatings = await CitizenProposalRating.find({
           userId: session.user.id,
-          proposalId: { $in: limitedProposals.map((p) => p._id) },
+          proposalId: { $in: ranked.map((p) => p._id) },
         }).lean();
-
-        const ratingsMap = {};
         userRatings.forEach((r) => {
           ratingsMap[r.proposalId.toString()] = r.rating;
         });
-
-        // Add user ratings to proposals
-        limitedProposals.forEach((p) => {
-          (p as any).userRating = ratingsMap[p._id.toString()] || null;
-          (p as any).isOwn = p.authorId.toString() === session.user.id;
-        });
-      } else {
-        limitedProposals.forEach((p) => {
-          (p as any).userRating = null;
-          (p as any).isOwn = false;
-        });
       }
 
-      return res.status(200).json({ proposals: limitedProposals });
+      const proposals = ranked.map((p) => ({
+        ...p,
+        userRating: ratingsMap[p._id.toString()] || null,
+        isOwn: session?.user?.id
+          ? p.authorId?.toString() === session.user.id
+          : false,
+      }));
+
+      return res.status(200).json({ proposals });
     } catch (error) {
       log.error("Failed to fetch proposals", { error: error.message });
       return res.status(500).json({ message: "Failed to fetch proposals" });

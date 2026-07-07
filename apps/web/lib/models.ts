@@ -599,19 +599,44 @@ const CitizenProposalSchema = new mongoose.Schema(
     },
     status: {
       type: String,
+      // Förslag lifecycle: active (on the ranked stack, incl. the 10-day grace
+      // window) → motion (lifted off the stack as the month's #1, awaiting the
+      // manual fullmäktige handoff) → archived (culled from the stack, removed
+      // by an admin, or after it became a fullmäktige Question). The legacy
+      // "selected"/"submitted_as_motion"/"rejected" values are kept only so old
+      // documents still validate; the new flow uses active/motion/archived.
       enum: [
         "active",
+        "motion",
+        "archived",
         "selected",
         "submitted_as_motion",
         "rejected",
-        "archived",
       ],
       default: "active",
       index: true,
     },
+    // When this proposal was lifted off the stack as a motion (monthly #1 or a
+    // manual admin override). Null while it's still active/archived.
+    motionAt: {
+      type: Date,
+      default: null,
+    },
+    // Fullmäktige's real-world decision once the motion went to the council.
+    // Reported by an elected representative (an admin) on /manage-proposals.
+    // Powers the Arkiv "Hem" tab (godkända 👍 / avslagna 👎).
+    fullmaktigeOutcome: {
+      type: String,
+      enum: ["approved", "rejected"],
+      default: null,
+    },
+    fullmaktigeDecisionAt: {
+      type: Date,
+      default: null,
+    },
     // Rating aggregates computed at read time from CitizenProposalRating —
-    // no denormalized totalStars/ratingCount/averageRating here. Sorting by
-    // popularity needs an aggregation pipeline instead of a plain .sort().
+    // no denormalized totalStars/ratingCount/averageRating here. Ranking by
+    // score (ratingCount × averageRating³) needs an aggregation, not a .sort().
     imageUrl: {
       type: String,
       default: null,
@@ -756,6 +781,14 @@ const SettingsSchema = new mongoose.Schema(
       type: String,
       enum: ["default", "green", "red", "blue"],
       default: "default",
+    },
+    // The swappable rightmost tile on the public start page's quick-nav.
+    // Superadmin switches this in the admin Settings panel when an activity
+    // starts (e.g. set to "budget" to launch a budget to the public nav).
+    featureSlot: {
+      type: String,
+      enum: ["info", "budget", "arkiv", "livesession"],
+      default: "info",
     },
     updatedAt: {
       type: Date,

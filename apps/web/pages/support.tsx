@@ -24,7 +24,7 @@ const FAQS = [
     a: "Kontrollera skräpposten i din e-post. Om koden fortfarande saknas kan du begära en ny kod i appen. Koden gäller i 10 minuter.",
   },
   {
-    q: "Hur lämnar jag ett medborgarförslag?",
+    q: "Hur lämnar jag ett förslag?",
     a: "Öppna fliken Förslag i appen och tryck på plusknappen. Du kan skriva en titel, beskrivning och lägga till en bild.",
   },
   {

@@ -1,6 +1,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import Link from "next/link";
+import { Archive } from "lucide-react";
 import { useTranslation } from "../lib/hooks/useTranslation";
 import { useConfig } from "../lib/contexts/ConfigContext";
 export default function AboutPage() {
@@ -28,13 +29,21 @@ export default function AboutPage() {
                 {t("about.subtitle")}
               </p>
             </div>
-            <Link
-              href="/"
-              className="px-4 py-2 rounded-lg font-medium"
-              style={{ backgroundColor: "#f5a623", color: "#002d75" }}
-            >
-              {t("common.backToStart")}
-            </Link>
+            <div className="flex items-center gap-2.5 shrink-0">
+              <Link
+                href="/archive"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-medium text-white border border-white/25 bg-white/10 hover:bg-white/20 transition-colors"
+              >
+                <Archive className="w-4 h-4" /> Arkiv
+              </Link>
+              <Link
+                href="/"
+                className="px-4 py-2 rounded-lg font-medium"
+                style={{ backgroundColor: "#f5a623", color: "#002d75" }}
+              >
+                {t("common.backToStart")}
+              </Link>
+            </div>
           </div>
         </div>
       </header>
@@ -155,14 +164,18 @@ export default function AboutPage() {
                 <span className="text-gray-700">{t("about.feature5")}</span>
               </li>
             </ul>
-            <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
               <Link
                 href="/legal"
-                className="text-sm underline"
+                className="text-sm underline block"
                 style={{ color: "#002d75" }}
               >
                 Integritetspolicy &amp; Användarvillkor →
               </Link>
+              <p className="text-xs text-gray-500">
+                Om bilder: en del bilder i appen är riktiga fotografier, andra
+                är AI-genererade.
+              </p>
             </div>
           </section>
 
