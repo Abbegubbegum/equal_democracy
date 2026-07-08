@@ -8,9 +8,21 @@ const log = createLogger("MobileQuestions");
 
 const PRE_ELECTION_LIMIT = 5;
 
+/** Sort by total turnout (ja+nej) descending, newest as tie-break. */
+function byTurnout(
+  a: { voteCounts: { ja: number; nej: number }; createdAt: Date },
+  b: { voteCounts: { ja: number; nej: number }; createdAt: Date },
+) {
+  const at = a.voteCounts.ja + a.voteCounts.nej;
+  const bt = b.voteCounts.ja + b.voteCounts.nej;
+  if (bt !== at) return bt - at;
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+}
+
 /**
  * GET /api/mobile/questions
- * Returns { sessions, quota } — active questions first, then closed/archived
+ * Returns { questions, quota } — active questions first (most-voted first, i.e.
+ * by total ja+nej count descending, newest as tie-break), then closed/archived
  * newest-first. Backs the mobile Hem/Rösta tabs.
  */
 export default async function handler(
@@ -45,7 +57,7 @@ export default async function handler(
 
     const allQuestions = [...activeQuestions, ...pastQuestions];
     if (allQuestions.length === 0)
-      return res.status(200).json({ sessions: [], quota });
+      return res.status(200).json({ questions: [], quota });
 
     const questionIds = allQuestions.map((q) => q._id);
     const [allVotes, userVotes] = await Promise.all([
@@ -79,7 +91,12 @@ export default async function handler(
       };
     });
 
-    return res.status(200).json({ questions: result, quota });
+    // Active questions ordered by turnout (most people voted first), newest as
+    // tie-break; closed questions stay newest-first below them.
+    const active = result.filter((q) => q.isActive).sort(byTurnout);
+    const past = result.filter((q) => !q.isActive);
+
+    return res.status(200).json({ questions: [...active, ...past], quota });
   } catch (error) {
     log.error("Failed to fetch questions", { error: error.message });
     return res.status(500).json({ message: "Failed to fetch questions" });

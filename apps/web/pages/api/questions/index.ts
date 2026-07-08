@@ -9,11 +9,23 @@ const log = createLogger("Questions");
 
 const PRE_ELECTION_LIMIT = 5;
 
+/** Sort by total turnout (ja+nej) descending, newest as tie-break. */
+function byTurnout(
+  a: { voteCounts: { ja: number; nej: number }; createdAt: Date },
+  b: { voteCounts: { ja: number; nej: number }; createdAt: Date },
+) {
+  const at = a.voteCounts.ja + a.voteCounts.nej;
+  const bt = b.voteCounts.ja + b.voteCounts.nej;
+  if (bt !== at) return bt - at;
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+}
+
 /**
  * GET /api/questions
  * Web (NextAuth session) equivalent of /api/mobile/questions — the active
  * Ja/Nej questions with per-question vote counts + the viewer's own vote, plus
- * the 5-vote pre-election quota. Backs the web Hem feed.
+ * the 5-vote pre-election quota. Ordered by turnout (most people voted first).
+ * Backs the web Hem feed.
  */
 export default async function handler(
   req: NextApiRequest,
@@ -68,6 +80,8 @@ export default async function handler(
         userVote: userVoteMap[qid] ?? null,
       };
     });
+
+    questions.sort(byTurnout);
 
     return res.status(200).json({ questions, quota });
   } catch (error) {

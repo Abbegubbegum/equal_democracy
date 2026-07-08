@@ -5,6 +5,12 @@ import { createLogger } from "./logger";
 
 const log = createLogger("ForslagMaintenance");
 
+// The monthly "#1 → motion to fullmäktige" flow only makes sense once we hold
+// seats in fullmäktige. Gate on the day AFTER the 2026-09-13 election so nothing
+// shifts on election day itself. Same hardcoded pre-election gate pattern as
+// PRE_ELECTION_LIMIT in the questions routes.
+const POST_ELECTION_DATE = new Date("2026-09-14T00:00:00Z");
+
 function baseUrl(): string {
   return process.env.NEXTAUTH_URL || "https://www.vallentuna.app";
 }
@@ -39,12 +45,20 @@ export async function cullExpiredProposals(now: Date = new Date()) {
 }
 
 /**
- * Once per calendar month, lift the current #1 off the stack as a motion and
- * email the admins which proposal it was (so the manual fullmäktige handoff
- * isn't missed). No-ops if a motion was already recorded this month — including
- * a manual admin override, so we never double-send in the same month.
+ * On the 1st of each calendar month, lift the current #1 off the stack as a
+ * motion and email the admins which proposal it was (so the manual fullmäktige
+ * handoff isn't missed). No-ops until the day after the 2026-09-13 election (we
+ * hold no seats yet), on any day other than the 1st, and if a motion was already
+ * recorded this month — including a manual admin override, so we never double-send.
  */
 export async function runMonthlyMotion(now: Date = new Date()) {
+  // Pre-election: there is no fullmäktige to send a motion to yet.
+  if (now < POST_ELECTION_DATE) return null;
+
+  // Only fire on the 1st. The month guard below is a belt-and-braces backstop
+  // against a second run the same month; the day check is what times it.
+  if (now.getDate() !== 1) return null;
+
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const already = await CitizenProposal.exists({
     status: "motion",
