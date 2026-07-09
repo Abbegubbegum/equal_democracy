@@ -124,10 +124,16 @@ function ProposalBlock({
         </Text>
       </View>
 
-      {/* #1 stands on turn to become a motion to fullmäktige */}
+      {/* #1 stands on turn to become a motion to fullmäktige — centred between
+          the MAJ button (top-left) and the rank badge (top-right) */}
       {rank === 1 && (
-        <View style={[styles.leaderBadge, { top: insetTop + 16 }]}>
-          <Text style={styles.leaderText}>👑 Nästa motion</Text>
+        <View
+          style={[styles.leaderBadgeWrap, { top: insetTop + 16 }]}
+          pointerEvents="none"
+        >
+          <View style={styles.leaderBadge}>
+            <Text style={styles.leaderText}>👑 Nästa motion</Text>
+          </View>
         </View>
       )}
 
@@ -536,7 +542,6 @@ export default function ProposalsScreen() {
   const [showModal, setShowModal] = useState(false);
   const [containerH, setContainerH] = useState(0);
   const [celebration, setCelebration] = useState(false);
-  const [scrolledDown, setScrolledDown] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -643,10 +648,6 @@ export default function ProposalsScreen() {
         pagingEnabled
         showsVerticalScrollIndicator={false}
         bounces={false}
-        scrollEventThrottle={16}
-        onScroll={(e) =>
-          setScrolledDown(e.nativeEvent.contentOffset.y > containerH / 2)
-        }
       >
         {proposals.map((proposal, index) => (
           <ProposalBlock
@@ -659,19 +660,23 @@ export default function ProposalsScreen() {
             onRated={handleRated}
           />
         ))}
-      </ScrollView>
 
-      {/* Back-to-top — one tap returns to the highest-ranked proposal */}
-      {scrolledDown && (
-        <TouchableOpacity
-          style={[styles.backToTop, { top: insets.top + 16 }]}
-          onPress={scrollToTop}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="arrow-up" size={16} color={BLUE} />
-          <Text style={styles.backToTopText}>Tillbaka</Text>
-        </TouchableOpacity>
-      )}
+        {/* Permanent "last post" — one step past the lowest-ranked proposal:
+            a blue slide whose amber button jumps straight back to #1 */}
+        {containerH > 0 && (
+          <View style={[styles.endSlide, { height: containerH }]}>
+            <Text style={styles.endTitle}>Du har sett alla förslag</Text>
+            <TouchableOpacity
+              style={styles.endBtn}
+              onPress={scrollToTop}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="arrow-up" size={18} color={BLUE} />
+              <Text style={styles.endBtnText}>Tillbaka</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
 
       {/* Submit-proposal button — one idea per non-admin user before the election */}
       {canSubmit && (
@@ -732,9 +737,13 @@ const styles = StyleSheet.create({
   rankText: { color: "#fff", fontSize: 13, fontWeight: "800" },
   rankBadgeLeader: { backgroundColor: "#f5a623", borderColor: "#fff" },
   rankTextLeader: { color: "#002d75" },
-  leaderBadge: {
+  leaderBadgeWrap: {
     position: "absolute",
-    left: 16,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  leaderBadge: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f5a623",
@@ -859,24 +868,36 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Back-to-top button
-  backToTop: {
-    position: "absolute",
-    left: 16,
+  // Permanent "last post" slide
+  endSlide: {
+    width: "100%",
+    backgroundColor: BLUE,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 22,
+    paddingHorizontal: 32,
+  },
+  endTitle: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  endBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    gap: 8,
+    backgroundColor: YELLOW,
+    paddingHorizontal: 28,
+    paddingVertical: 15,
+    borderRadius: 16,
     shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 5,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
   },
-  backToTopText: { color: BLUE, fontSize: 13, fontWeight: "800" },
+  endBtnText: { color: BLUE, fontSize: 16, fontWeight: "800" },
 
   // Modal
   backdrop: {

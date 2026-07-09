@@ -28,7 +28,6 @@ export default function HomeScreen() {
   const [quota, setQuota] = useState<VotingQuota | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [scrolledDown, setScrolledDown] = useState(false);
   const hasLoadedRef = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -115,10 +114,6 @@ export default function HomeScreen() {
         ref={scrollRef}
         contentContainerStyle={[styles.feed, { paddingTop: insets.top + 20 }]}
         showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={(e) =>
-          setScrolledDown(e.nativeEvent.contentOffset.y > CARD_HEIGHT / 2)
-        }
       >
         <Text style={styles.feedTitle}>Välj en fråga att rösta på</Text>
         {quota && (
@@ -161,19 +156,27 @@ export default function HomeScreen() {
             </View>
           );
         })}
-      </ScrollView>
 
-      {/* Back-to-top — one tap returns to the first question */}
-      {scrolledDown && (
-        <TouchableOpacity
-          style={[styles.backToTop, { top: insets.top + 16 }]}
-          onPress={scrollToTop}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="arrow-up" size={16} color={BLUE} />
-          <Text style={styles.backToTopText}>Tillbaka</Text>
-        </TouchableOpacity>
-      )}
+        {/* Permanent "last card" — copies the question-card layout; its Välj
+            button jumps straight back to the top question */}
+        <View style={styles.card}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: BLUE }]} />
+          <View style={styles.cardTint} />
+          <View style={styles.cardBottom}>
+            <Text style={styles.cardQuestion}>
+              Ska vi gå tillbaka till toppen?
+            </Text>
+            <TouchableOpacity
+              style={styles.väljBtn}
+              onPress={scrollToTop}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.väljText}>Välj</Text>
+              <Ionicons name="arrow-up-circle" size={20} color={BLUE} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -233,25 +236,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   väljText: { color: BLUE, fontSize: 15, fontWeight: "800" },
-
-  // Back-to-top button
-  backToTop: {
-    position: "absolute",
-    left: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.92)",
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 5,
-  },
-  backToTopText: { color: BLUE, fontSize: 13, fontWeight: "800" },
 
   center: {
     flex: 1,
