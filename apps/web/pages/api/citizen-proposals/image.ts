@@ -1,8 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import formidable from "formidable";
 import fs from "fs";
-import path from "path";
 import { put, del } from "@vercel/blob";
+import { compressImage } from "@/lib/image";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "@/lib/mongodb";
@@ -70,12 +70,12 @@ export default async function handler(
         .json({ message: "Du får inte ändra det här förslaget." });
     }
 
-    const ext = path.extname(file.originalFilename ?? ".jpg") || ".jpg";
-    const blobPath = `citizen-proposal-images/${proposalId}-${Date.now()}${ext}`;
-    const buffer = await fs.promises.readFile(file.filepath);
+    const blobPath = `citizen-proposal-images/${proposalId}-${Date.now()}.jpg`;
+    const raw = await fs.promises.readFile(file.filepath);
+    const buffer = await compressImage(raw);
     const { url } = await put(blobPath, buffer, {
       access: "public",
-      contentType: file.mimetype ?? "image/jpeg",
+      contentType: "image/jpeg",
     });
     fs.promises.unlink(file.filepath).catch(() => {});
 

@@ -28,7 +28,13 @@ export default function HomeScreen() {
   const [quota, setQuota] = useState<VotingQuota | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [scrolledDown, setScrolledDown] = useState(false);
   const hasLoadedRef = useRef(false);
+  const scrollRef = useRef<ScrollView>(null);
+
+  function scrollToTop() {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -106,8 +112,13 @@ export default function HomeScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[styles.feed, { paddingTop: insets.top + 20 }]}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={(e) =>
+          setScrolledDown(e.nativeEvent.contentOffset.y > CARD_HEIGHT / 2)
+        }
       >
         <Text style={styles.feedTitle}>Välj en fråga att rösta på</Text>
         {quota && (
@@ -151,6 +162,18 @@ export default function HomeScreen() {
           );
         })}
       </ScrollView>
+
+      {/* Back-to-top — one tap returns to the first question */}
+      {scrolledDown && (
+        <TouchableOpacity
+          style={[styles.backToTop, { top: insets.top + 16 }]}
+          onPress={scrollToTop}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="arrow-up" size={16} color={BLUE} />
+          <Text style={styles.backToTopText}>Tillbaka</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -210,6 +233,25 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   väljText: { color: BLUE, fontSize: 15, fontWeight: "800" },
+
+  // Back-to-top button
+  backToTop: {
+    position: "absolute",
+    left: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 5,
+  },
+  backToTopText: { color: BLUE, fontSize: 13, fontWeight: "800" },
 
   center: {
     flex: 1,

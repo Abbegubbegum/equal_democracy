@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -536,30 +536,16 @@ export default function ProposalsScreen() {
   const [showModal, setShowModal] = useState(false);
   const [containerH, setContainerH] = useState(0);
   const [celebration, setCelebration] = useState(false);
-  const currentIdxRef = useRef(0);
+  const [scrolledDown, setScrolledDown] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
-  const initialScrollDone = useRef(false);
-
-  const loopedProposals = useMemo(
-    () =>
-      proposals.length > 1
-        ? [...proposals, ...proposals, ...proposals]
-        : proposals,
-    [proposals],
-  );
 
   useEffect(() => {
     load();
   }, []);
 
-  useEffect(() => {
-    if (proposals.length > 1 && containerH > 0 && !initialScrollDone.current) {
-      initialScrollDone.current = true;
-      const midIdx = proposals.length;
-      currentIdxRef.current = midIdx;
-      scrollRef.current?.scrollTo({ y: midIdx * containerH, animated: false });
-    }
-  }, [proposals.length, containerH]);
+  function scrollToTop() {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }
 
   async function load() {
     setLoading(true);
@@ -599,30 +585,6 @@ export default function ProposalsScreen() {
     if (!user?.isAdmin) setCanSubmit(false);
     await addStars(5);
     setCelebration(true);
-  }
-
-  function handleMomentumScrollEnd(e: any) {
-    const n = proposals.length;
-    if (n === 0 || containerH === 0) return;
-    const rawIdx = Math.round(e.nativeEvent.contentOffset.y / containerH);
-    const clampedIdx =
-      n > 1
-        ? Math.max(0, Math.min(n * 3 - 1, rawIdx))
-        : Math.max(0, Math.min(n - 1, rawIdx));
-    currentIdxRef.current = clampedIdx;
-    // Infinite loop: silently jump to the middle copy when near either end
-    if (n > 1) {
-      let jumpIdx: number | null = null;
-      if (clampedIdx < n) jumpIdx = clampedIdx + n;
-      else if (clampedIdx >= 2 * n) jumpIdx = clampedIdx - n;
-      if (jumpIdx !== null) {
-        currentIdxRef.current = jumpIdx;
-        scrollRef.current?.scrollTo({
-          y: jumpIdx * containerH,
-          animated: false,
-        });
-      }
-    }
   }
 
   if (loading) {
@@ -681,13 +643,16 @@ export default function ProposalsScreen() {
         pagingEnabled
         showsVerticalScrollIndicator={false}
         bounces={false}
-        onMomentumScrollEnd={handleMomentumScrollEnd}
+        scrollEventThrottle={16}
+        onScroll={(e) =>
+          setScrolledDown(e.nativeEvent.contentOffset.y > containerH / 2)
+        }
       >
-        {loopedProposals.map((proposal, index) => (
+        {proposals.map((proposal, index) => (
           <ProposalBlock
-            key={index}
+            key={proposal.id}
             proposal={proposal}
-            rank={proposal.rank ?? (index % Math.max(proposals.length, 1)) + 1}
+            rank={proposal.rank ?? index + 1}
             height={containerH}
             insetTop={insets.top}
             insetBottom={insets.bottom}
@@ -695,6 +660,18 @@ export default function ProposalsScreen() {
           />
         ))}
       </ScrollView>
+
+      {/* Back-to-top — one tap returns to the highest-ranked proposal */}
+      {scrolledDown && (
+        <TouchableOpacity
+          style={[styles.backToTop, { top: insets.top + 16 }]}
+          onPress={scrollToTop}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="arrow-up" size={16} color={BLUE} />
+          <Text style={styles.backToTopText}>Tillbaka</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Submit-proposal button — one idea per non-admin user before the election */}
       {canSubmit && (
@@ -881,6 +858,25 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     textAlign: "center",
   },
+
+  // Back-to-top button
+  backToTop: {
+    position: "absolute",
+    left: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 5,
+  },
+  backToTopText: { color: BLUE, fontSize: 13, fontWeight: "800" },
 
   // Modal
   backdrop: {

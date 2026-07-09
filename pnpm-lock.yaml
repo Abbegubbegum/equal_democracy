@@ -185,6 +185,9 @@ importers:
       resend:
         specifier: ^6.2.2
         version: 6.9.4
+      sharp:
+        specifier: ^0.34.5
+        version: 0.34.5
       twilio:
         specifier: ^5.12.0
         version: 5.13.1
