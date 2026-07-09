@@ -29,6 +29,11 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const hasLoadedRef = useRef(false);
+  const scrollRef = useRef<ScrollView>(null);
+
+  function scrollToTop() {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -106,6 +111,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[styles.feed, { paddingTop: insets.top + 20 }]}
         showsVerticalScrollIndicator={false}
       >
@@ -150,6 +156,26 @@ export default function HomeScreen() {
             </View>
           );
         })}
+
+        {/* Permanent "last card" — copies the question-card layout; its Välj
+            button jumps straight back to the top question */}
+        <View style={styles.card}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: BLUE }]} />
+          <View style={styles.cardTint} />
+          <View style={styles.cardBottom}>
+            <Text style={styles.cardQuestion}>
+              Ska vi gå tillbaka till toppen?
+            </Text>
+            <TouchableOpacity
+              style={styles.väljBtn}
+              onPress={scrollToTop}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.väljText}>Välj</Text>
+              <Ionicons name="arrow-up-circle" size={20} color={BLUE} />
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
     </View>
   );

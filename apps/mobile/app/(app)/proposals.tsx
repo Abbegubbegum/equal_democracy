@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -124,10 +124,16 @@ function ProposalBlock({
         </Text>
       </View>
 
-      {/* #1 stands on turn to become a motion to fullmäktige */}
+      {/* #1 stands on turn to become a motion to fullmäktige — centred between
+          the MAJ button (top-left) and the rank badge (top-right) */}
       {rank === 1 && (
-        <View style={[styles.leaderBadge, { top: insetTop + 16 }]}>
-          <Text style={styles.leaderText}>👑 Nästa motion</Text>
+        <View
+          style={[styles.leaderBadgeWrap, { top: insetTop + 16 }]}
+          pointerEvents="none"
+        >
+          <View style={styles.leaderBadge}>
+            <Text style={styles.leaderText}>👑 Nästa motion</Text>
+          </View>
         </View>
       )}
 
@@ -536,30 +542,15 @@ export default function ProposalsScreen() {
   const [showModal, setShowModal] = useState(false);
   const [containerH, setContainerH] = useState(0);
   const [celebration, setCelebration] = useState(false);
-  const currentIdxRef = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
-  const initialScrollDone = useRef(false);
-
-  const loopedProposals = useMemo(
-    () =>
-      proposals.length > 1
-        ? [...proposals, ...proposals, ...proposals]
-        : proposals,
-    [proposals],
-  );
 
   useEffect(() => {
     load();
   }, []);
 
-  useEffect(() => {
-    if (proposals.length > 1 && containerH > 0 && !initialScrollDone.current) {
-      initialScrollDone.current = true;
-      const midIdx = proposals.length;
-      currentIdxRef.current = midIdx;
-      scrollRef.current?.scrollTo({ y: midIdx * containerH, animated: false });
-    }
-  }, [proposals.length, containerH]);
+  function scrollToTop() {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }
 
   async function load() {
     setLoading(true);
@@ -599,30 +590,6 @@ export default function ProposalsScreen() {
     if (!user?.isAdmin) setCanSubmit(false);
     await addStars(5);
     setCelebration(true);
-  }
-
-  function handleMomentumScrollEnd(e: any) {
-    const n = proposals.length;
-    if (n === 0 || containerH === 0) return;
-    const rawIdx = Math.round(e.nativeEvent.contentOffset.y / containerH);
-    const clampedIdx =
-      n > 1
-        ? Math.max(0, Math.min(n * 3 - 1, rawIdx))
-        : Math.max(0, Math.min(n - 1, rawIdx));
-    currentIdxRef.current = clampedIdx;
-    // Infinite loop: silently jump to the middle copy when near either end
-    if (n > 1) {
-      let jumpIdx: number | null = null;
-      if (clampedIdx < n) jumpIdx = clampedIdx + n;
-      else if (clampedIdx >= 2 * n) jumpIdx = clampedIdx - n;
-      if (jumpIdx !== null) {
-        currentIdxRef.current = jumpIdx;
-        scrollRef.current?.scrollTo({
-          y: jumpIdx * containerH,
-          animated: false,
-        });
-      }
-    }
   }
 
   if (loading) {
@@ -681,19 +648,34 @@ export default function ProposalsScreen() {
         pagingEnabled
         showsVerticalScrollIndicator={false}
         bounces={false}
-        onMomentumScrollEnd={handleMomentumScrollEnd}
       >
-        {loopedProposals.map((proposal, index) => (
+        {proposals.map((proposal, index) => (
           <ProposalBlock
-            key={index}
+            key={proposal.id}
             proposal={proposal}
-            rank={proposal.rank ?? (index % Math.max(proposals.length, 1)) + 1}
+            rank={proposal.rank ?? index + 1}
             height={containerH}
             insetTop={insets.top}
             insetBottom={insets.bottom}
             onRated={handleRated}
           />
         ))}
+
+        {/* Permanent "last post" — one step past the lowest-ranked proposal:
+            a blue slide whose amber button jumps straight back to #1 */}
+        {containerH > 0 && (
+          <View style={[styles.endSlide, { height: containerH }]}>
+            <Text style={styles.endTitle}>Du har sett alla förslag</Text>
+            <TouchableOpacity
+              style={styles.endBtn}
+              onPress={scrollToTop}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="arrow-up" size={18} color={BLUE} />
+              <Text style={styles.endBtnText}>Tillbaka</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
 
       {/* Submit-proposal button — one idea per non-admin user before the election */}
@@ -755,9 +737,13 @@ const styles = StyleSheet.create({
   rankText: { color: "#fff", fontSize: 13, fontWeight: "800" },
   rankBadgeLeader: { backgroundColor: "#f5a623", borderColor: "#fff" },
   rankTextLeader: { color: "#002d75" },
-  leaderBadge: {
+  leaderBadgeWrap: {
     position: "absolute",
-    left: 16,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  leaderBadge: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f5a623",
@@ -881,6 +867,37 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     textAlign: "center",
   },
+
+  // Permanent "last post" slide
+  endSlide: {
+    width: "100%",
+    backgroundColor: BLUE,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 22,
+    paddingHorizontal: 32,
+  },
+  endTitle: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  endBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: YELLOW,
+    paddingHorizontal: 28,
+    paddingVertical: 15,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
+  },
+  endBtnText: { color: BLUE, fontSize: 16, fontWeight: "800" },
 
   // Modal
   backdrop: {
