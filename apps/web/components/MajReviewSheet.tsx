@@ -1,10 +1,24 @@
 import { useState, type ReactNode } from "react";
 import { Sparkles, X } from "lucide-react";
 
+export interface MajDuplicate {
+  id: string;
+  title: string;
+  relation: "same" | "more_specific" | "more_general";
+  reason: string;
+}
+
 export interface MajReview {
   corrected: string | null;
   concise: string | null;
+  duplicates?: MajDuplicate[];
 }
+
+const RELATION_LABEL: Record<MajDuplicate["relation"], string> = {
+  same: "Samma idé",
+  more_specific: "Mer specifik",
+  more_general: "Mer allmän",
+};
 
 /**
  * MAJ's writing-help sheet shown when a user posts a proposal/argument.
@@ -18,6 +32,7 @@ export default function MajReviewSheet({
   hasImage = false,
   onPickImage,
   onPublish,
+  onGoToProposal,
   onCancel,
 }: {
   originalText: string;
@@ -26,16 +41,22 @@ export default function MajReviewSheet({
   hasImage?: boolean;
   onPickImage?: () => void;
   onPublish: (finalText: string) => void;
+  onGoToProposal?: (id: string) => void;
   onCancel: () => void;
 }) {
   const [workingText, setWorkingText] = useState(originalText);
   const [applied, setApplied] = useState<"corrected" | "concise" | null>(null);
 
   const showImageTip = kind === "proposal";
-  const publishLabel =
-    kind === "proposal" ? "Publicera förslag" : "Publicera argument";
+  const duplicates = review.duplicates ?? [];
+  const hasDuplicates = duplicates.length > 0;
+  const publishLabel = hasDuplicates
+    ? "Lämna ändå"
+    : kind === "proposal"
+      ? "Publicera förslag"
+      : "Publicera argument";
   const nothingToImprove =
-    !review.corrected && !review.concise && !showImageTip;
+    !hasDuplicates && !review.corrected && !review.concise && !showImageTip;
 
   return (
     <div
@@ -64,6 +85,53 @@ export default function MajReviewSheet({
         </div>
 
         <div className="p-5 space-y-3 overflow-y-auto">
+          {hasDuplicates && (
+            <div className="border border-amber-300 bg-amber-50 rounded-2xl p-3.5">
+              <div className="flex items-center gap-2 mb-2">
+                <span>⚠️</span>
+                <span className="text-[0.66rem] font-extrabold uppercase tracking-wide text-amber-700">
+                  Kan redan finnas
+                </span>
+              </div>
+              <p className="text-sm text-amber-900 leading-snug mb-3">
+                Rösta hellre på ett befintligt förslag än att dela upp rösterna
+                på dubletter.
+              </p>
+              <div className="space-y-2.5">
+                {duplicates.map((d) => (
+                  <div
+                    key={d.id}
+                    className="bg-white rounded-xl border border-amber-200 p-3"
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="shrink-0 text-[0.6rem] font-extrabold uppercase tracking-wide text-amber-700 bg-amber-100 rounded-full px-2 py-0.5 mt-0.5">
+                        {RELATION_LABEL[d.relation]}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-gray-800 leading-snug">
+                          {d.title}
+                        </p>
+                        {d.reason && (
+                          <p className="text-xs text-gray-500 leading-snug mt-0.5">
+                            {d.reason}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {onGoToProposal && (
+                      <button
+                        onClick={() => onGoToProposal(d.id)}
+                        className="mt-2.5 text-sm font-bold px-3.5 py-2 rounded-btn bg-primary-600 text-white hover:bg-primary-700"
+                      >
+                        Rösta på det istället
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {review.corrected && (
             <Tip icon="✍️" label="Stavning & språk">
               <p className="text-sm bg-[#f7f8fb] rounded-lg p-3 text-gray-800 leading-relaxed">

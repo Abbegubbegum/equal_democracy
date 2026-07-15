@@ -4,7 +4,9 @@ import { useRouter } from "next/router";
 import { ArrowLeft, RefreshCw, Trash2 } from "lucide-react";
 import { fetchWithCsrf } from "../lib/fetch-with-csrf";
 import { useConfig } from "../lib/contexts/ConfigContext";
-import MajReviewSheet from "../components/MajReviewSheet";
+import MajReviewSheet, {
+  type MajDuplicate,
+} from "../components/MajReviewSheet";
 
 const STORAGE_SELECTED_QUESTION = "vf_selected_question";
 
@@ -344,6 +346,7 @@ function DebateSection({ questionId, isAdmin }) {
   const [review, setReview] = useState<{
     corrected: string | null;
     concise: string | null;
+    duplicates?: MajDuplicate[];
   } | null>(null);
   const [pendingText, setPendingText] = useState("");
   const [moderation, setModeration] = useState(null); // {status,message} for warn/flag
@@ -396,14 +399,19 @@ function DebateSection({ questionId, isAdmin }) {
       const res = await fetchWithCsrf("/api/maj/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.trim(), kind: "argument" }),
+        body: JSON.stringify({
+          text: text.trim(),
+          kind: "argument",
+          questionId,
+          stance: type,
+        }),
       });
       const data = res.ok
         ? await res.json()
-        : { corrected: null, concise: null };
+        : { corrected: null, concise: null, duplicates: [] };
       setReview(data);
     } catch {
-      setReview({ corrected: null, concise: null });
+      setReview({ corrected: null, concise: null, duplicates: [] });
     } finally {
       setReviewing(false);
     }

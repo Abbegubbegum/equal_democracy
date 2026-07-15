@@ -8,11 +8,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   ScrollView,
-  Image,
   StatusBar,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { apiClient } from "../../lib/api";
@@ -28,9 +27,13 @@ import {
   type VotingQuota,
 } from "../../lib/VotingQuestionCard";
 import VotingDebateSection from "../../lib/VotingDebateSection";
+import LoadingLoop from "../../lib/LoadingLoop";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
+// Neutral blur shown instantly while the background image downloads (first view
+// only — expo-image's disk cache serves it with no network on later starts).
+const BLURHASH = "L6PZfSi_.AyE_3t7t7R**0o#DgR4";
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 
 export default function VoteScreen() {
@@ -139,11 +142,7 @@ export default function VoteScreen() {
   }
 
   if (loading) {
-    return (
-      <View style={[styles.center, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={BLUE} />
-      </View>
-    );
+    return <LoadingLoop />;
   }
 
   if (fetchError) {
@@ -205,7 +204,10 @@ export default function VoteScreen() {
         <Image
           source={{ uri }}
           style={StyleSheet.absoluteFill}
-          resizeMode="cover"
+          contentFit="cover"
+          transition={200}
+          cachePolicy="memory-disk"
+          placeholder={{ blurhash: BLURHASH }}
         />
       ) : (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: BLUE }]} />

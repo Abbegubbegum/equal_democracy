@@ -5,19 +5,22 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
-  Image,
   Dimensions,
 } from "react-native";
+import { Image } from "expo-image";
 import { useFocusEffect, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { apiClient } from "../../lib/api";
 import { setItem, STORAGE_SELECTED_QUESTION } from "../../lib/storage";
 import type { VotingSession, VotingQuota } from "../../lib/VotingQuestionCard";
+import LoadingLoop from "../../lib/LoadingLoop";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
+// Neutral blur shown instantly while a remote card image downloads (first view
+// only — expo-image's disk cache serves it with no network on later starts).
+const BLURHASH = "L6PZfSi_.AyE_3t7t7R**0o#DgR4";
 const CARD_HEIGHT = Math.round(Dimensions.get("window").width * 0.78);
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 
@@ -75,11 +78,7 @@ export default function HomeScreen() {
   }
 
   if (loading) {
-    return (
-      <View style={[styles.center, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={YELLOW} />
-      </View>
-    );
+    return <LoadingLoop />;
   }
 
   if (fetchError) {
@@ -130,7 +129,10 @@ export default function HomeScreen() {
                 <Image
                   source={{ uri }}
                   style={StyleSheet.absoluteFill}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  transition={200}
+                  cachePolicy="memory-disk"
+                  placeholder={{ blurhash: BLURHASH }}
                 />
               ) : (
                 <View

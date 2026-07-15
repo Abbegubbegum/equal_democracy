@@ -12,8 +12,8 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
-  Image,
 } from "react-native";
+import { Image } from "expo-image";
 import { GEOGRAPHIC_CATEGORIES, THEMATIC_CATEGORIES } from "@repo/types";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,7 +22,9 @@ import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { apiClient, BASE_URL, getAccessToken } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import CelebrationModal from "../../lib/CelebrationModal";
+import MajReviewSheet, { type MajReview } from "../../lib/MajReviewSheet";
 import { addStars } from "../../lib/stars";
+import LoadingLoop from "../../lib/LoadingLoop";
 
 interface CitizenProposal {
   id: string;
@@ -104,7 +106,10 @@ function ProposalBlock({
         <Image
           source={{ uri: bgUri }}
           style={StyleSheet.absoluteFill}
-          resizeMode="cover"
+          contentFit="cover"
+          transition={200}
+          cachePolicy="memory-disk"
+          placeholder={{ blurhash: BLURHASH }}
         />
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.noImageBg]} />
@@ -224,6 +229,7 @@ function SubmitModal({
   const [suggesting, setSuggesting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [review, setReview] = useState<MajReview | null>(null);
 
   async function pickImage() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -278,7 +284,9 @@ function SubmitModal({
     );
   }
 
-  async function submit() {
+  // Step 1: on submit, let MAJ review the text + check for duplicates first
+  // (fail-open — a MAJ outage still lets the user publish).
+  async function runReview() {
     if (!title.trim()) {
       setError("Ange en titel");
       return;
@@ -290,10 +298,32 @@ function SubmitModal({
     setError(null);
     setSubmitting(true);
     try {
+      const data = await apiClient<MajReview>("/api/mobile/maj/review", {
+        method: "POST",
+        body: JSON.stringify({
+          text: description.trim(),
+          kind: "proposal",
+          title: title.trim(),
+        }),
+      });
+      setReview(data);
+    } catch {
+      setReview({ corrected: null, concise: null, duplicates: [] });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // Step 2: publish with the final (possibly MAJ-improved) description.
+  async function publish(finalDescription: string) {
+    setReview(null);
+    setError(null);
+    setSubmitting(true);
+    try {
       const token = await getAccessToken();
       const fd = new FormData();
       fd.append("title", title.trim());
-      fd.append("description", description.trim());
+      fd.append("description", finalDescription.trim());
       fd.append("categories", JSON.stringify(categories));
       if (imageUri) {
         fd.append("image", {
@@ -320,213 +350,232 @@ function SubmitModal({
   }
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.backdrop}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.kav}
-          >
-            <TouchableWithoutFeedback>
-              <View
-                style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}
-              >
-                <View style={styles.handle} />
-                <View style={styles.sheetHeader}>
-                  <Text style={styles.sheetTitle}>Nytt medborgarförslag</Text>
-                  <TouchableOpacity
-                    onPress={onClose}
-                    hitSlop={12}
-                    style={styles.closeButton}
-                  >
-                    <Ionicons name="close" size={22} color="#333" />
-                  </TouchableOpacity>
-                </View>
-
-                <ScrollView
-                  style={{ flexShrink: 1 }}
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
+    <>
+      <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.backdrop}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.kav}
+            >
+              <TouchableWithoutFeedback>
+                <View
+                  style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}
                 >
-                  <Text style={styles.inputLabel}>Titel *</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="Kortfattad titel på ditt förslag..."
-                    placeholderTextColor="#aaa"
-                    value={title}
-                    onChangeText={setTitle}
-                    maxLength={200}
-                    returnKeyType="next"
-                    autoFocus
-                  />
+                  <View style={styles.handle} />
+                  <View style={styles.sheetHeader}>
+                    <Text style={styles.sheetTitle}>Nytt medborgarförslag</Text>
+                    <TouchableOpacity
+                      onPress={onClose}
+                      hitSlop={12}
+                      style={styles.closeButton}
+                    >
+                      <Ionicons name="close" size={22} color="#333" />
+                    </TouchableOpacity>
+                  </View>
 
-                  <Text style={[styles.inputLabel, { marginTop: 8 }]}>
-                    Beskrivning *
-                  </Text>
-                  <TextInput
-                    style={[styles.textInput, styles.textInputMulti]}
-                    placeholder="Beskriv ditt förslag i detalj..."
-                    placeholderTextColor="#aaa"
-                    value={description}
-                    onChangeText={setDescription}
-                    maxLength={2000}
-                    multiline
-                    numberOfLines={5}
-                    textAlignVertical="top"
-                  />
+                  <ScrollView
+                    style={{ flexShrink: 1 }}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    <Text style={styles.inputLabel}>Titel *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="Kortfattad titel på ditt förslag..."
+                      placeholderTextColor="#aaa"
+                      value={title}
+                      onChangeText={setTitle}
+                      maxLength={200}
+                      returnKeyType="next"
+                      autoFocus
+                    />
 
-                  {/* Category picker */}
-                  <View style={styles.catHeader}>
-                    <Text style={styles.inputLabel}>
-                      Kategorier (valfritt, max 3)
+                    <Text style={[styles.inputLabel, { marginTop: 8 }]}>
+                      Beskrivning *
                     </Text>
+                    <TextInput
+                      style={[styles.textInput, styles.textInputMulti]}
+                      placeholder="Beskriv ditt förslag i detalj..."
+                      placeholderTextColor="#aaa"
+                      value={description}
+                      onChangeText={setDescription}
+                      maxLength={2000}
+                      multiline
+                      numberOfLines={5}
+                      textAlignVertical="top"
+                    />
+
+                    {/* Category picker */}
+                    <View style={styles.catHeader}>
+                      <Text style={styles.inputLabel}>
+                        Kategorier (valfritt, max 3)
+                      </Text>
+                      <TouchableOpacity
+                        style={[
+                          styles.suggestBtn,
+                          (!title.trim() || suggesting) && { opacity: 0.4 },
+                        ]}
+                        onPress={suggestCategories}
+                        disabled={!title.trim() || suggesting}
+                        hitSlop={8}
+                      >
+                        {suggesting ? (
+                          <ActivityIndicator size="small" color={BLUE} />
+                        ) : (
+                          <>
+                            <Ionicons name="sparkles" size={13} color={BLUE} />
+                            <Text style={styles.suggestBtnText}>
+                              MAJ föreslår
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text style={styles.catGroupLabel}>Plats</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.chipRow}
+                    >
+                      {GEOGRAPHIC_CATEGORIES.map((cat) => (
+                        <TouchableOpacity
+                          key={cat}
+                          style={[
+                            styles.chip,
+                            categories.includes(cat) && styles.chipSelected,
+                          ]}
+                          onPress={() => toggleCategory(cat)}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              categories.includes(cat) &&
+                                styles.chipTextSelected,
+                            ]}
+                          >
+                            {cat}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+
+                    <Text style={[styles.catGroupLabel, { marginTop: 8 }]}>
+                      Ämne
+                    </Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.chipRow}
+                    >
+                      {THEMATIC_CATEGORIES.map((cat) => (
+                        <TouchableOpacity
+                          key={cat}
+                          style={[
+                            styles.chip,
+                            categories.includes(cat) && styles.chipSelected,
+                          ]}
+                          onPress={() => toggleCategory(cat)}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              categories.includes(cat) &&
+                                styles.chipTextSelected,
+                            ]}
+                          >
+                            {cat}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+
+                    {/* Image */}
+                    <View style={{ marginTop: 8 }}>
+                      {imageUri ? (
+                        <View style={styles.previewWrapper}>
+                          <Image
+                            source={{ uri: imageUri }}
+                            style={styles.previewImage}
+                            contentFit="cover"
+                          />
+                          <TouchableOpacity
+                            style={styles.removeImageBtn}
+                            onPress={() => setImageUri(null)}
+                            hitSlop={8}
+                          >
+                            <Ionicons
+                              name="close-circle"
+                              size={22}
+                              color="#dc2626"
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.imagePickerBtn}
+                          onPress={pickImage}
+                        >
+                          <Ionicons
+                            name="image-outline"
+                            size={18}
+                            color="#555"
+                          />
+                          <Text style={styles.imagePickerText}>
+                            Lägg till bild (valfritt)
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {!!error && (
+                      <Text style={[styles.formError, { marginTop: 8 }]}>
+                        {error}
+                      </Text>
+                    )}
+
                     <TouchableOpacity
                       style={[
-                        styles.suggestBtn,
-                        (!title.trim() || suggesting) && { opacity: 0.4 },
+                        styles.submitBtn,
+                        submitting && { opacity: 0.6 },
+                        { marginTop: 12 },
                       ]}
-                      onPress={suggestCategories}
-                      disabled={!title.trim() || suggesting}
-                      hitSlop={8}
+                      onPress={runReview}
+                      disabled={submitting}
                     >
-                      {suggesting ? (
-                        <ActivityIndicator size="small" color={BLUE} />
+                      {submitting ? (
+                        <ActivityIndicator color={BLUE} />
                       ) : (
                         <>
-                          <Ionicons name="sparkles" size={13} color={BLUE} />
-                          <Text style={styles.suggestBtnText}>
-                            MAJ föreslår
+                          <Ionicons name="send" size={16} color={BLUE} />
+                          <Text style={styles.submitBtnText}>
+                            Skicka in förslag
                           </Text>
                         </>
                       )}
                     </TouchableOpacity>
-                  </View>
-
-                  <Text style={styles.catGroupLabel}>Plats</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.chipRow}
-                  >
-                    {GEOGRAPHIC_CATEGORIES.map((cat) => (
-                      <TouchableOpacity
-                        key={cat}
-                        style={[
-                          styles.chip,
-                          categories.includes(cat) && styles.chipSelected,
-                        ]}
-                        onPress={() => toggleCategory(cat)}
-                        activeOpacity={0.7}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            categories.includes(cat) && styles.chipTextSelected,
-                          ]}
-                        >
-                          {cat}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
                   </ScrollView>
-
-                  <Text style={[styles.catGroupLabel, { marginTop: 8 }]}>
-                    Ämne
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.chipRow}
-                  >
-                    {THEMATIC_CATEGORIES.map((cat) => (
-                      <TouchableOpacity
-                        key={cat}
-                        style={[
-                          styles.chip,
-                          categories.includes(cat) && styles.chipSelected,
-                        ]}
-                        onPress={() => toggleCategory(cat)}
-                        activeOpacity={0.7}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            categories.includes(cat) && styles.chipTextSelected,
-                          ]}
-                        >
-                          {cat}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-
-                  {/* Image */}
-                  <View style={{ marginTop: 8 }}>
-                    {imageUri ? (
-                      <View style={styles.previewWrapper}>
-                        <Image
-                          source={{ uri: imageUri }}
-                          style={styles.previewImage}
-                          resizeMode="cover"
-                        />
-                        <TouchableOpacity
-                          style={styles.removeImageBtn}
-                          onPress={() => setImageUri(null)}
-                          hitSlop={8}
-                        >
-                          <Ionicons
-                            name="close-circle"
-                            size={22}
-                            color="#dc2626"
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={styles.imagePickerBtn}
-                        onPress={pickImage}
-                      >
-                        <Ionicons name="image-outline" size={18} color="#555" />
-                        <Text style={styles.imagePickerText}>
-                          Lägg till bild (valfritt)
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {!!error && (
-                    <Text style={[styles.formError, { marginTop: 8 }]}>
-                      {error}
-                    </Text>
-                  )}
-
-                  <TouchableOpacity
-                    style={[
-                      styles.submitBtn,
-                      submitting && { opacity: 0.6 },
-                      { marginTop: 12 },
-                    ]}
-                    onPress={submit}
-                    disabled={submitting}
-                  >
-                    {submitting ? (
-                      <ActivityIndicator color={BLUE} />
-                    ) : (
-                      <>
-                        <Ionicons name="send" size={16} color={BLUE} />
-                        <Text style={styles.submitBtnText}>
-                          Skicka in förslag
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </ScrollView>
-              </View>
-            </TouchableWithoutFeedback>
-          </KeyboardAvoidingView>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
+                </View>
+              </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+      {review && (
+        <MajReviewSheet
+          originalText={description}
+          review={review}
+          kind="proposal"
+          hasImage={!!imageUri}
+          onPickImage={pickImage}
+          onPublish={(finalText) => publish(finalText)}
+          onCancel={() => setReview(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -593,11 +642,7 @@ export default function ProposalsScreen() {
   }
 
   if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={BLUE} />
-      </View>
-    );
+    return <LoadingLoop />;
   }
   if (error) {
     return (
@@ -712,6 +757,9 @@ export default function ProposalsScreen() {
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
+// Neutral blur shown instantly while a remote card image downloads (first view
+// only — expo-image's disk cache serves it with no network on later starts).
+const BLURHASH = "L6PZfSi_.AyE_3t7t7R**0o#DgR4";
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#000" },
