@@ -99,7 +99,7 @@ export default function MembershipScreen() {
           <Text style={styles.rulesTitle}>Regler</Text>
           <Text style={styles.rulesText}>
             Du kan rösta i fem frågor fram till valet, debattera och lämna ett
-            förslag. Skriv kortfattat och sakligt.
+            förslag. Upprepa inte samma förslag. Skriv kortfattat och sakligt.
             {"\n\n"}Efter valet är rösträtten begränsad, vilket gör rösterna
             mycket tyngre. Alla har då rätt att rösta i två frågor om året och
             lämna ett förslag.
