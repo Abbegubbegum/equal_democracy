@@ -25,6 +25,7 @@ import { useAuth } from "../../lib/auth-context";
 import XAIModal from "../../lib/XAIModal";
 import InterestsModal from "../../lib/InterestsModal";
 import { SettingsModal } from "../../lib/SettingsModal";
+import { selectQuestion } from "../../lib/selected-question";
 import {
   incrementLoginCount,
   getOnboardingState,
@@ -47,6 +48,14 @@ type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
 const ACTIVE_COLOR = "#002d75";
 const INACTIVE_COLOR = "#aaa";
+
+// `data.screen` on a push payload → route to open when it's tapped
+const NOTIFICATION_ROUTES: Record<string, string> = {
+  vote: "/vote",
+  sessions: "/sessions",
+  proposals: "/proposals",
+  archive: "/archive", // pushed as a standalone screen (not a tab)
+};
 
 const TAB_ICONS: Record<string, IoniconsName> = {
   index: "home-outline",
@@ -133,24 +142,32 @@ function TabNavigator() {
   const routerRef = useRef(router);
   routerRef.current = router;
 
+  // Deep link from a tapped push notification.
+  //
+  // useLastNotificationResponse() rather than addNotificationResponseReceivedListener():
+  // the hook also returns the response the app was *launched* with, so a cold
+  // start works even though this component mounts long after the tap — after
+  // the session is restored from SecureStore and, if the user was logged out,
+  // after they have signed in.
+  const notificationResponse = Notifications.useLastNotificationResponse();
+
   useEffect(() => {
-    if (IS_EXPO_GO) return;
-    const screenMap: Record<string, string> = {
-      vote: "/vote",
-      sessions: "/sessions",
-      proposals: "/proposals",
-      archive: "/archive", // pushed as a standalone screen (not a tab)
-    };
-    const sub = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const screen = response.notification.request.content.data?.screen as
-          | string
-          | undefined;
-        routerRef.current.navigate((screenMap[screen ?? ""] ?? "/") as any);
-      },
-    );
-    return () => sub.remove();
-  }, []);
+    if (!notificationResponse) return;
+    const data = notificationResponse.notification.request.content.data as
+      | { screen?: string; questionId?: string }
+      | undefined;
+
+    (async () => {
+      // Preselect the question the notification is about, so Rösta opens on it
+      // directly instead of the "välj en fråga på Hem" empty state.
+      if (data?.questionId) await selectQuestion(String(data.questionId));
+      routerRef.current.navigate(
+        (NOTIFICATION_ROUTES[data?.screen ?? ""] ?? "/") as any,
+      );
+      // Consume the response so a later remount (logout → login) can't replay it.
+      Notifications.clearLastNotificationResponse();
+    })();
+  }, [notificationResponse]);
 
   // Normalise pathname (strip route-group prefix)
   const normPath = pathname.replace(/^\/\([^)]*\)/, "") || "/";

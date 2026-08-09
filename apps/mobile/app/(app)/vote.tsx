@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as Notifications from "expo-notifications";
 import { useFocusEffect, useNavigation } from "expo-router";
 import CelebrationModal from "../../lib/CelebrationModal";
@@ -16,10 +16,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { apiClient } from "../../lib/api";
 import {
-  getItem,
-  deleteItem,
-  STORAGE_SELECTED_QUESTION,
-} from "../../lib/storage";
+  getSelectedQuestion,
+  clearSelectedQuestion,
+  onSelectedQuestionChange,
+} from "../../lib/selected-question";
 import {
   VotingQuestionCard,
   type VoteCounts,
@@ -58,12 +58,26 @@ export default function VoteScreen() {
     }, []),
   );
 
+  // A tapped push notification can preselect a question while this screen is
+  // already the focused tab — no blur/focus happens then, so the focus effect
+  // above never re-runs and we'd keep showing the previous question.
+  const selectedIdRef = useRef<string | null>(null);
+  selectedIdRef.current = selectedId;
+
+  useEffect(
+    () =>
+      onSelectedQuestionChange((id) => {
+        if (id && id !== selectedIdRef.current) load();
+      }),
+    [],
+  );
+
   async function load() {
     if (!hasLoadedRef.current) setLoading(true);
     setFetchError(null);
     try {
       const [storedId, data] = await Promise.all([
-        getItem(STORAGE_SELECTED_QUESTION),
+        getSelectedQuestion(),
         apiClient<{ questions: VotingSession[]; quota: VotingQuota }>(
           "/api/mobile/questions",
         ),
@@ -135,7 +149,7 @@ export default function VoteScreen() {
   }
 
   async function handleUnselect() {
-    await deleteItem(STORAGE_SELECTED_QUESTION);
+    await clearSelectedQuestion();
     setSelectedId(null);
     setSelected(null);
     navigation.navigate("index");

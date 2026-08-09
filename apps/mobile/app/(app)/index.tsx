@@ -12,7 +12,7 @@ import { useFocusEffect, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { apiClient } from "../../lib/api";
-import { setItem, STORAGE_SELECTED_QUESTION } from "../../lib/storage";
+import { selectQuestion } from "../../lib/selected-question";
 import type { VotingSession, VotingQuota } from "../../lib/VotingQuestionCard";
 import LoadingLoop from "../../lib/LoadingLoop";
 
@@ -66,7 +66,7 @@ export default function HomeScreen() {
   }
 
   async function handleSelect(sessionId: string) {
-    await setItem(STORAGE_SELECTED_QUESTION, sessionId);
+    await selectQuestion(sessionId);
     navigation.navigate("vote");
   }
 
