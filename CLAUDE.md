@@ -45,7 +45,7 @@ equal_democracy/
 └── package.json
 ```
 
-**Package manager:** pnpm 10.33.0 · **Node:** >=18 · **TypeScript:** 5.9.2 (strict mode OFF — noImplicitAny: false)
+**Package manager:** pnpm 11.21.0 · **Node:** >=22.13 (pnpm 11's own floor — older Node can't even run `pnpm install`) · **TypeScript:** 5.9.2 (strict mode OFF — noImplicitAny: false)
 
 ---
 
@@ -612,8 +612,8 @@ Claude API receives base64-encoded PDF. Budget extraction (`lib/budget/ai-extrac
 - **`next.config.mjs`** — standalone output, transpiles all 36 D3 subpackages (ESM), optimizes lucide-react
 - **`apps/web/tsconfig.json`** — target ES2018, lib es2018, path alias `@/*` → `./*`, strict OFF. Lib intentionally matches target so `tsc --noEmit` catches syntax newer than the target before build.
 - **`postcss.config.mjs`** — Tailwind CSS v4 processing
-- **`pnpm-workspace.yaml`** — `apps/*` + `packages/*`
-- **`package.json`** (root) — `pnpm.onlyBuiltDependencies` allowlist for `sharp` and `unrs-resolver` (suppresses build-script warnings)
+- **`pnpm-workspace.yaml`** — `apps/*` + `packages/*`, plus the `allowBuilds` build-script allowlist for `sharp` and `unrs-resolver` (suppresses build-script warnings). This lived in root `package.json` as `pnpm.onlyBuiltDependencies` until the pnpm 11 upgrade moved it here
+- **`package.json`** (root) — `packageManager` pins pnpm; `engines.node` is `>=22.13` because that's pnpm 11's floor
 - **`apps/mobile/.eslintrc.js`** — extends `expo`; required so `eslint .` works without `expo lint` auto-installing packages
 
 ---
@@ -639,7 +639,7 @@ Claude API receives base64-encoded PDF. Budget extraction (`lib/budget/ai-extrac
 | Analytics          | Vercel Analytics                                                                                                                                                                                  |
 | Mobile             | Expo 54 + React Native 0.81.5 + expo-router 6 + @react-navigation/material-top-tabs 7 + react-native-pager-view 6 + expo-image-picker ~17 + expo-image-manipulator ~14 + expo-notifications ~0.32 |
 | Monorepo           | Turborepo 2.8.20                                                                                                                                                                                  |
-| Package manager    | pnpm 10.33.0                                                                                                                                                                                      |
+| Package manager    | pnpm 11.21.0                                                                                                                                                                                      |
 
 ---
 
