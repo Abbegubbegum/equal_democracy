@@ -58,7 +58,15 @@ export async function createMembershipPayment(): Promise<CreatedPayment> {
  * us, which is why the server returns only the token and never a ready-made URL.
  */
 export function buildSwishUrl(token: string): string {
-  const returnUrl = Linking.createURL("/payment");
+  // Must be a route that actually exists. Anything else lands on Expo Router's
+  // unmatched-route path, which this app has no navigator to present (the root
+  // layout is a <Slot />) — that crashed the app on return from Swish.
+  //
+  // "/membership" is the Info tab (app/(app)/membership.tsx — route groups are
+  // not part of the URL), which is the screen the user started from. Returning
+  // to the screen they are already on means no navigation happens: the payment
+  // sheet stays mounted and its AppState listener polls immediately.
+  const returnUrl = Linking.createURL("/membership");
   return `swish://paymentrequest?token=${token}&callbackurl=${encodeURIComponent(returnUrl)}`;
 }
 

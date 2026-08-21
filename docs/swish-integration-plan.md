@@ -319,10 +319,14 @@ Mobile                    Our API                     Swish
    `useEffect` in the sheet is deliberately keyed on `visible` alone with an eslint-disable, since
    including `start` would create a new payment request on every render.
 
-   Still unverified on hardware: the `swish://` app switch, whether `callbackurl` needs single or
-   double URL-encoding (the Swish guide's example shows it double-encoded), and the return trip
-   into the app. None of these can be tested against MSS — its tokens do not open the real Swish
-   app.
+   **Resolved on hardware 2026-08-21** by a live 1 kr production payment: the `swish://` app switch
+   works, single `encodeURIComponent` on `callbackurl` is correct (the guide's double-encoded
+   example does not apply), Swish's callback reached production, and membership was granted. The
+   return trip **crashed the app**: `buildSwishUrl()` pointed at `/payment`, a route that does not
+   exist, and the root layout is a `<Slot />` with no navigator to present an unmatched route in.
+   Fixed by returning to `/membership` (the screen the user starts from, so no navigation happens
+   and the payment sheet stays mounted) plus an `app/+not-found.tsx` catch-all, since deep links
+   arrive from outside the app and cannot all be controlled.
 
 7. ~~**Reconcile cron + admin list**~~ — ✅ **done 2026-08-21.**
    `POST /api/payments/reconcile-swish` (registered in `vercel.json` at 03:30) and

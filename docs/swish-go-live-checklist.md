@@ -126,6 +126,13 @@ Set these on the **Production** environment. Leave Preview and Development on MS
 
 ## Phase 5 — The live test (real money, 1 kr)
 
+> **First live run, 2026-08-21 — payment succeeded, return trip crashed.** The payment reached
+> `PAID` (1 kr, production env, real `paymentReference`), Swish's callback reached production and
+> membership was granted. The app crashed on return because `buildSwishUrl()` targeted `/payment`,
+> which is not a route. Fixed in `lib/swish.ts` (return to `/membership`) plus `app/+not-found.tsx`.
+> **Requires a new build to retest.** Note the tester is now a member, so a repeat attempt answers
+> 409 "Du är redan medlem" until their membership fields are reset.
+
 On a real phone with the real Swish app and BankID installed:
 
 - [ ] Info tab shows **1 kr**, not 250 — proves the fee is server-driven.

@@ -138,7 +138,11 @@ child.on("exit", (code) => {
       `\n✔ Build(s) submitted (${platform === "all" ? "Google Play + App Store Connect" : platform}).` +
         `\n  Next: write release notes by hand (EAS has no changelog support):` +
         `\n    • Google Play Console → "Vad är nytt" (sv-SE)` +
-        `\n    • App Store Connect → "What's New in This Version"\n`,
+        `\n    • App Store Connect → "What's New in This Version"` +
+        `\n\n  Then, ONCE ${next} is live in BOTH stores, bump the version` +
+        `\n  that older builds are told to update to:` +
+        `\n    apps/web/lib/app-version.ts  ->  LATEST_MOBILE_VERSION = "${next}"` +
+        `\n  (bumping it before the stores have it nags users with nothing to install)\n`,
     );
   }
   process.exit(code ?? 0);
