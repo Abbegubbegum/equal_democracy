@@ -12,7 +12,11 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
+import SwishPaymentSheet from "../../lib/SwishPaymentSheet";
+import CelebrationModal from "../../lib/CelebrationModal";
+import { getMembership, type Membership } from "../../lib/swish";
+import { addStars } from "../../lib/stars";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
@@ -52,10 +56,57 @@ const VALUES = [
   },
 ];
 
+/** Reward for joining — the same as submitting a citizen proposal. */
+const MEMBERSHIP_STARS = 5;
+
+/**
+ * "2027-12-31T23:59:59.999Z" → "2027", for the member badge.
+ *
+ * Must read the year in UTC. The server stores the last covered instant as UTC
+ * end-of-year, and Sweden is UTC+1/+2 — so getFullYear() would report 2028 for
+ * a membership that runs through 2027.
+ */
+function paidUntilYear(paidUntil: string | null): string | null {
+  if (!paidUntil) return null;
+  const year = new Date(paidUntil).getUTCFullYear();
+  return Number.isFinite(year) ? String(year) : null;
+}
+
 export default function MembershipScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [showQR, setShowQR] = React.useState(false);
+  const [membership, setMembership] = React.useState<Membership | null>(null);
+  const [showPayment, setShowPayment] = React.useState(false);
+  const [celebrate, setCelebrate] = React.useState(false);
+
+  // Read fresh on focus: membership can be granted while the app is open (the
+  // payment sheet) or on another device, and the stored auth user never changes.
+  useFocusEffect(
+    React.useCallback(() => {
+      let active = true;
+      getMembership()
+        .then((m) => active && setMembership(m))
+        .catch(() => {
+          /* leave the pay button visible — the server re-checks on POST */
+        });
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
+  const isMember = membership?.status === "active";
+  const memberUntil = paidUntilYear(membership?.paidUntil ?? null);
+
+  const handlePaid = (paidUntil: string | null) => {
+    setShowPayment(false);
+    setMembership((prev) =>
+      prev ? { ...prev, status: "active", paidUntil } : prev,
+    );
+    addStars(MEMBERSHIP_STARS);
+    setCelebrate(true);
+  };
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -126,12 +177,23 @@ export default function MembershipScreen() {
           </Text>
         </View>
 
+        {/*
+          Fee and covered years come from the server, never from a constant
+          bundled into the build. That is what lets the price be changed (e.g.
+          from a 1 kr live test to the real 250 kr) by editing the API alone,
+          with no new App Store / Play release.
+        */}
         <View style={styles.priceCard}>
           <Text style={styles.priceLabel}>Medlemsavgift</Text>
           <Text style={styles.price}>
-            250 kr <Text style={styles.pricePer}>/år</Text>
+            {membership ? `${membership.feeSek} kr` : "…"}{" "}
+            <Text style={styles.pricePer}>/år</Text>
           </Text>
-          <Text style={styles.priceYears}>Täcker 2026 och 2027</Text>
+          {membership && membership.years.length > 0 && (
+            <Text style={styles.priceYears}>
+              Täcker {membership.years.join(" och ")}
+            </Text>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -144,11 +206,23 @@ export default function MembershipScreen() {
           ))}
         </View>
 
-        <TouchableOpacity style={styles.payBtn} activeOpacity={0.85} disabled>
-          <Ionicons name="card-outline" size={20} color={BLUE} />
-          <Text style={styles.payBtnText}>Betala med Swish</Text>
-        </TouchableOpacity>
-        <Text style={styles.comingSoon}>Betalning aktiveras snart</Text>
+        {isMember ? (
+          <View style={styles.memberBadge}>
+            <Ionicons name="checkmark-circle" size={22} color="#16a34a" />
+            <Text style={styles.memberBadgeText}>
+              Du är medlem{memberUntil ? ` till och med ${memberUntil}` : ""}
+            </Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.payBtn}
+            activeOpacity={0.85}
+            onPress={() => setShowPayment(true)}
+          >
+            <Ionicons name="card-outline" size={20} color={BLUE} />
+            <Text style={styles.payBtnText}>Betala med Swish</Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={styles.shareBtn}
@@ -219,6 +293,20 @@ export default function MembershipScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      <SwishPaymentSheet
+        visible={showPayment}
+        onClose={() => setShowPayment(false)}
+        onPaid={handlePaid}
+      />
+
+      <CelebrationModal
+        visible={celebrate}
+        title="Välkommen som medlem!"
+        subtitle="Din avgift täcker både 2026 och 2027."
+        stars={MEMBERSHIP_STARS}
+        onDone={() => setCelebrate(false)}
+      />
     </View>
   );
 }
@@ -347,15 +435,20 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 14,
     gap: 10,
-    opacity: 0.5,
   },
   payBtnText: { color: BLUE, fontSize: 16, fontWeight: "800" },
-  comingSoon: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 13,
-    textAlign: "center",
-    marginTop: -8,
+  memberBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "rgba(22,163,74,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(22,163,74,0.5)",
+    paddingVertical: 16,
+    borderRadius: 14,
   },
+  memberBadgeText: { color: "#fff", fontSize: 16, fontWeight: "800" },
 
   priceYears: {
     color: BLUE,

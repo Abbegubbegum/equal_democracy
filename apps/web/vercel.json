@@ -3,6 +3,10 @@
     {
       "path": "/api/check-session-timeout",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/payments/reconcile-swish",
+      "schedule": "30 3 * * *"
     }
   ]
 }

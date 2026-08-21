@@ -81,6 +81,23 @@ const UserSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Membership — set only by lib/membership.ts when a Payment reaches PAID.
+    // Never written directly from a request handler.
+    membershipStatus: {
+      type: String,
+      enum: ["none", "active"],
+      default: "none",
+      index: true,
+    },
+    // End of the last calendar year this member has paid for.
+    membershipPaidUntil: {
+      type: Date,
+      default: null,
+    },
+    membershipFirstPaidAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -1433,3 +1450,123 @@ export const QuestionCommentRating = safeModel(
   "QuestionCommentRating",
   QuestionCommentRatingSchema,
 );
+
+// ---------------------------------------------------------------------------
+// Payment — Swish Commerce API payment requests (membership fees)
+//
+// There is deliberately no payeePaymentReference field: we send this document's
+// own _id (24 hex chars, well within Swish's 1-36 char a-zA-Z0-9-_.+*/ limit) as
+// the payeePaymentReference, so any Swish object can be traced back to a row
+// without storing the same value twice. The Payment doc is therefore created
+// before the request is sent to Swish, not after.
+// ---------------------------------------------------------------------------
+
+const PaymentSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    // The instructionUUID we PUT to Swish: 32 uppercase hex chars, no dashes.
+    // Also the id Swish's own GET/PATCH endpoints take.
+    instructionId: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    // Echoed back by Swish as a header on the callback. The callback is
+    // otherwise unauthenticated, so this is what proves it belongs to us.
+    callbackIdentifier: {
+      type: String,
+      required: true,
+    },
+    // PaymentRequestToken — what the mobile app-switch URL carries. Only
+    // returned for m-commerce requests (those sent without a payerAlias).
+    token: {
+      type: String,
+      default: null,
+    },
+    // The bank's reference for the completed payment. Only set once PAID.
+    paymentReference: {
+      type: String,
+      default: null,
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0.01,
+    },
+    currency: {
+      type: String,
+      default: "SEK",
+    },
+    message: {
+      type: String,
+      maxlength: [50, "Swish messages cannot be more than 50 characters"],
+    },
+    status: {
+      type: String,
+      enum: ["CREATED", "PAID", "DECLINED", "ERROR", "CANCELLED"],
+      default: "CREATED",
+      index: true,
+    },
+    errorCode: {
+      type: String,
+      default: null,
+    },
+    errorMessage: {
+      type: String,
+      default: null,
+    },
+    // The payer's phone number, returned by Swish once they sign.
+    payerAlias: {
+      type: String,
+      default: null,
+    },
+    purpose: {
+      type: String,
+      enum: ["membership"],
+      default: "membership",
+    },
+    // Calendar years this payment covers, e.g. [2026, 2027].
+    membershipYears: {
+      type: [Number],
+      default: [],
+    },
+    // Which Swish environment this was made against. Guards against a sandbox
+    // row ever granting real membership — lib/membership.ts checks it.
+    env: {
+      type: String,
+      enum: ["mss", "production"],
+      required: true,
+    },
+    datePaid: {
+      type: Date,
+      default: null,
+    },
+    // Last time we asked Swish for this payment's state. Throttles the
+    // on-demand check in GET /api/mobile/payments/[id], which several clients
+    // may poll every couple of seconds.
+    lastPolledAt: {
+      type: Date,
+      default: null,
+    },
+    // Verbatim callback body, kept for dispute/debugging. Never read as truth.
+    rawCallback: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+  },
+  { timestamps: true },
+);
+
+// "Does this user have a payment in flight / are they paid up?"
+PaymentSchema.index({ userId: 1, status: 1 });
+// Reconcile cron: find CREATED payments older than N minutes.
+PaymentSchema.index({ status: 1, createdAt: 1 });
+
+// Force-refresh Payment — new model, schema will iterate while Swish is built out
+if (mongoose.models["Payment"]) delete mongoose.models["Payment"];
+export const Payment: AnyModel = mongoose.model("Payment", PaymentSchema);
