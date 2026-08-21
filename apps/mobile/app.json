@@ -3,7 +3,7 @@
     "name": "Vallentuna",
     "slug": "mobile",
     "scheme": "vallentunaframat",
-    "version": "1.2.0",
+    "version": "1.2.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -11,13 +11,14 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#002d75"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "se.vallentunaframat.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": ["swish"]
       }
     },
     "android": {

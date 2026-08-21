@@ -12,7 +12,9 @@ import { ArrowLeft, Plus, X } from "lucide-react";
 import { fetchWithCsrf } from "../lib/fetch-with-csrf";
 import { useConfig } from "../lib/contexts/ConfigContext";
 import { INTEREST_AREAS, INTEREST_TO_CATEGORIES } from "@repo/types";
-import MajReviewSheet from "../components/MajReviewSheet";
+import MajReviewSheet, {
+  type MajDuplicate,
+} from "../components/MajReviewSheet";
 
 interface Proposal {
   _id: string;
@@ -226,6 +228,17 @@ export default function MedborgarforslagPage() {
               setView("list");
               await fetchProposals();
             }}
+            onGoToProposal={(id) => {
+              // Clear any category filter so the flagged proposal is in the list.
+              setFilterCategory(null);
+              setView("list");
+              // Wait for the list to render, then reveal the flagged proposal.
+              setTimeout(() => {
+                document
+                  .getElementById(`proposal-${id}`)
+                  ?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }, 100);
+            }}
           />
         )}
       </main>
@@ -246,7 +259,8 @@ function ProposalCard({
 
   return (
     <div
-      className={`relative flex flex-col justify-end rounded-[20px] overflow-hidden shadow-[0_14px_32px_-20px_rgba(0,20,64,0.6)] ${
+      id={`proposal-${p._id}`}
+      className={`relative flex flex-col justify-end rounded-[20px] overflow-hidden shadow-[0_14px_32px_-20px_rgba(0,20,64,0.6)] scroll-mt-24 ${
         leader ? "ring-[3px] ring-accent-400 min-h-[255px]" : "min-h-[230px]"
       }`}
     >
@@ -346,9 +360,11 @@ function ProposalCard({
 function CreateForm({
   onCancel,
   onCreated,
+  onGoToProposal,
 }: {
   onCancel: () => void;
   onCreated: () => void;
+  onGoToProposal: (id: string) => void;
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -360,6 +376,7 @@ function CreateForm({
   const [review, setReview] = useState<{
     corrected: string | null;
     concise: string | null;
+    duplicates?: MajDuplicate[];
   } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -383,14 +400,14 @@ function CreateForm({
       const res = await fetchWithCsrf("/api/maj/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: description, kind: "proposal" }),
+        body: JSON.stringify({ text: description, kind: "proposal", title }),
       });
       const data = res.ok
         ? await res.json()
-        : { corrected: null, concise: null };
+        : { corrected: null, concise: null, duplicates: [] };
       setReview(data);
     } catch {
-      setReview({ corrected: null, concise: null });
+      setReview({ corrected: null, concise: null, duplicates: [] });
     } finally {
       setReviewing(false);
     }
@@ -569,6 +586,7 @@ function CreateForm({
           hasImage={!!image}
           onPickImage={() => fileRef.current?.click()}
           onPublish={(finalText) => publish(finalText)}
+          onGoToProposal={onGoToProposal}
           onCancel={() => setReview(null)}
         />
       )}

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as Notifications from "expo-notifications";
 import { useFocusEffect, useNavigation } from "expo-router";
 import CelebrationModal from "../../lib/CelebrationModal";
@@ -8,19 +8,18 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   ScrollView,
-  Image,
   StatusBar,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { apiClient } from "../../lib/api";
 import {
-  getItem,
-  deleteItem,
-  STORAGE_SELECTED_QUESTION,
-} from "../../lib/storage";
+  getSelectedQuestion,
+  clearSelectedQuestion,
+  onSelectedQuestionChange,
+} from "../../lib/selected-question";
 import {
   VotingQuestionCard,
   type VoteCounts,
@@ -28,9 +27,13 @@ import {
   type VotingQuota,
 } from "../../lib/VotingQuestionCard";
 import VotingDebateSection from "../../lib/VotingDebateSection";
+import LoadingLoop from "../../lib/LoadingLoop";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
+// Neutral blur shown instantly while the background image downloads (first view
+// only — expo-image's disk cache serves it with no network on later starts).
+const BLURHASH = "L6PZfSi_.AyE_3t7t7R**0o#DgR4";
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 
 export default function VoteScreen() {
@@ -55,12 +58,26 @@ export default function VoteScreen() {
     }, []),
   );
 
+  // A tapped push notification can preselect a question while this screen is
+  // already the focused tab — no blur/focus happens then, so the focus effect
+  // above never re-runs and we'd keep showing the previous question.
+  const selectedIdRef = useRef<string | null>(null);
+  selectedIdRef.current = selectedId;
+
+  useEffect(
+    () =>
+      onSelectedQuestionChange((id) => {
+        if (id && id !== selectedIdRef.current) load();
+      }),
+    [],
+  );
+
   async function load() {
     if (!hasLoadedRef.current) setLoading(true);
     setFetchError(null);
     try {
       const [storedId, data] = await Promise.all([
-        getItem(STORAGE_SELECTED_QUESTION),
+        getSelectedQuestion(),
         apiClient<{ questions: VotingSession[]; quota: VotingQuota }>(
           "/api/mobile/questions",
         ),
@@ -132,18 +149,14 @@ export default function VoteScreen() {
   }
 
   async function handleUnselect() {
-    await deleteItem(STORAGE_SELECTED_QUESTION);
+    await clearSelectedQuestion();
     setSelectedId(null);
     setSelected(null);
     navigation.navigate("index");
   }
 
   if (loading) {
-    return (
-      <View style={[styles.center, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={BLUE} />
-      </View>
-    );
+    return <LoadingLoop />;
   }
 
   if (fetchError) {
@@ -205,7 +218,10 @@ export default function VoteScreen() {
         <Image
           source={{ uri }}
           style={StyleSheet.absoluteFill}
-          resizeMode="cover"
+          contentFit="cover"
+          transition={200}
+          cachePolicy="memory-disk"
+          placeholder={{ blurhash: BLURHASH }}
         />
       ) : (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: BLUE }]} />

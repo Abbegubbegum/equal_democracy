@@ -10,6 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { apiClient } from "./api";
 import { addStars } from "./stars";
+import MajReviewSheet, { type MajReview } from "./MajReviewSheet";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
@@ -76,6 +77,8 @@ export default function VotingDebateSection({
     severity: "warn" | "flag";
     message: string;
   } | null>(null);
+  const [review, setReview] = useState<MajReview | null>(null);
+  const [pendingText, setPendingText] = useState("");
 
   useEffect(() => {
     load();
@@ -95,7 +98,7 @@ export default function VotingDebateSection({
     }
   }
 
-  async function doPost() {
+  async function doPost(finalText: string) {
     setSubmitting(true);
     setError(null);
     try {
@@ -103,7 +106,7 @@ export default function VotingDebateSection({
         "/api/mobile/questions/comments",
         {
           method: "POST",
-          body: JSON.stringify({ questionId, text: text.trim(), type }),
+          body: JSON.stringify({ questionId, text: finalText, type }),
         },
       );
       setComments((prev) => sortComments([...prev, created]));
@@ -117,9 +120,35 @@ export default function VotingDebateSection({
     }
   }
 
+  // Step 1: let MAJ offer writing tips before posting (fail-open — an outage
+  // still shows the sheet so the flow is consistent).
   async function handleSend() {
     const trimmed = text.trim();
     if (!trimmed || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const data = await apiClient<MajReview>("/api/mobile/maj/review", {
+        method: "POST",
+        body: JSON.stringify({
+          text: trimmed,
+          kind: "argument",
+          questionId,
+          stance: type,
+        }),
+      });
+      setReview(data);
+    } catch {
+      setReview({ corrected: null, concise: null, duplicates: [] });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // Step 2: from the review sheet, run the existing moderation gate on the
+  // final (possibly MAJ-improved) text, then post.
+  async function moderateThenPost(finalText: string) {
+    setReview(null);
     setSubmitting(true);
     setError(null);
     try {
@@ -128,18 +157,19 @@ export default function VotingDebateSection({
         message: string;
       }>("/api/mobile/moderate", {
         method: "POST",
-        body: JSON.stringify({ text: trimmed }),
+        body: JSON.stringify({ text: finalText }),
       });
       setSubmitting(false);
       if (mod.status === "ok") {
-        await doPost();
+        await doPost(finalText);
       } else {
+        setPendingText(finalText);
         setModDialog({ severity: mod.status, message: mod.message });
       }
     } catch {
       // Moderation check failed — fail open, same as the web flow.
       setSubmitting(false);
-      await doPost();
+      await doPost(finalText);
     }
   }
 
@@ -244,7 +274,7 @@ export default function VotingDebateSection({
                   ]}
                   onPress={async () => {
                     setModDialog(null);
-                    await doPost();
+                    await doPost(pendingText);
                   }}
                 >
                   <Text style={styles.modConfirmText}>Publicera ändå</Text>
@@ -310,6 +340,16 @@ export default function VotingDebateSection({
         <Text style={styles.closedNotice}>
           Debatten är stängd för den här frågan.
         </Text>
+      )}
+
+      {review && (
+        <MajReviewSheet
+          originalText={text.trim()}
+          review={review}
+          kind="argument"
+          onPublish={(finalText) => moderateThenPost(finalText)}
+          onCancel={() => setReview(null)}
+        />
       )}
 
       {loading ? (

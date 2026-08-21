@@ -69,7 +69,13 @@ export async function getTokensForCategories(
   return (users as any[]).map((u) => u.expoPushToken).filter(Boolean);
 }
 
+/**
+ * `data.questionId` is what makes the notification deep-link: the mobile app
+ * preselects that question and opens the Rösta tab on it, so the user never has
+ * to find the new question in the Hem feed.
+ */
 export async function notifyNewVotingQuestion(
+  questionId: string,
   question: string,
   tokens: string[],
 ): Promise<void> {
@@ -80,7 +86,7 @@ export async function notifyNewVotingQuestion(
     to: token,
     title: "Ny fråga! 🗳️",
     body: question,
-    data: { screen: "vote" },
+    data: { screen: "vote", questionId },
     badge: 1,
     sound: "default",
   }));

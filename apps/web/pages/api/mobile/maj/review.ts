@@ -1,24 +1,27 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]";
+import { verifyBearerToken } from "@/lib/mobile-jwt";
 import { runMajReview } from "@/lib/maj-review";
 import { createLogger } from "@/lib/logger";
 
-const log = createLogger("majReview");
+const log = createLogger("MobileMajReview");
 
 /**
- * POST /api/maj/review
- * MAJ's help at creation time (web, session-auth). Returns
+ * POST /api/mobile/maj/review
+ * Bearer-auth twin of /api/maj/review for the mobile create flows. Returns
  * { corrected, concise, duplicates }. Fails open so it never blocks posting.
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  if (req.method !== "POST") return res.status(405).end();
+  if (req.method !== "POST")
+    return res.status(405).json({ message: "Method not allowed" });
 
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
+  try {
+    verifyBearerToken(req.headers.authorization);
+  } catch {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
 
   const { text, kind, title, questionId, stance } = req.body;
   if (!text || typeof text !== "string" || !text.trim()) {

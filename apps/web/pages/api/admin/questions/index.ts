@@ -130,9 +130,16 @@ export default async function handler(
         createdBy: session.user.id,
       });
 
-      // Send targeted push notification to the mobile app
+      // Send targeted push notification to the mobile app. The question id
+      // travels along so tapping the notification opens Rösta on this question.
       getTokensForCategories(categories)
-        .then((tokens) => notifyNewVotingQuestion(question.text, tokens))
+        .then((tokens) =>
+          notifyNewVotingQuestion(
+            question._id.toString(),
+            question.text,
+            tokens,
+          ),
+        )
         .catch(() => {});
 
       return res.status(201).json({

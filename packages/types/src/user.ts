@@ -2,6 +2,7 @@ import type { BaseDocument } from "./base.js";
 
 export type AdminStatus = "none" | "pending" | "approved" | "denied";
 export type NotificationPreference = "email" | "sms" | "both" | "none";
+export type MembershipStatus = "none" | "active";
 
 export interface User extends BaseDocument {
   name: string;
@@ -19,6 +20,10 @@ export interface User extends BaseDocument {
   notificationPreference: NotificationPreference;
   phoneNumber?: string;
   emailOptOut: boolean;
+  membershipStatus: MembershipStatus;
+  /** End of the last calendar year this member has paid for. */
+  membershipPaidUntil?: string | null;
+  membershipFirstPaidAt?: string | null;
 }
 
 /** Subset of User returned in session context (auth token) */

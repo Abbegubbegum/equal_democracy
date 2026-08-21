@@ -23,6 +23,29 @@ export interface ReviewResult {
   concise: string | null; // shorter/clearer version, or null if already tight
 }
 
+// How a draft proposal relates to an existing one MAJ flags as a likely duplicate.
+export type DuplicateRelation =
+  | "same" // same idea, just reworded
+  | "more_specific" // a precisering of the existing proposal
+  | "more_general"; // a deprecisering (broader version) of the existing one
+
+export interface DuplicateMatch {
+  id: string; // _id of the existing proposal
+  relation: DuplicateRelation;
+  reason: string; // one short Swedish sentence explaining the overlap
+}
+
+export interface DuplicateCandidate {
+  id: string;
+  title: string;
+  description: string;
+}
+
+export interface ArgumentCandidate {
+  id: string;
+  text: string;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -213,4 +236,162 @@ Regler:
   } catch {
     return { corrected: null, concise: null };
   }
+}
+
+/**
+ * MAJ duplicate check: given a draft citizen proposal and the list of existing
+ * active proposals, flag those that describe the same idea — whether reworded
+ * ("gör en beach" vs "anlägg en badstrand"), a precisering (more specific), or
+ * a deprecisering (more general). Conservative: only near-certain overlaps.
+ * Fails open (returns []) so AI outages never block posting.
+ */
+export async function findDuplicates(options: {
+  title: string;
+  description: string;
+  candidates: DuplicateCandidate[];
+}): Promise<DuplicateMatch[]> {
+  const { title, description, candidates } = options;
+  if (!candidates.length) return [];
+
+  // Reference candidates by index so Claude never has to echo long ObjectIds.
+  const list = candidates
+    .map((c, i) =>
+      `[${i}] ${c.title}\n${c.description.trim().slice(0, 240)}`.trim(),
+    )
+    .join("\n\n");
+
+  const system = `Du är MAJ, en assistent för en svensk kommunal demokratiplattform. En medborgare lämnar ett nytt medborgarförslag. Din uppgift är att avgöra om samma förslag redan finns bland de befintliga förslagen — så att medborgare röstar på ETT gemensamt förslag i stället för att splittra rösterna på dubletter.
+
+En dublett kan vara:
+- "same": samma förslag med andra ord (t.ex. "gör en beach" = "anlägg en badstrand")
+- "more_specific": en precisering av ett befintligt förslag (samma idé, men snävare)
+- "more_general": en mer allmän formulering (deprecisering) av ett befintligt förslag
+
+Svara med ENBART en JSON-array, inget annat:
+[{"index": <nummer>, "relation": "same"|"more_specific"|"more_general", "reason": "<kort mening på svenska>"}]
+
+Regler:
+• Ta bara med förslag som verkligen handlar om samma sak — vid minsta tvekan, utelämna det.
+• Olika ämnen som råkar dela kategori är INTE dubletter.
+• Returnera en tom array [] om inget befintligt förslag är en dublett.
+• "reason": max en mening som förklarar överlappet.`;
+
+  const userMessage = `NYTT FÖRSLAG:\n${title}\n${description.trim().slice(0, 500)}\n\nBEFINTLIGA FÖRSLAG:\n${list}`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: AI_MODELS.fast,
+      max_tokens: 400,
+      system,
+      messages: [{ role: "user", content: userMessage }],
+    });
+
+    const raw = ((response.content[0] as any).text ?? "").trim();
+    return parseDuplicateMatches(
+      raw,
+      candidates.map((c) => c.id),
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * MAJ duplicate check for a debate argument: given a draft argument and the
+ * existing arguments on the SAME question with the SAME stance, flag those that
+ * make the same point — reworded, more specific, or more general. Point is to
+ * steer people to rate an existing argument instead of reposting it, so the
+ * finite set of real arguments doesn't drown in duplicates. Conservative; fails
+ * open (returns []).
+ */
+export async function findDuplicateArguments(options: {
+  text: string;
+  candidates: ArgumentCandidate[];
+}): Promise<DuplicateMatch[]> {
+  const { text, candidates } = options;
+  if (!candidates.length) return [];
+
+  // Reference candidates by index so Claude never has to echo long ObjectIds.
+  const list = candidates
+    .map((c, i) => `[${i}] ${c.text.trim().slice(0, 240)}`)
+    .join("\n\n");
+
+  const system = `Du är MAJ, en assistent för en svensk kommunal demokratiplattform. En medborgare skriver ett nytt debattargument i en fråga. Alla argument nedan har SAMMA ställningstagande (för/emot/neutral) som det nya. Din uppgift är att avgöra om samma argument redan framförts — så att medborgare betygsätter ETT gemensamt argument i stället för att splittra rösterna på dubletter.
+
+En dublett kan vara:
+- "same": samma poäng med andra ord
+- "more_specific": en precisering av ett befintligt argument (samma poäng, men snävare)
+- "more_general": en mer allmän formulering (deprecisering) av ett befintligt argument
+
+Svara med ENBART en JSON-array, inget annat:
+[{"index": <nummer>, "relation": "same"|"more_specific"|"more_general", "reason": "<kort mening på svenska>"}]
+
+Regler:
+• Ta bara med argument som verkligen gör samma poäng — vid minsta tvekan, utelämna det.
+• Två argument på samma sida men av OLIKA skäl är INTE dubletter.
+• Returnera en tom array [] om inget befintligt argument är en dublett.
+• "reason": max en mening som förklarar överlappet.`;
+
+  const userMessage = `NYTT ARGUMENT:\n${text.trim().slice(0, 500)}\n\nBEFINTLIGA ARGUMENT (samma ställningstagande):\n${list}`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: AI_MODELS.fast,
+      max_tokens: 400,
+      system,
+      messages: [{ role: "user", content: userMessage }],
+    });
+    const raw = ((response.content[0] as any).text ?? "").trim();
+    return parseDuplicateMatches(
+      raw,
+      candidates.map((c) => c.id),
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Parse Claude's `[{index, relation, reason}]` reply into DuplicateMatch[],
+ * mapping each index back to the candidate id at that position. Shared by the
+ * proposal and argument duplicate checks. Never throws.
+ */
+function parseDuplicateMatches(raw: string, ids: string[]): DuplicateMatch[] {
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const match = cleaned.match(/\[.*\]/s);
+  if (!match) return [];
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(match[0]);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+
+  const relations: DuplicateRelation[] = [
+    "same",
+    "more_specific",
+    "more_general",
+  ];
+  const seen = new Set<string>();
+  const results: DuplicateMatch[] = [];
+
+  for (const item of parsed as any[]) {
+    const idx = Number(item?.index);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= ids.length) continue;
+    const relation = relations.includes(item?.relation)
+      ? (item.relation as DuplicateRelation)
+      : "same";
+    const id = ids[idx];
+    if (seen.has(id)) continue;
+    seen.add(id);
+    results.push({
+      id,
+      relation,
+      reason: typeof item?.reason === "string" ? item.reason.trim() : "",
+    });
+  }
+
+  return results;
 }

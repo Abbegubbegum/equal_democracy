@@ -17,20 +17,14 @@
   },
   "devDependencies": {
     "husky": "^9.1.7",
-    "lint-staged": "^17.0.5",
-    "prettier": "^3.7.4",
-    "turbo": "^2.8.20",
+    "lint-staged": "^17.3.0",
+    "prettier": "^3.9.6",
+    "turbo": "^2.10.11",
     "typescript": "5.9.2"
   },
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@11.21.0",
   "engines": {
-    "node": ">=18"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp",
-      "unrs-resolver"
-    ]
+    "node": ">=22.13"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mjs,cjs,md,json,yml,yaml,css}": "prettier --write"
