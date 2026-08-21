@@ -1,0 +1,26 @@
+# https://www.vallentuna.app/robots.txt
+
+User-agent: *
+
+# Admin surfaces — nothing here is public, and indexing them only advertises
+# the login walls to bots.
+Disallow: /admin
+Disallow: /manage-sessions
+Disallow: /manage-questions
+Disallow: /manage-content
+Disallow: /manage-proposals
+
+# API. Not useful to a crawler, and /api/swish/callback in particular must only
+# ever be reached by Swish.
+Disallow: /api/
+
+# Account deletion flow. Indexing a page whose whole purpose is destroying an
+# account is a bad idea, and it is reached from inside the app anyway.
+Disallow: /radera
+
+# Login has no indexable content of its own.
+Disallow: /login
+
+Allow: /
+
+Sitemap: https://www.vallentuna.app/sitemap.xml

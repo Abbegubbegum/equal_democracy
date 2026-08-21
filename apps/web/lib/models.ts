@@ -1558,6 +1558,14 @@ const PaymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: null,
     },
+    // Set when the payer deleted their account. The row is kept because a
+    // membership fee is räkenskapsinformation (bokföringslagen 7 kap. 2 §, seven
+    // years), but payerAlias and rawCallback are cleared so what remains is
+    // pseudonymised. See DELETE /api/account/delete.
+    userDeletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true },
 );

@@ -40,7 +40,7 @@ export default function LegalPage() {
               Integritetspolicy
             </h2>
             <p className="text-xs text-gray-400 mb-6">
-              Senast uppdaterad: 14 juni 2026
+              Senast uppdaterad: 21 augusti 2026
             </p>
 
             <h3 className="font-bold text-gray-800 mt-6 mb-2">
@@ -84,6 +84,14 @@ export default function LegalPage() {
                     ["Intresseområden", "Anpassa notiser och innehåll"],
                     ["Push-notis-token", "Skicka aviseringar till din enhet"],
                     ["Telefonnummer", "SMS-notiser (valfritt)"],
+                    [
+                      "Medlemskap",
+                      "Om du betalat medlemsavgift och vilka år den täcker",
+                    ],
+                    [
+                      "Betalningsuppgifter (Swish)",
+                      "Belopp, tidpunkt, status och Swish betalningsreferens samt det telefonnummer som betalade — krävs för att genomföra och bokföra medlemsavgiften",
+                    ],
                     ["IP-adress", "Säkerhet och felsökning"],
                     [
                       "Anonym användningsstatistik",
@@ -114,7 +122,10 @@ export default function LegalPage() {
               Vi behandlar dina uppgifter med stöd av{" "}
               <strong>berättigat intresse</strong> (demokratiskt deltagande i
               lokalpolitiken samt anonym användningsstatistik för att förbättra
-              appen) och <strong>samtycke</strong> (push-notiser, SMS).
+              appen), <strong>samtycke</strong> (push-notiser, SMS),{" "}
+              <strong>avtal</strong> (ditt medlemskap och betalningen av
+              medlemsavgiften) och <strong>rättslig förpliktelse</strong>{" "}
+              (bokföring av inbetalda medlemsavgifter).
             </p>
 
             <h3 className="font-bold text-gray-800 mt-6 mb-2">
@@ -124,6 +135,14 @@ export default function LegalPage() {
               Ditt konto och alla tillhörande uppgifter sparas så länge du är
               aktiv användare. Du kan när som helst begära radering (se punkt
               7).
+            </p>
+            <p className="text-gray-600 text-sm leading-relaxed mt-2">
+              <strong>Undantag för betalningar.</strong> En inbetald
+              medlemsavgift är räkenskapsinformation och måste enligt
+              bokföringslagen sparas i sju år. Om du raderar ditt konto tas
+              därför inte själva betalningsposten bort, men vi rensar det
+              telefonnummer som betalade så att det som finns kvar är belopp,
+              tidpunkt och betalningsreferens.
             </p>
 
             <h3 className="font-bold text-gray-800 mt-6 mb-2">
@@ -153,6 +172,11 @@ export default function LegalPage() {
               </li>
               <li>
                 <strong>Twilio</strong> — SMS-notiser (om du valt det)
+              </li>
+              <li>
+                <strong>Getswish AB</strong> — hantering av medlemsavgift via
+                Swish. Vi tar aldrig emot eller lagrar dina kontouppgifter; de
+                hanteras av Swish och din bank.
               </li>
             </ul>
 
@@ -269,13 +293,42 @@ export default function LegalPage() {
               AI-granskning ersätter inte mänsklig bedömning.
             </p>
 
-            <h3 className="font-bold text-gray-800 mt-6 mb-2">6. Ändringar</h3>
+            <h3 className="font-bold text-gray-800 mt-6 mb-2">
+              6. Medlemskap och avgift
+            </h3>
+            <p className="text-gray-600 text-sm leading-relaxed">
+              Medlemsavgiften är 250 kr och betalas med Swish i appen. Som
+              erbjudande till dig som går med tidigt täcker avgiften både 2026
+              och 2027 — du betalar en gång och är medlem i två år. Medlemskapet
+              är personligt och kan inte överlåtas.
+            </p>
+            <p className="text-gray-600 text-sm leading-relaxed mt-2">
+              Betalningen hanteras av Swish och din bank. Vi tar aldrig emot
+              eller lagrar dina kontouppgifter — vi ser bara att betalningen
+              genomförts, vilket belopp det gällde och vilket telefonnummer som
+              betalade.
+            </p>
+            <p className="text-gray-600 text-sm leading-relaxed mt-2">
+              <strong>Ångra betalning.</strong> Vill du ångra ditt medlemskap,
+              kontakta oss inom 14 dagar från betalningen på{" "}
+              <a
+                href="mailto:kontakt@vallentunaframat.se"
+                className="text-[#002d75] underline"
+              >
+                kontakt@vallentunaframat.se
+              </a>{" "}
+              så betalar vi tillbaka avgiften. Du kan när som helst lämna
+              partiet genom att radera ditt konto, men avgiften för den period
+              som redan påbörjats återbetalas inte efter ångerfristen.
+            </p>
+
+            <h3 className="font-bold text-gray-800 mt-6 mb-2">7. Ändringar</h3>
             <p className="text-gray-600 text-sm leading-relaxed">
               Vi kan uppdatera dessa villkor. Väsentliga ändringar meddelas via
               appen eller e-post.
             </p>
 
-            <h3 className="font-bold text-gray-800 mt-6 mb-2">7. Kontakt</h3>
+            <h3 className="font-bold text-gray-800 mt-6 mb-2">8. Kontakt</h3>
             <p className="text-gray-600 text-sm leading-relaxed">
               <a
                 href="mailto:kontakt@vallentunaframat.se"
