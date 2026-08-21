@@ -1,15 +1,12 @@
 import type { GetServerSidePropsContext } from "next";
 import Head from "next/head";
 import Link from "next/link";
+import { APP_STORE_URL, PLAY_STORE_URL } from "../lib/app-version";
 
-// ── Store links — update these as tracks go live, no app rebuild needed ──
-// The QR code baked into the mobile app points at this page, so changing
-// where users land only ever requires editing/redeploying this file.
-const PLAY_URL =
-  "https://play.google.com/store/apps/details?id=se.vallentunaframat.app";
-// App Store URL — no region prefix so Apple routes each visitor to their own
-// storefront. App ID 6781031191.
-const APP_STORE_URL = "https://apps.apple.com/app/id6781031191";
+// Store links live in lib/app-version.ts — shared with the mobile app's version
+// check, so the "where do I get the app" answer has exactly one definition. The
+// QR code baked into the mobile app points at this page, so changing where
+// users land only ever requires a web deploy.
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
@@ -20,7 +17,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
   const isIOS = /iphone|ipad|ipod/.test(ua);
 
   if (isAndroid) {
-    return { redirect: { destination: PLAY_URL, permanent: false } };
+    return { redirect: { destination: PLAY_STORE_URL, permanent: false } };
   }
   if (isIOS && APP_STORE_URL) {
     return { redirect: { destination: APP_STORE_URL, permanent: false } };
@@ -58,7 +55,7 @@ export default function AppDownloadPage({
 
         <div className="mt-8 space-y-3">
           <a
-            href={PLAY_URL}
+            href={PLAY_STORE_URL}
             className="block w-full px-6 py-4 rounded-xl font-semibold"
             style={{ backgroundColor: YELLOW, color: BLUE }}
           >

@@ -3,6 +3,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "../lib/auth-context";
 import LoadingLoop from "../lib/LoadingLoop";
+import UpdateGate from "../lib/UpdateGate";
 
 // While the session is being restored from storage, show the animated brand
 // loop instead of a blank screen — it takes over from the (blue) native splash
@@ -19,6 +20,10 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
           <RootNavigator />
+          {/* Outside the auth guard on purpose: a build old enough to be
+              blocked may also be too old to sign in, and the update wall has to
+              be reachable from the login screen too. */}
+          <UpdateGate />
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
