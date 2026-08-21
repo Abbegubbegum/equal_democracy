@@ -20,7 +20,14 @@
         "BLOB_STORE_ID",
         "BLOB_WEBHOOK_PUBLIC_KEY",
         "BLOB_READ_WRITE_TOKEN",
-        "CRON_SECRET"
+        "CRON_SECRET",
+        "SWISH_ENV",
+        "SWISH_PAYEE_ALIAS",
+        "SWISH_CALLBACK_BASE_URL",
+        "SWISH_CERT_BASE64",
+        "SWISH_KEY_BASE64",
+        "MEMBERSHIP_FEE_SEK",
+        "ENABLE_EXPERIMENTAL_COREPACK"
       ]
     },
     "lint": {
