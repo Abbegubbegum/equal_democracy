@@ -7,15 +7,172 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Conventions**
 
-- The canonical product version lives in the root [`package.json`](package.json); `apps/web`
-  and `apps/mobile` (`package.json` + `app.json`) are kept in sync with it.
-- Each release is tagged `vX.Y.Z` (e.g. `git tag -a v1.0.0`). Mobile store **build numbers**
-  (`versionCode` / `buildNumber`) are auto-incremented by EAS and tracked separately from this
-  human-facing version.
-- Add changes under `[Unreleased]` as you go; on release, rename it to the new version + date
-  and start a fresh `[Unreleased]`.
+- The canonical product version is `expo.version` in [`apps/mobile/app.json`](apps/mobile/app.json).
+  That is the number `pnpm release` bumps, the number the stores show, and the number
+  [`apps/web/lib/app-version.ts`](apps/web/lib/app-version.ts) compares an installed build
+  against. The root and `apps/web` `package.json` versions trail it and are not authoritative;
+  `apps/mobile/package.json` is not versioned at all.
+- Mobile store **build numbers** (`versionCode` / `buildNumber`) are auto-incremented by EAS and
+  tracked separately from this human-facing version.
+- **A released version is not necessarily a public one.** EAS submitting a build only puts it in
+  TestFlight / the internal track. See the "reached the public stores" note on each entry below,
+  and [docs/release-notes.md](docs/release-notes.md) for the user-facing store copy.
+- Add changes under `[Unreleased]` as you go; on release, rename it to the new version + date and
+  start a fresh `[Unreleased]`.
+
+> **Backfill note (2026-08-22).** Versions 1.1.0 through 1.2.3 were reconstructed from git history
+> after the changelog went unmaintained for ~3 months. They are accurate as to what shipped but
+> are grouped after the fact, so they are coarser than an entry written at the time.
 
 ## [Unreleased]
+
+### Fixed
+
+- **Mobile API latency.** Serverless functions had no `regions` pin, so Vercel ran them in `iad1`
+  (Washington DC) while the MongoDB Atlas cluster sits in Europe — every database round trip
+  crossed the Atlantic twice and `/api/mobile/*` sat at ~1.3s. Pinned to `arn1` (Stockholm).
+- `GET /api/mobile/questions` no longer loads every `QuestionVote` row into the function to count
+  them in JavaScript; vote tallies come from a `$group` aggregation. Added a standalone index on
+  `QuestionVote.userId`, which the existing compound index could not serve for the quota count.
+- The mobile **Rösta** tab no longer refetches the whole question list to display the single
+  question the **Hem** tab just handed it. Both screens share an in-memory cache and revalidate
+  behind the rendered screen instead of behind a full-screen loading state.
+- Account deletion gaps closed, and what the app stores is now documented; added `robots.txt`.
+
+### Changed
+
+- The **Hem** feed is a windowed `FlatList` rather than a `ScrollView`, so card images load as
+  they come into view instead of starting one download per active question at once.
+- React Compiler lint rules `react-hooks/immutability` and `react-hooks/refs` are enforced as
+  errors again after the code they flagged was fixed.
+
+### Removed
+
+- `output: "standalone"` from the Next config (a self-hosted setting Vercel ignores) and the
+  unused `pdf-parse` dependency.
+
+### Docs
+
+- `PRODUCTION_READINESS.md` rewritten as [SCALING.md](SCALING.md) — where the app stops working
+  as it grows, with headroom measured against the production database rather than estimated.
+- Line endings pinned to LF via `.gitattributes`, so `pnpm format` no longer rewrites every file
+  in the repo.
+
+## [1.2.3] - 2026-08-21
+
+Reached the public stores. Users upgrading from 1.2.1 get 1.2.2's changes in this release too.
+
+### Added
+
+- **Update prompts.** The app asks the server whether its build is current and renders the
+  verdict: a dismissable sheet for a new version, an undismissable wall for one that is too old
+  to work. The policy, store links and copy all live server-side, because a build already on a
+  phone can only be reached by a web deploy.
+
+### Fixed
+
+- Crash on returning from Swish. The `callbackurl` named a route that does not exist, and the
+  root layout had no navigator able to present it.
+
+### Infrastructure
+
+- Swish environment variables declared in `turbo.json`; the Vercel Corepack requirement
+  documented.
+
+## [1.2.2] - 2026-08-21
+
+**Never reached the public stores** — builds 6, 7 and 8 were TestFlight / internal only.
+
+### Added
+
+- **Swish membership payments.** Pay the membership fee in-app over the Swish Commerce API:
+  mTLS client certificates from base64 environment variables, an unauthenticated callback that
+  re-fetches the payment from Swish rather than trusting the POST body, and a daily reconcile
+  cron as the safety net beneath both.
+- Tapping a push notification about a new question now opens that question directly under
+  **Rösta**, including from a cold start.
+
+### Changed
+
+- Membership rules text clarified (do not repeat an existing proposal).
+
+### Infrastructure
+
+- Migrated to pnpm 11; Node baseline raised to 22.13.
+
+## [1.2.1] - 2026-07-15
+
+### Added
+
+- **MAJ writing help.** Before posting a citizen proposal or a debate argument, MAJ offers a
+  corrected and a shortened version and warns if the same point already exists — same-stance
+  duplicate detection for arguments, whole-stack detection for proposals.
+- The web app harmonized with mobile: the Förslag stack, the Hem/Rösta flow, and shared category
+  definitions.
+- Image compression on admin upload routes.
+- Back-to-top as a permanent last card on Hem and Förslag.
+
+### Fixed
+
+- The monthly motion is gated to the 1st and to post-election; questions are ordered by turnout.
+
+## [1.2.0] - 2026-07-07
+
+### Changed
+
+- **The restructure.** Surveys removed entirely, voting sessions replaced by the
+  `Question` / `QuestionVote` / `QuestionComment` family, `MunicipalSession` renamed to
+  `MunicipalMeeting`, and the global `Settings.sessionLimitHours` replaced by a per-session
+  `deadline`. Unused `User` fields and every denormalized aggregate were dropped in the same pass.
+
+### Fixed
+
+- **Atlas connection exhaustion (production incident).** Capped the MongoDB pool size — the
+  driver defaults to 100 connections _per lambda instance_, which exhausted the shared-tier limit
+  of 500 — and removed the N+1 query burst in the admin live panel that was forcing the pool to
+  expand on every request.
+- Stopped the live-panel polling storm caused by long-lived voting sessions.
+
+### Added
+
+- Licensed under AGPL-3.0, with the §13 network-use source-code link surfaced in the app.
+- `pnpm release` — one command to bump, build and submit a mobile release.
+
+## [1.1.0] - 2026-07-02
+
+The bulk of the post-launch work: app-store compliance, GDPR, and the pre-election voting flow.
+
+### Added
+
+- **Pre-election Ja/Nej voting flow** with an inline för/emot debate and a 5-vote quota per user
+  ahead of BankID verification.
+- Admin panel restructured into **Mina frågor / Rösta / Förslag** tabs.
+- `/support` page (required by the App Store) and `/radera`, the GDPR account-deletion flow,
+  with its API.
+- Privacy policy and terms of service; About page redesigned.
+- Google Play review login bypass, so reviewers can get past the email OTP wall.
+- `dev:live` launchers: the web dev server against the production database, and Expo Go against
+  the production API.
+- EAS Insights analytics; logout in the settings sheet; images on citizen proposals after
+  submission; CSRF protection on the proposal and citizen-proposal admin APIs.
+
+### Changed
+
+- **XAI assistant rebranded to MAJ**; login screen redesigned to match the web (blue background,
+  Vallentuna Framåt branding, amber CTA, Swedish throughout).
+- Archive moved out of the tab swipe to a button on the Info tab.
+- Citizen-proposal categories migrated from numeric ids to `ALL_CATEGORIES` strings.
+
+### Removed
+
+- Web-target support from the native mobile app — `react-native-pager-view` has no web
+  implementation and the target never worked.
+
+### Fixed
+
+- Archive links and a municipality 404 guard, so the dynamic route stops matching arbitrary slugs.
+- Interests now actually save to the database; markdown code fences stripped from AI category
+  responses; Swedish characters restored on `/support`; PNG favicon replacing the broken `.ico`.
 
 ## [1.0.0] - 2026-05-31
 
@@ -43,5 +200,10 @@ Initial release — the platform as deployed for Vallentuna kommun.
 - Serverless-ready on Vercel: image uploads on Vercel Blob, a daily session-timeout cron, and a
   documented production deploy checklist (since rewritten as [SCALING.md](SCALING.md)).
 
-[Unreleased]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.3...HEAD
+[1.2.3]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.2...v1.2.3
+[1.2.2]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.1...v1.2.2
+[1.2.1]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.0...v1.2.1
+[1.2.0]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Abbegubbegum/equal_democracy/releases/tag/v1.0.0
