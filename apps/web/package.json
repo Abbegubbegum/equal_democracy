@@ -30,7 +30,6 @@
     "mongoose": "^8.19.1",
     "next": "^15.5.7",
     "next-auth": "^4.24.15",
-    "pdf-parse": "^2.4.5",
     "pusher": "^5.3.4",
     "pusher-js": "^8.6.0",
     "react": "19.1.0",

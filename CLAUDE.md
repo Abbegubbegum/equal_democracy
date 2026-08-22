@@ -4,7 +4,7 @@
 
 These override the default Claude Code defaults for this project:
 
-1. **Production-ready by default.** Every change must work on the deploy target (Vercel serverless), not just on a dev machine. No filesystem writes to `public/`, no assumptions of persistent in-process state across requests, no reliance on a long-running Node process. If a feature needs a cron/queue/blob store in production, wire it up — don't leave a dev-only shim. See [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for the running list of patterns to avoid.
+1. **Production-ready by default.** Every change must work on the deploy target (Vercel serverless), not just on a dev machine. No filesystem writes to `public/`, no assumptions of persistent in-process state across requests, no reliance on a long-running Node process. If a feature needs a cron/queue/blob store in production, wire it up — don't leave a dev-only shim. See [SCALING.md](SCALING.md) for the running list of patterns to avoid and the measured headroom on each.
 
 2. **Runtime matters.** Consider what happens after deploy: function cold starts, 60s/300s timeouts, read-only filesystem outside `/tmp`, ephemeral `/tmp`, multiple lambda instances, MongoDB connection pooling, CDN caching of `public/`. A solution that works at 5 users but fails at 500 is not finished.
 
@@ -28,7 +28,7 @@ These override the default Claude Code defaults for this project:
 
 **Serverless functions must stay in `arn1` (Stockholm).** `apps/web/vercel.json` pins `"regions": ["arn1"]`. Without that key Vercel defaults to `iad1` (Washington DC) while the Atlas cluster sits in Europe (~16 ms RTT from Sweden), so every database round trip crossed the Atlantic twice — `X-Vercel-Id` read `arn1::iad1::…`, meaning the request hit the Stockholm edge and was then shipped to Virginia. That alone put `/api/mobile/questions` and `/api/mobile/citizen-proposals` at ~1.3 s each in production: ~280 ms of pure routing (measured on a 401, which returns before `connectDB()`), plus a cold Mongo handshake of 6–8 transatlantic round trips, plus one crossing per query wave. The payloads were never the problem — prod holds 47 questions and 147 votes. If you ever move the Atlas cluster, move this region with it; the two must stay co-located.
 
-**Before deploying to Vercel**, read [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) — it tracks patterns in the codebase that work locally but break on serverless (filesystem writes to `public/`, missing cron, etc.) and lists the env vars + checklist for first deploy.
+**Before changing anything that runs per-request or fans out to many recipients**, read [SCALING.md](SCALING.md) — it records where the app stops working as it grows, the measured headroom on each limit, and which ones are knowingly deferred. It also carries the serverless rules that already caused incidents: no filesystem writes outside `/tmp`, no state on `global`, no N+1 query loops (that one exhausted the Atlas connection pool in production).
 
 ## Project Overview
 

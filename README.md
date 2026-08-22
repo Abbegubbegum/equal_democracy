@@ -72,7 +72,7 @@ supported on this setup; see [CLAUDE.md](CLAUDE.md) for why.
 
 - **[CLAUDE.md](CLAUDE.md)** — the authoritative reference: architecture, data model,
   every route/page/package, and the project's working principles.
-- **[PRODUCTION_READINESS.md](PRODUCTION_READINESS.md)** — serverless/Vercel deploy
+- **[SCALING.md](SCALING.md)** — where the app stops working as it grows, with measured headroom
   checklist and the patterns to avoid before shipping.
 - **[CHANGELOG.md](CHANGELOG.md)** — release history (Semantic Versioning).
 

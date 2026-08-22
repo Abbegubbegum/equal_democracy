@@ -41,7 +41,7 @@ Initial release — the platform as deployed for Vallentuna kommun.
 - EAS build profiles (development dev-client + production) with `EXPO_PUBLIC_API_URL` baked per
   profile and auto-incremented mobile build numbers.
 - Serverless-ready on Vercel: image uploads on Vercel Blob, a daily session-timeout cron, and a
-  documented production deploy checklist ([PRODUCTION_READINESS.md](PRODUCTION_READINESS.md)).
+  documented production deploy checklist (since rewritten as [SCALING.md](SCALING.md)).
 
 [Unreleased]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/Abbegubbegum/equal_democracy/releases/tag/v1.0.0
