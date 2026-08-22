@@ -1,10 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: "standalone",
   // sharp is a native module (used by the admin/citizen image-upload routes to
-  // compress before Blob upload). Keep it external so it's traced into the
-  // standalone bundle rather than bundled by webpack/Turbopack.
+  // compress before Blob upload). Keep it external so it is traced as a real
+  // dependency rather than bundled by webpack/Turbopack.
   serverExternalPackages: ["sharp"],
   transpilePackages: [
     "@repo/types",

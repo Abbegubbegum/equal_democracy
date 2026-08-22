@@ -1,6 +1,73 @@
 import { useEffect, useRef } from "react";
 import * as d3 from "d3";
 
+// Helper function to wrap text with hyphenation support
+function wrapText(text, maxWidth) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let currentLine = words[0] || "";
+
+  // Average character width estimate (adjusted for larger font sizes)
+  const avgCharWidth = 10;
+  const maxCharsPerLine = Math.floor(maxWidth / avgCharWidth);
+
+  for (let i = 1; i < words.length; i++) {
+    const word = words[i];
+    const testLine = currentLine + " " + word;
+
+    if (testLine.length <= maxCharsPerLine) {
+      currentLine = testLine;
+    } else {
+      // If current word is very long, try to hyphenate it
+      if (word.length > maxCharsPerLine && currentLine.length > 0) {
+        lines.push(currentLine);
+        currentLine = hyphenateWord(word, maxCharsPerLine);
+      } else if (word.length > maxCharsPerLine) {
+        currentLine = hyphenateWord(word, maxCharsPerLine);
+      } else {
+        lines.push(currentLine);
+        currentLine = word;
+      }
+    }
+  }
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  return lines.slice(0, 3); // Max 3 lines
+}
+
+// Helper function to hyphenate long words
+function hyphenateWord(word, maxChars) {
+  if (word.length <= maxChars) return word;
+
+  // Simple hyphenation: break at syllable-like positions
+  // For Swedish, common break points
+  const breakPoints = [
+    "ning",
+    "tion",
+    "sion",
+    "ling",
+    "het",
+    "ska",
+    "ligt",
+    "igt",
+    "are",
+    "or",
+  ];
+
+  for (const breakPoint of breakPoints) {
+    const index = word.indexOf(breakPoint);
+    if (index > 0 && index < maxChars - 1) {
+      return word.substring(0, index + breakPoint.length) + "-";
+    }
+  }
+
+  // Fallback: break at maxChars - 1 and add hyphen
+  return word.substring(0, maxChars - 1) + "-";
+}
+
 /**
  * Simple Mobile-Friendly Treemap for Budget Committees
  * Shows only expense categories with green-to-red color scale
@@ -252,75 +319,7 @@ export default function SimpleTreemap({
     return () => {
       window.removeEventListener("resize", handleResize);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories, taxBaseInfo, onCategoryClick]);
-
-  // Helper function to wrap text with hyphenation support
-  function wrapText(text, maxWidth) {
-    const words = text.split(/\s+/);
-    const lines = [];
-    let currentLine = words[0] || "";
-
-    // Average character width estimate (adjusted for larger font sizes)
-    const avgCharWidth = 10;
-    const maxCharsPerLine = Math.floor(maxWidth / avgCharWidth);
-
-    for (let i = 1; i < words.length; i++) {
-      const word = words[i];
-      const testLine = currentLine + " " + word;
-
-      if (testLine.length <= maxCharsPerLine) {
-        currentLine = testLine;
-      } else {
-        // If current word is very long, try to hyphenate it
-        if (word.length > maxCharsPerLine && currentLine.length > 0) {
-          lines.push(currentLine);
-          currentLine = hyphenateWord(word, maxCharsPerLine);
-        } else if (word.length > maxCharsPerLine) {
-          currentLine = hyphenateWord(word, maxCharsPerLine);
-        } else {
-          lines.push(currentLine);
-          currentLine = word;
-        }
-      }
-    }
-
-    if (currentLine) {
-      lines.push(currentLine);
-    }
-
-    return lines.slice(0, 3); // Max 3 lines
-  }
-
-  // Helper function to hyphenate long words
-  function hyphenateWord(word, maxChars) {
-    if (word.length <= maxChars) return word;
-
-    // Simple hyphenation: break at syllable-like positions
-    // For Swedish, common break points
-    const breakPoints = [
-      "ning",
-      "tion",
-      "sion",
-      "ling",
-      "het",
-      "ska",
-      "ligt",
-      "igt",
-      "are",
-      "or",
-    ];
-
-    for (const breakPoint of breakPoints) {
-      const index = word.indexOf(breakPoint);
-      if (index > 0 && index < maxChars - 1) {
-        return word.substring(0, index + breakPoint.length) + "-";
-      }
-    }
-
-    // Fallback: break at maxChars - 1 and add hyphen
-    return word.substring(0, maxChars - 1) + "-";
-  }
 
   return (
     <div className="w-full">

@@ -1,0 +1,28 @@
+# Line endings.
+#
+# Prettier has no endOfLine setting here, so `pnpm format` writes LF. Git was
+# checking files out as CRLF (core.autocrlf=true on Windows), so every format
+# run rewrote all ~220 text files' line endings and left them all showing as
+# modified in `git status` — even though the stored blobs never changed and
+# `git diff` showed nothing. Pinning the working tree to LF matches what
+# Prettier writes, what git already stores, and what CI/Vercel build on, and
+# makes the checkout identical on every machine regardless of core.autocrlf.
+* text=auto eol=lf
+
+# Binaries git shouldn't inspect or convert. `text=auto` already detects most
+# of these, but being explicit stops a false positive from corrupting one.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.pdf   binary
+*.mp3   binary
+*.wav   binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+*.keystore binary
+*.jks   binary

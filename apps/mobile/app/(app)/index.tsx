@@ -1,9 +1,9 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   Dimensions,
 } from "react-native";
@@ -11,9 +11,14 @@ import { Image } from "expo-image";
 import { useFocusEffect, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { apiClient } from "../../lib/api";
 import { selectQuestion } from "../../lib/selected-question";
 import type { VotingSession, VotingQuota } from "../../lib/VotingQuestionCard";
+import {
+  fetchQuestions,
+  getCachedQuestions,
+  onQuestionsChange,
+  type QuestionsPayload,
+} from "../../lib/questions-cache";
 import LoadingLoop from "../../lib/LoadingLoop";
 
 const BLUE = "#002d75";
@@ -22,7 +27,15 @@ const YELLOW = "#f5a623";
 // only — expo-image's disk cache serves it with no network on later starts).
 const BLURHASH = "L6PZfSi_.AyE_3t7t7R**0o#DgR4";
 const CARD_HEIGHT = Math.round(Dimensions.get("window").width * 0.78);
+const CARD_GAP = 16;
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
+
+function imageUri(s: VotingSession): string | null {
+  if (!s.imageUrl) return null;
+  return s.imageUrl.startsWith("http")
+    ? s.imageUrl
+    : `${BASE_URL}${s.imageUrl}`;
+}
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -31,12 +44,22 @@ export default function HomeScreen() {
   const [quota, setQuota] = useState<VotingQuota | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const hasLoadedRef = useRef(false);
-  const scrollRef = useRef<ScrollView>(null);
+  const listRef = useRef<FlatList<VotingSession>>(null);
 
   function scrollToTop() {
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
   }
+
+  const applyPayload = useCallback((payload: QuestionsPayload) => {
+    setSessions(
+      (payload.questions ?? []).filter((s) => s.isActive && !s.userVote),
+    );
+    setQuota(payload.quota ?? null);
+  }, []);
+
+  // Rösta writes a cast vote straight into the cache, so the question it was
+  // cast on leaves this feed without a refetch.
+  useEffect(() => onQuestionsChange(applyPayload), [applyPayload]);
 
   useFocusEffect(
     useCallback(() => {
@@ -45,37 +68,69 @@ export default function HomeScreen() {
   );
 
   async function load() {
-    if (!hasLoadedRef.current) setLoading(true);
+    // Render whatever the cache holds first — the spinner is only for a genuine
+    // cold start, never for a refocus that already has data to show.
+    const cached = getCachedQuestions();
+    if (cached) {
+      applyPayload(cached);
+      setLoading(false);
+    }
     setFetchError(null);
     try {
-      const data = await apiClient<{
-        questions: VotingSession[];
-        quota: VotingQuota;
-      }>("/api/mobile/questions");
-      const available = (data.questions ?? []).filter(
-        (s) => s.isActive && !s.userVote,
-      );
-      setSessions(available);
-      setQuota(data.quota ?? null);
+      applyPayload(await fetchQuestions());
     } catch (e: any) {
-      setFetchError(e.message);
+      // A failed background revalidation must not blank out good cached data.
+      if (!getCachedQuestions()) setFetchError(e.message);
     } finally {
       setLoading(false);
-      hasLoadedRef.current = true;
     }
   }
 
-  async function handleSelect(sessionId: string) {
-    await selectQuestion(sessionId);
-    navigation.navigate("vote");
-  }
+  const handleSelect = useCallback(
+    async (sessionId: string) => {
+      await selectQuestion(sessionId);
+      navigation.navigate("vote");
+    },
+    [navigation],
+  );
 
-  function imageUri(s: VotingSession): string | null {
-    if (!s.imageUrl) return null;
-    return s.imageUrl.startsWith("http")
-      ? s.imageUrl
-      : `${BASE_URL}${s.imageUrl}`;
-  }
+  const renderCard = useCallback(
+    ({ item }: { item: VotingSession }) => {
+      const uri = imageUri(item);
+      return (
+        <View style={styles.card}>
+          {uri ? (
+            <Image
+              source={{ uri }}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              transition={200}
+              cachePolicy="memory-disk"
+              placeholder={{ blurhash: BLURHASH }}
+              recyclingKey={item.id}
+            />
+          ) : (
+            <View
+              style={[StyleSheet.absoluteFill, { backgroundColor: BLUE }]}
+            />
+          )}
+          <View style={styles.cardTint} />
+          <View style={styles.cardBottom}>
+            <Text style={styles.cardQuestion}>{item.text}</Text>
+            <TouchableOpacity
+              style={styles.väljBtn}
+              onPress={() => handleSelect(item.id)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.väljText}>Välj</Text>
+              <Ionicons name="arrow-forward-circle" size={20} color={BLUE} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    },
+    [handleSelect],
+  );
 
   if (loading) {
     return <LoadingLoop />;
@@ -109,76 +164,57 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView
-        ref={scrollRef}
+      <FlatList
+        ref={listRef}
+        data={sessions}
+        keyExtractor={(s) => s.id}
+        renderItem={renderCard}
         contentContainerStyle={[styles.feed, { paddingTop: insets.top + 20 }]}
         showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.feedTitle}>Välj en fråga att rösta på</Text>
-        {quota && (
-          <Text style={styles.quotaLine}>
-            {quota.limit - quota.used} av {quota.limit} röster kvar
-          </Text>
-        )}
-
-        {sessions.map((s) => {
-          const uri = imageUri(s);
-          return (
-            <View key={s.id} style={styles.card}>
-              {uri ? (
-                <Image
-                  source={{ uri }}
-                  style={StyleSheet.absoluteFill}
-                  contentFit="cover"
-                  transition={200}
-                  cachePolicy="memory-disk"
-                  placeholder={{ blurhash: BLURHASH }}
-                />
-              ) : (
-                <View
-                  style={[StyleSheet.absoluteFill, { backgroundColor: BLUE }]}
-                />
-              )}
-              <View style={styles.cardTint} />
-              <View style={styles.cardBottom}>
-                <Text style={styles.cardQuestion}>{s.text}</Text>
-                <TouchableOpacity
-                  style={styles.väljBtn}
-                  onPress={() => handleSelect(s.id)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.väljText}>Välj</Text>
-                  <Ionicons
-                    name="arrow-forward-circle"
-                    size={20}
-                    color={BLUE}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-          );
-        })}
-
-        {/* Permanent "last card" — copies the question-card layout; its Välj
-            button jumps straight back to the top question */}
-        <View style={styles.card}>
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: BLUE }]} />
-          <View style={styles.cardTint} />
-          <View style={styles.cardBottom}>
-            <Text style={styles.cardQuestion}>
-              Ska vi gå tillbaka till toppen?
-            </Text>
-            <TouchableOpacity
-              style={styles.väljBtn}
-              onPress={scrollToTop}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.väljText}>Välj</Text>
-              <Ionicons name="arrow-up-circle" size={20} color={BLUE} />
-            </TouchableOpacity>
+        // Every card is a full-bleed remote image. Rendering the whole feed at
+        // once (as the previous ScrollView did) mounted every <Image> upfront
+        // and kicked off one download per active question simultaneously, all
+        // competing for the same connection. Windowing keeps that to the cards
+        // near the viewport, which is what makes images load as they come into
+        // view rather than all at once.
+        initialNumToRender={2}
+        maxToRenderPerBatch={3}
+        windowSize={5}
+        removeClippedSubviews
+        ListHeaderComponent={
+          <View style={styles.feedHeader}>
+            <Text style={styles.feedTitle}>Välj en fråga att rösta på</Text>
+            {quota && (
+              <Text style={styles.quotaLine}>
+                {quota.limit - quota.used} av {quota.limit} röster kvar
+              </Text>
+            )}
           </View>
-        </View>
-      </ScrollView>
+        }
+        // Permanent "last card" — copies the question-card layout; its Välj
+        // button jumps straight back to the top question.
+        ListFooterComponent={
+          <View style={styles.card}>
+            <View
+              style={[StyleSheet.absoluteFill, { backgroundColor: BLUE }]}
+            />
+            <View style={styles.cardTint} />
+            <View style={styles.cardBottom}>
+              <Text style={styles.cardQuestion}>
+                Ska vi gå tillbaka till toppen?
+              </Text>
+              <TouchableOpacity
+                style={styles.väljBtn}
+                onPress={scrollToTop}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.väljText}>Välj</Text>
+                <Ionicons name="arrow-up-circle" size={20} color={BLUE} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        }
+      />
     </View>
   );
 }
@@ -189,7 +225,12 @@ const styles = StyleSheet.create({
   feed: {
     paddingHorizontal: 16,
     paddingBottom: 40,
-    gap: 16,
+  },
+  // Spacing lives on the card rather than as a container `gap`: a FlatList
+  // measures each row, and a gap sits outside the row it separates.
+  feedHeader: {
+    gap: 4,
+    marginBottom: CARD_GAP,
   },
   feedTitle: {
     color: "#fff",
@@ -199,11 +240,11 @@ const styles = StyleSheet.create({
   quotaLine: {
     color: "rgba(255,255,255,0.55)",
     fontSize: 13,
-    marginTop: -4,
   },
 
   card: {
     height: CARD_HEIGHT,
+    marginBottom: CARD_GAP,
     borderRadius: 20,
     overflow: "hidden",
   },

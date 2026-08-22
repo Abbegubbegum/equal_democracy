@@ -63,7 +63,6 @@ export default function SessionPage() {
   const [hasActiveSession, setHasActiveSession] = useState(true);
   const transitionIntervalRef = useRef(null);
   const [commentUpdateTrigger, setCommentUpdateTrigger] = useState(0);
-  const [, setUserHasCreatedProposal] = useState(false);
   const [showUserCount, setShowUserCount] = useState(false);
   const [noMotivation, setNoMotivation] = useState(false);
   const [onlyYesVotes, setOnlyYesVotes] = useState(false);
@@ -188,7 +187,6 @@ export default function SessionPage() {
       setSessionTypeVerified(true);
     }
   }, [
-    router,
     sessionId,
     showSessionClosed,
     isInitialLoad,
@@ -339,7 +337,13 @@ export default function SessionPage() {
     },
     [sessionId, fetchWinningProposals, playEndSign],
   );
-  startTerminationCountdownRef.current = startTerminationCountdown;
+  // Kept in a ref so the Pusher handlers above can call the latest
+  // version without being re-subscribed. Assigned in an effect rather
+  // than during render — a render-phase ref write is not safe under
+  // concurrent rendering, and every reader runs after commit anyway.
+  useEffect(() => {
+    startTerminationCountdownRef.current = startTerminationCountdown;
+  }, [startTerminationCountdown]);
 
   const startTiebreakerCountdown = useCallback(
     (secondsRemaining) => {
@@ -396,7 +400,13 @@ export default function SessionPage() {
     },
     [sessionId, fetchWinningProposals, playEndSign],
   );
-  startTiebreakerCountdownRef.current = startTiebreakerCountdown;
+  // Kept in a ref so the Pusher handlers above can call the latest
+  // version without being re-subscribed. Assigned in an effect rather
+  // than during render — a render-phase ref write is not safe under
+  // concurrent rendering, and every reader runs after commit anyway.
+  useEffect(() => {
+    startTiebreakerCountdownRef.current = startTiebreakerCountdown;
+  }, [startTiebreakerCountdown]);
 
   // Setup SSE for real-time updates
   const { activeUserCount } = usePusher({
@@ -510,17 +520,6 @@ export default function SessionPage() {
     checkPhaseTransition,
   ]);
 
-  // Check if user has created a proposal
-  // Note: authorId is only present on proposals the user owns (for anonymity)
-  useEffect(() => {
-    if (session && proposals.length > 0) {
-      const hasCreated = proposals.some(
-        (p) => p.authorId !== undefined && p.authorId === session.user.id,
-      );
-      setUserHasCreatedProposal(hasCreated);
-    }
-  }, [proposals, session]);
-
   // Light polling as backup
   useEffect(() => {
     if (!session || !currentPhase || !sessionId) {
@@ -571,7 +570,6 @@ export default function SessionPage() {
       });
 
       if (res.ok) {
-        setUserHasCreatedProposal(true);
         setView("home");
       } else {
         const data = await res.json();

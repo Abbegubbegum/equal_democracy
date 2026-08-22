@@ -21,6 +21,11 @@ import {
   onSelectedQuestionChange,
 } from "../../lib/selected-question";
 import {
+  fetchQuestions,
+  getCachedQuestions,
+  applyVoteToCache,
+} from "../../lib/questions-cache";
+import {
   VotingQuestionCard,
   type VoteCounts,
   type VotingSession,
@@ -49,7 +54,6 @@ export default function VoteScreen() {
   const [celebration, setCelebration] = useState(false);
   const [quota, setQuota] = useState<VotingQuota | null>(null);
   const [voteError, setVoteError] = useState<string | null>(null);
-  const hasLoadedRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -72,31 +76,40 @@ export default function VoteScreen() {
     [],
   );
 
+  function apply(
+    list: VotingSession[],
+    nextQuota: VotingQuota | null,
+    storedId: string | null,
+  ) {
+    setSessions(list);
+    setQuota(nextQuota);
+    setSelectedId(storedId);
+    setSelected(
+      storedId ? (list.find((s) => s.id === storedId)?.userVote ?? null) : null,
+    );
+  }
+
   async function load() {
-    if (!hasLoadedRef.current) setLoading(true);
+    const storedId = await getSelectedQuestion();
+
+    // Hem fetched this exact payload moments ago on its way here — render it
+    // straight away and revalidate behind the screen, rather than holding a
+    // full-screen LoadingLoop over a duplicate round trip.
+    const cached = getCachedQuestions();
+    if (cached) {
+      apply(cached.questions, cached.quota, storedId);
+      setLoading(false);
+    }
+
     setFetchError(null);
     try {
-      const [storedId, data] = await Promise.all([
-        getSelectedQuestion(),
-        apiClient<{ questions: VotingSession[]; quota: VotingQuota }>(
-          "/api/mobile/questions",
-        ),
-      ]);
-      const list = data?.questions ?? [];
-      setSessions(list);
-      setQuota(data?.quota ?? null);
-      setSelectedId(storedId);
-      if (storedId) {
-        const session = list.find((s) => s.id === storedId);
-        setSelected(session?.userVote ?? null);
-      } else {
-        setSelected(null);
-      }
+      const data = await fetchQuestions();
+      apply(data.questions, data.quota, storedId);
     } catch (e: any) {
-      setFetchError(e.message);
+      // A failed background revalidation must not blank out good cached data.
+      if (!getCachedQuestions()) setFetchError(e.message);
     } finally {
       setLoading(false);
-      hasLoadedRef.current = true;
     }
   }
 
@@ -139,6 +152,14 @@ export default function VoteScreen() {
       if (isNewVote) {
         setQuota((q) => (q ? { ...q, used: q.used + 1 } : q));
       }
+      // Fold the vote into the shared cache so Hem drops this question from its
+      // unvoted feed (and shows the new quota) without refetching.
+      applyVoteToCache(
+        selectedSession.id,
+        res.voteCounts,
+        res.userVote as any,
+        isNewVote,
+      );
       await addStars(1);
       setCelebration(true);
     } catch (e: any) {

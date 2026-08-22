@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { getItem, setItem, deleteItem } from "./storage";
 import { BASE_URL, setTokens, clearTokens } from "./api";
+import { clearQuestionsCache } from "./questions-cache";
 
 const USER_KEY = "auth_user";
 
@@ -86,6 +87,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function logout(): Promise<void> {
     await clearTokens();
     await deleteItem(USER_KEY);
+    // The questions cache holds the previous user's votes and quota — the next
+    // account to sign in on this device must not render off it.
+    clearQuestionsCache();
     setUser(null);
   }
 

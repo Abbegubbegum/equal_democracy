@@ -21,13 +21,6 @@ export default function BoardArchivePage() {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (municipality && board) {
-      fetchArchivedSessions();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [municipality, board]);
-
   const fetchArchivedSessions = async () => {
     try {
       const res = await fetch(
@@ -41,6 +34,13 @@ export default function BoardArchivePage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (municipality && board) {
+      fetchArchivedSessions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [municipality, board]);
 
   if (!municipality || !board) {
     return (
