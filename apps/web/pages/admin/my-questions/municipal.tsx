@@ -44,12 +44,6 @@ export default function MunicipalAdminPage() {
     else if (!session.user?.isSuperAdmin) router.replace("/");
   }, [status, session, router]);
 
-  useEffect(() => {
-    if (session?.user?.isSuperAdmin) {
-      fetchSessions();
-    }
-  }, [session]);
-
   const fetchSessions = async () => {
     try {
       const res = await fetch("/api/municipal/sessions");
@@ -59,6 +53,12 @@ export default function MunicipalAdminPage() {
       console.error("Error fetching sessions:", err);
     }
   };
+
+  useEffect(() => {
+    if (session?.user?.isSuperAdmin) {
+      fetchSessions();
+    }
+  }, [session]);
 
   const handleExtract = async (e) => {
     e.preventDefault();

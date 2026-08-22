@@ -50,18 +50,6 @@ export default function MunicipalityPage() {
   const [availableBoards, setAvailableBoards] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (status === "loading") return;
-    if (!session) {
-      router.replace("/login");
-      return;
-    }
-    if (municipality) {
-      fetchAvailableBoards();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, session, municipality, router]);
-
   const fetchAvailableBoards = async () => {
     try {
       const res = await fetch(
@@ -90,6 +78,18 @@ export default function MunicipalityPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!session) {
+      router.replace("/login");
+      return;
+    }
+    if (municipality) {
+      fetchAvailableBoards();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, session, municipality, router]);
 
   if (status === "loading" || loading || !municipality) {
     return (

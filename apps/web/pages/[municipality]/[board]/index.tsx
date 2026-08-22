@@ -89,13 +89,6 @@ export default function BoardPage() {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (municipality && board) {
-      fetchActiveSessions();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [municipality, board]);
-
   const fetchActiveSessions = async () => {
     try {
       const res = await fetch(
@@ -109,6 +102,13 @@ export default function BoardPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (municipality && board) {
+      fetchActiveSessions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [municipality, board]);
 
   if (!municipality || !board) {
     return (

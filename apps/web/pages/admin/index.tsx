@@ -962,10 +962,6 @@ function AdminApplicationsPanel() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    fetchApplications();
-  }, []);
-
   const fetchApplications = async () => {
     try {
       const res = await fetch("/api/admin/admin-applications");
@@ -979,6 +975,10 @@ function AdminApplicationsPanel() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchApplications();
+  }, []);
 
   const handleApplication = async (userId, action, sessionLimit = 10) => {
     try {
@@ -1131,10 +1131,6 @@ function SessionRequestsPanel() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    fetchRequests();
-  }, []);
-
   const fetchRequests = async () => {
     try {
       const res = await fetch("/api/admin/session-requests");
@@ -1148,6 +1144,10 @@ function SessionRequestsPanel() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchRequests();
+  }, []);
 
   const handleRequest = async (requestId, action, grantedSessions = null) => {
     try {
@@ -1612,10 +1612,6 @@ function CitizenProposalsPanel() {
   const [editCategories, setEditCategories] = useState<string[]>([]);
   const [savingText, setSavingText] = useState(false);
 
-  useEffect(() => {
-    load();
-  }, []);
-
   async function load() {
     setLoading(true);
     try {
@@ -1625,6 +1621,10 @@ function CitizenProposalsPanel() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    load();
+  }, []);
 
   async function setStatus(id: string, status: CPStatus) {
     setUpdating(id);
@@ -1992,10 +1992,6 @@ function SessionProposalsPanel() {
   const [editCategories, setEditCategories] = useState<string[]>([]);
   const [savingText, setSavingText] = useState(false);
 
-  useEffect(() => {
-    load();
-  }, []);
-
   async function load() {
     setLoading(true);
     try {
@@ -2005,6 +2001,10 @@ function SessionProposalsPanel() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    load();
+  }, []);
 
   async function setStatus(id: string, status: SPStatus) {
     setUpdating(id);

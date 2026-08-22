@@ -788,10 +788,6 @@ function SettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
   async function fetchSettings() {
     try {
       const response = await fetch("/api/settings");
@@ -806,6 +802,10 @@ function SettingsPanel() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
 
   async function saveSettings(newLanguage, newTheme) {
     try {
