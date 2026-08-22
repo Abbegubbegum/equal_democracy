@@ -154,8 +154,7 @@ function TabNavigator() {
   useEffect(() => {
     if (!notificationResponse) return;
     const data = notificationResponse.notification.request.content.data as
-      | { screen?: string; questionId?: string }
-      | undefined;
+      { screen?: string; questionId?: string } | undefined;
 
     (async () => {
       // Preselect the question the notification is about, so Rösta opens on it

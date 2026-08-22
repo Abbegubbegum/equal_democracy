@@ -3,11 +3,7 @@ import type { BaseDocument } from "./base.js";
 export type MunicipalMeetingStatus = "draft" | "active" | "closed" | "archived";
 export type MunicipalItemStatus = "draft" | "active" | "closed";
 export type CitizenProposalStatus =
-  | "active"
-  | "selected"
-  | "submitted_as_motion"
-  | "rejected"
-  | "archived";
+  "active" | "selected" | "submitted_as_motion" | "rejected" | "archived";
 
 export interface MunicipalItemArgument {
   text: string;

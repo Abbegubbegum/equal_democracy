@@ -1501,11 +1501,7 @@ function CleanPanel() {
 }
 
 type CPStatus =
-  | "active"
-  | "archived"
-  | "selected"
-  | "submitted_as_motion"
-  | "rejected";
+  "active" | "archived" | "selected" | "submitted_as_motion" | "rejected";
 
 interface CitizenProposalItem {
   _id: string;
