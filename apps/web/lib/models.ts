@@ -1374,6 +1374,10 @@ const QuestionVoteSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      // Standalone index: the pre-election quota counts a user's votes across
+      // all questions, which the compound index below cannot serve (userId is
+      // not its prefix) and would otherwise collection-scan on every request.
+      index: true,
     },
     choice: { type: String, enum: ["ja", "nej"], required: true },
   },

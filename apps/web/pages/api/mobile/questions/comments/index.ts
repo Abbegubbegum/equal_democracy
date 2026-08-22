@@ -34,16 +34,22 @@ export default async function handler(
       return res.status(400).json({ message: "questionId krävs" });
 
     try {
-      const comments = await QuestionComment.find({ questionId }).lean();
-      const ratings = await getRatingAggregates(
-        QuestionCommentRating,
-        "commentId",
-        comments.map((c) => c._id),
-      );
-      const userRatings = await QuestionCommentRating.find({
-        commentId: { $in: comments.map((c) => c._id) },
-        userId: user.id,
-      }).lean();
+      const comments = await QuestionComment.find({ questionId })
+        .select("_id text type userId createdAt")
+        .lean();
+      const commentIds = comments.map((c) => c._id);
+      // Both reads depend only on commentIds, so issue them together — run
+      // sequentially they cost two extra database round trips per open of the
+      // debate section.
+      const [ratings, userRatings] = await Promise.all([
+        getRatingAggregates(QuestionCommentRating, "commentId", commentIds),
+        QuestionCommentRating.find({
+          commentId: { $in: commentIds },
+          userId: user.id,
+        })
+          .select("commentId rating")
+          .lean(),
+      ]);
       const userRatingByComment = new Map(
         userRatings.map((r) => [r.commentId.toString(), r.rating]),
       );

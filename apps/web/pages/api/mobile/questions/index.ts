@@ -8,6 +8,14 @@ const log = createLogger("MobileQuestions");
 
 const PRE_ELECTION_LIMIT = 5;
 
+// Closed questions are only reachable on Rösta (a question the user selected or
+// voted in that has since closed), so the tail doesn't need to be unbounded —
+// without a cap this payload grows forever as questions accumulate.
+const CLOSED_QUESTION_LIMIT = 100;
+
+const QUESTION_FIELDS =
+  "_id text imageUrl deadline createdAt status categories";
+
 /** Sort by total turnout (ja+nej) descending, newest as tie-break. */
 function byTurnout(
   a: { voteCounts: { ja: number; nej: number }; createdAt: Date },
@@ -44,12 +52,13 @@ export default async function handler(
 
     const [activeQuestions, pastQuestions, used] = await Promise.all([
       Question.find({ status: "active" })
-        .select("_id text imageUrl deadline createdAt status categories")
+        .select(QUESTION_FIELDS)
         .sort({ createdAt: -1 })
         .lean(),
       Question.find({ status: "closed" })
-        .select("_id text imageUrl deadline createdAt status categories")
+        .select(QUESTION_FIELDS)
         .sort({ createdAt: -1 })
+        .limit(CLOSED_QUESTION_LIMIT)
         .lean(),
       QuestionVote.countDocuments({ userId: user.id }),
     ]);
@@ -60,21 +69,37 @@ export default async function handler(
       return res.status(200).json({ questions: [], quota });
 
     const questionIds = allQuestions.map((q) => q._id);
-    const [allVotes, userVotes] = await Promise.all([
-      QuestionVote.find({ questionId: { $in: questionIds } }).lean(),
+    // Tally ja/nej in the database rather than pulling every vote document
+    // into the lambda and counting them in JS — this returns one row per
+    // question instead of one per vote.
+    const [tallies, userVotes] = await Promise.all([
+      QuestionVote.aggregate([
+        { $match: { questionId: { $in: questionIds } } },
+        {
+          $group: {
+            _id: "$questionId",
+            ja: { $sum: { $cond: [{ $eq: ["$choice", "ja"] }, 1, 0] } },
+            nej: { $sum: { $cond: [{ $eq: ["$choice", "nej"] }, 1, 0] } },
+          },
+        },
+      ]),
       QuestionVote.find({
         questionId: { $in: questionIds },
         userId: user.id,
-      }).lean(),
+      })
+        .select("questionId choice")
+        .lean(),
     ]);
 
-    const userVoteMap = Object.fromEntries(
+    const tallyMap = new Map<string, { ja: number; nej: number }>(
+      tallies.map((t) => [t._id.toString(), { ja: t.ja, nej: t.nej }]),
+    );
+    const userVoteMap = new Map<string, string>(
       userVotes.map((v) => [v.questionId.toString(), v.choice]),
     );
 
     const result = allQuestions.map((q) => {
       const qid = q._id.toString();
-      const votes = allVotes.filter((v) => v.questionId.toString() === qid);
       return {
         id: qid,
         text: q.text,
@@ -82,12 +107,9 @@ export default async function handler(
         isActive: q.status === "active",
         deadline: q.deadline,
         categories: (q as any).categories ?? [],
-        voteCounts: {
-          ja: votes.filter((v) => v.choice === "ja").length,
-          nej: votes.filter((v) => v.choice === "nej").length,
-        },
+        voteCounts: tallyMap.get(qid) ?? { ja: 0, nej: 0 },
         createdAt: q.createdAt,
-        userVote: userVoteMap[qid] ?? null,
+        userVote: userVoteMap.get(qid) ?? null,
       };
     });
 
