@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Animated,
   View,
   Text,
   StyleSheet,
@@ -66,6 +67,33 @@ function ProposalBlock({
   const [localCount, setLocalCount] = useState(proposal.ratingCount);
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
+  // The text card is capped to the space between the header and the stars row;
+  // once its content is taller than that, it scrolls inside the card instead of
+  // spilling off both ends of the screen. Scrolling stays disabled while it
+  // fits, so short cards never swallow the pager's vertical drag.
+  const textScrollRef = useRef<ScrollView>(null);
+  const [textViewH, setTextViewH] = useState(0);
+  const [textContentH, setTextContentH] = useState(0);
+  const textScrollable = textContentH > textViewH + 1;
+  // The native indicator is dark on both platforms and invisible against the
+  // card, and only iOS can recolour it (`indicatorStyle`), so we draw our own
+  // white thumb instead and hide the native one.
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const thumbH = !textScrollable
+    ? 0
+    : Math.max(28, (textViewH * textViewH) / textContentH);
+  const thumbTranslate = scrollY.interpolate({
+    inputRange: [0, Math.max(1, textContentH - textViewH)],
+    outputRange: [0, Math.max(0, textViewH - thumbH)],
+    extrapolate: "clamp",
+  });
+
+  function toggleExpanded() {
+    setExpanded((e) => {
+      if (e) textScrollRef.current?.scrollTo({ y: 0, animated: false });
+      return !e;
+    });
+  }
 
   async function handleRate(stars: number) {
     if (busy) return;
@@ -150,35 +178,64 @@ function ProposalBlock({
         ]}
       >
         <View style={styles.contentCard}>
-          <TouchableOpacity
-            onPress={() => setExpanded((e) => !e)}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.proposalLabel}>Förslag:</Text>
-            <Text style={styles.proposalTitle}>{proposal.title}</Text>
-          </TouchableOpacity>
+          <View style={styles.cardScrollWrap}>
+            <ScrollView
+              ref={textScrollRef}
+              contentContainerStyle={styles.cardScrollContent}
+              scrollEnabled={textScrollable}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={false}
+              scrollEventThrottle={16}
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                { useNativeDriver: false },
+              )}
+              onLayout={(e) => setTextViewH(e.nativeEvent.layout.height)}
+              onContentSizeChange={(_w, h) => setTextContentH(h)}
+            >
+              <TouchableOpacity onPress={toggleExpanded} activeOpacity={0.85}>
+                <Text style={styles.proposalLabel}>Förslag:</Text>
+                <Text style={styles.proposalTitle}>{proposal.title}</Text>
+              </TouchableOpacity>
 
-          {proposal.status === "selected" && (
-            <View style={styles.statusBadge}>
-              <Text style={styles.statusBadgeText}>⭐ Utvald</Text>
-            </View>
-          )}
-          {proposal.status === "submitted_as_motion" && (
-            <View style={[styles.statusBadge, styles.statusBadgeGreen]}>
-              <Text style={styles.statusBadgeText}>✅ Inlämnad som motion</Text>
-            </View>
-          )}
+              {proposal.status === "selected" && (
+                <View style={styles.statusBadge}>
+                  <Text style={styles.statusBadgeText}>⭐ Utvald</Text>
+                </View>
+              )}
+              {proposal.status === "submitted_as_motion" && (
+                <View style={[styles.statusBadge, styles.statusBadgeGreen]}>
+                  <Text style={styles.statusBadgeText}>
+                    ✅ Inlämnad som motion
+                  </Text>
+                </View>
+              )}
 
-          {expanded && (
-            <Text style={styles.proposalDescription}>
-              {proposal.description}
-            </Text>
-          )}
+              {expanded && (
+                <Text style={styles.proposalDescription}>
+                  {proposal.description}
+                </Text>
+              )}
+            </ScrollView>
 
-          <TouchableOpacity
-            style={styles.expandBtn}
-            onPress={() => setExpanded((e) => !e)}
-          >
+            {textScrollable && (
+              <>
+                <View style={styles.scrollTrack} pointerEvents="none" />
+                <Animated.View
+                  style={[
+                    styles.scrollThumb,
+                    {
+                      height: thumbH,
+                      transform: [{ translateY: thumbTranslate }],
+                    },
+                  ]}
+                  pointerEvents="none"
+                />
+              </>
+            )}
+          </View>
+
+          <TouchableOpacity style={styles.expandBtn} onPress={toggleExpanded}>
             <Text style={styles.expandHint}>
               {expanded ? "Dölj ▲" : "Läs mer ▼"}
             </Text>
@@ -812,6 +869,28 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 24,
     gap: 16,
+    // Never taller than the space the wrapper gives it — the inner ScrollView
+    // takes the overflow instead of the card growing off-screen.
+    flexShrink: 1,
+  },
+  cardScrollWrap: { flexGrow: 0, flexShrink: 1 },
+  cardScrollContent: { gap: 16, paddingRight: 10 },
+  scrollTrack: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+  scrollThumb: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.9)",
   },
   proposalLabel: {
     fontSize: 12,

@@ -38,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   question the **Hem** tab just handed it. Both screens share an in-memory cache and revalidate
   behind the rendered screen instead of behind a full-screen loading state.
 - Account deletion gaps closed, and what the app stores is now documented; added `robots.txt`.
+- Long citizen proposals are readable again. On mobile the text card is height-capped and scrolls
+  internally (with a white custom indicator — the native one is dark and uncolourable on Android),
+  instead of a long title being clipped and an expanded description spilling off both ends of the
+  screen. On the web listing, the card body clears the rank badge it used to collide with, and the
+  two-line description now has a "Läs mer" toggle that appears only when text is actually hidden.
 
 ### Changed
 
