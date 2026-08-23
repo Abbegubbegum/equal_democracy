@@ -256,6 +256,24 @@ function ProposalCard({
   onRate: (id: string, rating: number) => void;
 }) {
   const leader = p.rank === 1;
+  const descRef = useRef<HTMLParagraphElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  // The description is clamped to two lines until the reader opens it. The
+  // toggle only appears when there is actually something hidden, so short
+  // proposals don't get a dead "Läs mer" link.
+  const [clamped, setClamped] = useState(false);
+
+  useEffect(() => {
+    if (expanded) return;
+    const el = descRef.current;
+    if (!el) return;
+    const measure = () => setClamped(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [p.description, expanded]);
 
   return (
     <div
@@ -293,7 +311,7 @@ function ProposalCard({
       )}
 
       {/* Content */}
-      <div className="relative z-[1] p-4 sm:p-5 text-white">
+      <div className="relative z-[1] p-4 sm:p-5 pt-14 sm:pt-16 text-white">
         {leader && (
           <span className="inline-flex items-center gap-1 text-[0.66rem] font-extrabold uppercase tracking-wide text-primary-800 bg-accent-400 rounded-full px-2.5 py-1 mb-2">
             👑 Månadens etta · på väg till fullmäktige
@@ -302,9 +320,23 @@ function ProposalCard({
         <h2 className="text-xl font-extrabold leading-tight drop-shadow-[0_1px_8px_rgba(0,0,0,0.4)]">
           {p.title}
         </h2>
-        <p className="text-sm text-white/85 leading-snug mt-1.5 line-clamp-2">
+        <p
+          ref={descRef}
+          className={`text-sm text-white/85 leading-snug mt-1.5 whitespace-pre-line ${
+            expanded ? "" : "line-clamp-2"
+          }`}
+        >
           {p.description}
         </p>
+        {(clamped || expanded) && (
+          <button
+            type="button"
+            onClick={() => setExpanded((e) => !e)}
+            className="mt-1.5 text-sm font-extrabold text-accent-400 hover:text-accent-100"
+          >
+            {expanded ? "Dölj ▲" : "Läs mer ▼"}
+          </button>
+        )}
 
         {p.categories?.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2.5">
