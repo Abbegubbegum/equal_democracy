@@ -10,6 +10,7 @@ import {
   CommentRating,
   FinalVote,
   QuestionVote,
+  VoteVerification,
   QuestionComment,
   QuestionCommentRating,
   CitizenProposal,
@@ -71,7 +72,17 @@ export default async function handler(
     Comment.deleteMany({ userId }),
     CommentRating.deleteMany({ userId }),
     FinalVote.deleteMany({ userId }),
+    // Votes on questions that are still open are deleted outright, pnrHash and
+    // all. Anonymising them instead would be worse: keeping the pseudonym means
+    // refusing an erasure request, and dropping it while keeping the ballot
+    // would let the same person register again and cast a second one. Deleting
+    // the whole row means a delete-then-revote yields exactly one vote.
+    //
+    // Votes on *closed* questions are already anonymous — anonymiseQuestionVotes
+    // unset their userId — so this query cannot see them, which is what keeps a
+    // published tally from shifting after the fact.
     QuestionVote.deleteMany({ userId }),
+    VoteVerification.deleteMany({ userId }),
     QuestionComment.deleteMany({ userId }),
     QuestionCommentRating.deleteMany({ userId }),
     CitizenProposal.deleteMany({ authorId: userId }),

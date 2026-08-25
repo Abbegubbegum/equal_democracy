@@ -40,7 +40,8 @@
           "color": "#002d75"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "extra": {
       "router": {},

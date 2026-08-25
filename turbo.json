@@ -29,7 +29,11 @@
         "MEMBERSHIP_FEE_SEK",
         "MOBILE_LATEST_VERSION",
         "MOBILE_MIN_SUPPORTED_VERSION",
-        "ENABLE_EXPERIMENTAL_COREPACK"
+        "ENABLE_EXPERIMENTAL_COREPACK",
+        "GRANDID_ENV",
+        "GRANDID_API_KEY",
+        "GRANDID_SERVICE_KEY",
+        "VOTE_ID_PEPPER"
       ]
     },
     "lint": {

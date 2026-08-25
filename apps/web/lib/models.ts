@@ -1380,10 +1380,54 @@ const QuestionVoteSchema = new mongoose.Schema(
       index: true,
     },
     choice: { type: String, enum: ["ja", "nej"], required: true },
+    // When the vote was backed by a BankID signature. Null for votes cast
+    // before verification existed — which is what lets results say honestly
+    // which figures are BankID-backed instead of quietly mixing the two.
+    // Survives anonymisation: it identifies nobody.
+    verifiedAt: { type: Date, default: null },
+    // Per-question voter pseudonym, HMAC(pepper, personnummer + ":" + questionId)
+    // — see lib/bankid/pseudonym.ts. Deliberately no `default`, so an unverified
+    // vote omits the field entirely rather than storing null (see the index
+    // below). Unset when the question closes.
+    pnrHash: { type: String },
+    // sha256 of the BankID signature. Tamper-evidence that survives
+    // anonymisation — see docs/gdpr-data-retention.md §2 for what it is and is
+    // not good for.
+    signatureHash: { type: String },
   },
   { timestamps: true },
 );
-QuestionVoteSchema.index({ questionId: 1, userId: 1 }, { unique: true });
+
+// Both indexes are **partial**, not sparse. Verified against MongoDB rather
+// than assumed, because two intuitive-looking alternatives both fail:
+//
+//   unique + sparse, pnrHash: null      -> E11000 on the 2nd unverified vote
+//   unique + sparse, pnrHash absent     -> E11000 anyway
+//   unique (plain), then $unset userId  -> E11000 while anonymising
+//
+// The second one is the trap: a *compound* sparse index only skips a document
+// when every indexed field is missing, and `questionId` is always present — so
+// sparse buys nothing here. And anonymising a closed question unsets `userId`
+// on all of its votes at once, which a plain unique index reads as a pile of
+// identical (questionId, null) keys.
+//
+// partialFilterExpression states the intent directly: enforce uniqueness only
+// over the rows that actually carry a value.
+QuestionVoteSchema.index(
+  { questionId: 1, userId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { userId: { $exists: true } },
+  },
+);
+// One human, one vote per question, however many accounts they hold.
+QuestionVoteSchema.index(
+  { questionId: 1, pnrHash: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { pnrHash: { $type: "string" } },
+  },
+);
 
 // QuestionComment - för/emot/neutral discussion on a Question. Rating
 // aggregates are computed at read time from QuestionCommentRating.
@@ -1445,7 +1489,15 @@ QuestionCommentRatingSchema.index(
 // Force-refresh Question — its schema will iterate during the restructure
 if (mongoose.models["Question"]) delete mongoose.models["Question"];
 export const Question: AnyModel = mongoose.model("Question", QuestionSchema);
-export const QuestionVote = safeModel("QuestionVote", QuestionVoteSchema);
+
+// Force-refresh QuestionVote — gained verifiedAt/pnrHash for BankID verification,
+// and safeModel would keep serving the old schema across a hot reload, silently
+// dropping both fields under Mongoose's strict mode.
+if (mongoose.models["QuestionVote"]) delete mongoose.models["QuestionVote"];
+export const QuestionVote: AnyModel = mongoose.model(
+  "QuestionVote",
+  QuestionVoteSchema,
+);
 export const QuestionComment = safeModel(
   "QuestionComment",
   QuestionCommentSchema,
@@ -1582,3 +1634,95 @@ PaymentSchema.index({ status: 1, createdAt: 1 });
 // Force-refresh Payment — new model, schema will iterate while Swish is built out
 if (mongoose.models["Payment"]) delete mongoose.models["Payment"];
 export const Payment: AnyModel = mongoose.model("Payment", PaymentSchema);
+
+// VoteVerification - one BankID signing attempt for one ballot.
+//
+// Deliberately shaped like Payment, because it has the same job: hold the
+// intent while an external party works, then be settled exactly once from an
+// authoritative answer. The ballot (questionId + choice) is captured here at
+// start, so the client cannot swap the choice after BankID displayed one thing.
+//
+// This row is transient. Everything that outlives it lives on QuestionVote.
+const VoteVerificationSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    questionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Question",
+      required: true,
+    },
+    // The ballot intent, recorded before the user ever sees BankID.
+    choice: { type: String, enum: ["ja", "nej"], required: true },
+    // GrandID's sessionId. Unique so a replayed start cannot fork the flow.
+    grandIdSession: { type: String, required: true, unique: true },
+    // The hosted-UI URL GrandID returned, stored verbatim so resuming an
+    // in-flight order hands back exactly what was issued rather than a guess
+    // reconstructed from the session id and a hardcoded host.
+    redirectUrl: { type: String, required: true },
+    status: {
+      type: String,
+      enum: ["PENDING", "VERIFIED", "REJECTED", "FAILED", "CANCELLED"],
+      default: "PENDING",
+      index: true,
+    },
+    // Why it ended: an EligibilityCode (WRONG_KOMMUN, UNDERAGE, …) or a BankID
+    // hintCode (userCancel, expiredTransaction, …). Never a personal detail.
+    reasonCode: { type: String, default: null },
+    voteId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "QuestionVote",
+      default: null,
+    },
+    // Metadata about the signature — never the signature itself.
+    //
+    // BankID's signed XML embeds the signer's certificate, so keeping it would
+    // mean storing a personnummer and a name. We keep only a sha256 of it,
+    // which is tamper-evidence rather than proof (see
+    // docs/gdpr-data-retention.md §2), plus dates that identify nobody.
+    evidence: {
+      orderType: { type: String, default: null },
+      signatureHash: { type: String, default: null },
+      bankIdIssueDate: { type: String, default: null },
+      notBefore: { type: String, default: null },
+      notAfter: { type: String, default: null },
+    },
+    // Guards against a test-environment verification ever writing a real vote,
+    // the same way Payment.env guards membership.
+    env: {
+      type: String,
+      enum: ["test", "production"],
+      required: true,
+    },
+    // Enforces the API's own >= 2s GetSession poll floor server-side, so a
+    // misbehaving client cannot exceed it.
+    lastPolledAt: { type: Date, default: null },
+  },
+  { timestamps: true },
+);
+
+// Resuming an in-flight attempt rather than starting a second BankID order.
+VoteVerificationSchema.index({ userId: 1, status: 1, createdAt: -1 });
+
+// Purge settled attempts, and with them the signature and the link between a
+// person and the ballot they signed. Long enough to investigate an incident,
+// short enough to be a real minimisation story in the privacy disclosure.
+// Must stay far above the ~3 minute BankID order lifetime: expiring a row
+// before it settles would strand the vote it was about to write.
+VoteVerificationSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: 30 * 24 * 60 * 60 },
+);
+
+// Force-refresh VoteVerification — new model, schema will iterate while BankID
+// verification is built out
+if (mongoose.models["VoteVerification"])
+  delete mongoose.models["VoteVerification"];
+export const VoteVerification: AnyModel = mongoose.model(
+  "VoteVerification",
+  VoteVerificationSchema,
+);

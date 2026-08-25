@@ -14,7 +14,8 @@ import {
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { apiClient } from "../../lib/api";
+import BankIdVoteSheet from "../../lib/BankIdVoteSheet";
+import type { VerificationState } from "../../lib/bankid";
 import {
   getSelectedQuestion,
   clearSelectedQuestion,
@@ -27,7 +28,6 @@ import {
 } from "../../lib/questions-cache";
 import {
   VotingQuestionCard,
-  type VoteCounts,
   type VotingSession,
   type VotingQuota,
 } from "../../lib/VotingQuestionCard";
@@ -50,10 +50,12 @@ export default function VoteScreen() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [selected, setSelected] = useState<"ja" | "nej" | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [celebration, setCelebration] = useState(false);
   const [quota, setQuota] = useState<VotingQuota | null>(null);
   const [voteError, setVoteError] = useState<string | null>(null);
+  // Opening the sheet is what starts a BankID order, so it is only ever set
+  // by handleVote — never by a render.
+  const [signing, setSigning] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -122,51 +124,40 @@ export default function VoteScreen() {
       : `${BASE_URL}${s.imageUrl}`;
   }
 
-  async function handleVote() {
-    if (!selected || !selectedSession || submitting) return;
-    const isNewVote = !selectedSession.userVote;
-    setSubmitting(true);
+  /**
+   * A vote is now a BankID signature, so this no longer writes anything — it
+   * opens the sheet, and the server records the vote only once the signature
+   * comes back. See docs/bankid-integration-plan.md.
+   */
+  function handleVote() {
+    if (!selected || !selectedSession || signing) return;
     setVoteError(null);
-    try {
-      const res = await apiClient<{ voteCounts: VoteCounts; userVote: string }>(
-        "/api/mobile/questions/vote",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            questionId: selectedSession.id,
-            choice: selected,
-          }),
-        },
-      );
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === selectedSession.id
-            ? {
-                ...s,
-                voteCounts: res.voteCounts,
-                userVote: res.userVote as any,
-              }
-            : s,
-        ),
-      );
-      if (isNewVote) {
-        setQuota((q) => (q ? { ...q, used: q.used + 1 } : q));
-      }
-      // Fold the vote into the shared cache so Hem drops this question from its
-      // unvoted feed (and shows the new quota) without refetching.
-      applyVoteToCache(
-        selectedSession.id,
-        res.voteCounts,
-        res.userVote as any,
-        isNewVote,
-      );
-      await addStars(1);
-      setCelebration(true);
-    } catch (e: any) {
-      setVoteError(e.message);
-    } finally {
-      setSubmitting(false);
+    setSigning(true);
+  }
+
+  function handleVerified(state: VerificationState) {
+    setSigning(false);
+    if (!selectedSession) return;
+
+    const isNewVote = !selectedSession.userVote;
+    const counts = state.voteCounts ?? selectedSession.voteCounts;
+    const userVote = state.userVote ?? selected;
+
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === selectedSession.id
+          ? { ...s, voteCounts: counts, userVote: userVote as any }
+          : s,
+      ),
+    );
+    if (isNewVote) {
+      setQuota((q) => (q ? { ...q, used: q.used + 1 } : q));
     }
+    // Fold the vote into the shared cache so Hem drops this question from its
+    // unvoted feed (and shows the new quota) without refetching.
+    applyVoteToCache(selectedSession.id, counts, userVote as any, isNewVote);
+    addStars(1);
+    setCelebration(true);
   }
 
   async function handleUnselect() {
@@ -282,7 +273,7 @@ export default function VoteScreen() {
           selected={selected}
           onSelect={setSelected}
           onVote={handleVote}
-          submitting={submitting}
+          submitting={signing}
           onUnselect={handleUnselect}
         />
 
@@ -291,6 +282,16 @@ export default function VoteScreen() {
           canPost={selectedSession.isActive}
         />
       </ScrollView>
+
+      {selected && (
+        <BankIdVoteSheet
+          visible={signing}
+          questionId={selectedSession.id}
+          choice={selected}
+          onClose={() => setSigning(false)}
+          onVerified={handleVerified}
+        />
+      )}
 
       <CelebrationModal
         visible={celebration}

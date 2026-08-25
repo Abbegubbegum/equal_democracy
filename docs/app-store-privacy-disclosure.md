@@ -27,6 +27,11 @@ Last verified: 2026-08-21.
 | IP address                   | Vercel request logs                                                                                                                | Transiently         | Security and debugging                                 |
 | Usage analytics              | Expo Insights, Vercel Analytics                                                                                                    | No — aggregate      | App opens and traffic                                  |
 
+> ⚠️ **Out of date once BankID ships.** Vote verification introduces
+> personnummer processing (a per-question hash kept with the vote, and a BankID
+> signature kept 30 days). Both stores' answers below need revising before that
+> release — see [gdpr-data-retention.md](gdpr-data-retention.md) §5.
+
 **We do NOT collect:** personnummer, precise or coarse location, contacts, health data, advertising
 identifiers, browsing history, or bank/card details. Swish and the payer's bank handle account
 details; we never see them.

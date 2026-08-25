@@ -7,6 +7,7 @@ import {
   cullExpiredProposals,
 } from "@/lib/forslag-maintenance";
 import { createLogger } from "@/lib/logger";
+import { anonymiseQuestionVotes } from "@/lib/vote-anonymisation";
 
 const log = createLogger("SessionTimeout");
 
@@ -72,6 +73,18 @@ export default async function handler(
       question.status = "closed";
       question.closedAt = currentTime;
       await question.save();
+
+      // One question failing to anonymise must not abort the rest of the cron
+      // run — the remaining questions still need closing, and a missed
+      // anonymisation is recoverable while a half-finished sweep is not.
+      try {
+        await anonymiseQuestionVotes(question._id.toString());
+      } catch (error) {
+        log.error("Failed to anonymise votes for a closed question", {
+          questionId: question._id.toString(),
+          error: error.message,
+        });
+      }
 
       closedQuestions.push({
         questionId: question._id,

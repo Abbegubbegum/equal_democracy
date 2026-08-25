@@ -10,7 +10,10 @@
     "check-types": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
-    "backup": "node scripts/backup-to-mongodb.js"
+    "backup": "node scripts/backup-to-mongodb.js",
+    "grandid": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-grandid-connection.mjs",
+    "eligibility": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-eligibility.mjs",
+    "settle-test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-vote-settle.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.69.0",

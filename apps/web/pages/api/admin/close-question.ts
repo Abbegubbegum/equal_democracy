@@ -6,6 +6,7 @@ import { authOptions } from "../auth/[...nextauth]";
 import { csrfProtection } from "@/lib/csrf";
 import { hasAdminAccess, isSuperAdmin } from "@/lib/admin-helper";
 import { createLogger } from "@/lib/logger";
+import { anonymiseQuestionVotes } from "@/lib/vote-anonymisation";
 
 const log = createLogger("AdminCloseQuestion");
 
@@ -59,6 +60,11 @@ export default async function handler(
     question.status = "closed";
     question.closedAt = new Date();
     await question.save();
+
+    // Closing is the moment a vote stops needing an owner. Strip identity now
+    // rather than on a schedule, so the window in which the result is both
+    // final and still attributable is as close to zero as possible.
+    await anonymiseQuestionVotes(question._id.toString());
 
     return res.status(200).json({
       message: "Question closed successfully",

@@ -26,6 +26,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **BankID signing on every vote (Vallentuna residency check).** A vote is now a BankID
+  _signature_ over the ballot text — "Du röstar JA på: …" — rather than an authentication, so the
+  voter is bound to what they approved. The same transaction returns SPAR folkbokföring, which is
+  checked for age (16+) and residency in Vallentuna (kommunkod 0115) before the vote is recorded.
+  Nothing about the person is kept: no personnummer, name, address, kommun or birth date, only the
+  verdict.
+- One person, one vote per question, across accounts. Each vote carries a per-question pseudonym —
+  `HMAC(pepper, personnummer + ":" + questionId)` — under a unique index. Salting per question is
+  what stops it doubling as a cross-question voting profile.
+- Votes are anonymised when their question closes: `userId` and the pseudonym are unset and the
+  question's verification rows deleted, so a closed result is anonymous data rather than
+  pseudonymous, and a published tally can no longer shift when someone deletes their account.
+- `pnpm grandid`, `pnpm eligibility` and `pnpm settle-test` — a live connection diagnostic, 25
+  eligibility fixtures, and 22 settle checks that exercise every branch without spending a real
+  BankID signature (there is no GrandID sandbox).
+- [docs/gdpr-data-retention.md](docs/gdpr-data-retention.md) — what is stored, what is deleted, and
+  why; including that a hashed personnummer is still personal data and a TTL is a compliance
+  measure rather than an exemption.
+
 ### Fixed
 
 - **Mobile API latency.** Serverless functions had no `regions` pin, so Vercel ran them in `iad1`
