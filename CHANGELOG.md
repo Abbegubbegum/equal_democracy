@@ -26,6 +26,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-26
+
+### Added
+
+- **BankID signing on every vote (Vallentuna residency check).** A vote is now a BankID
+  _signature_ over the ballot text — "Du röstar JA på: …" — rather than an authentication, so the
+  voter is bound to what they approved. The same transaction returns SPAR folkbokföring, which is
+  checked for age (16+) and residency in Vallentuna (kommunkod 0115) before the vote is recorded.
+  Nothing about the person is kept: no personnummer, name, address, kommun or birth date, only the
+  verdict.
+- One person, one vote per question, across accounts. Each vote carries a per-question pseudonym —
+  `HMAC(pepper, personnummer + ":" + questionId)` — under a unique index. Salting per question is
+  what stops it doubling as a cross-question voting profile.
+- Votes are anonymised when their question closes: `userId` and the pseudonym are unset and the
+  question's verification rows deleted, so a closed result is anonymous data rather than
+  pseudonymous, and a published tally can no longer shift when someone deletes their account.
+- `pnpm grandid`, `pnpm eligibility` and `pnpm settle-test` — a live connection diagnostic, 25
+  eligibility fixtures, and 22 settle checks that exercise every branch without spending a real
+  BankID signature (there is no GrandID sandbox).
+- [docs/gdpr-data-retention.md](docs/gdpr-data-retention.md) — what is stored, what is deleted, and
+  why; including that a hashed personnummer is still personal data and a TTL is a compliance
+  measure rather than an exemption.
+- BankID signing on the **web** too. `/rosta` was voting through a session-only endpoint into the
+  same tallies, so requiring BankID in the app alone would have left the browser as an unverified
+  path. Both surfaces now share one settle step. The unverified web endpoint is deleted outright —
+  unlike mobile, the web has no installed clients to break.
+- A rate limit of 10 BankID orders per user per hour. Every accepted order is a billable signature
+  and there is no sandbox, so this is a cost control as much as an abuse one.
+- The admin question list shows how many of a tally's votes carry a BankID signature, so a signed
+  result is distinguishable from one an older app build produced.
+- `BANKID_ALLOW_ANY_KOMMUN`, a development-only override that skips the Vallentuna residency check.
+  Without it the _eligible_ path cannot be reached by anyone not actually folkbokförd there, since
+  there is no GrandID sandbox and no synthetic identities. It waives residency and nothing else —
+  age, protected identity and samordningsnummer still reject — and three code-level guards keep it
+  off every deployment.
+
+### Changed
+
+- `/legal` now describes what BankID signing does: what is signed, what SPAR is asked, that no SPAR
+  data is retained, what the per-question code can and cannot do, and that votes are anonymised
+  when a question closes.
+- The store privacy disclosure no longer claims we do not collect personnummer. Apple gains
+  Identifiers → Government ID, Google Play gains Personal info → Other personal info. **Both store
+  consoles still need the answers transcribed by hand.**
+
 ### Fixed
 
 - **Mobile API latency.** Serverless functions had no `regions` pin, so Vercel ran them in `iad1`
@@ -205,7 +250,8 @@ Initial release — the platform as deployed for Vallentuna kommun.
 - Serverless-ready on Vercel: image uploads on Vercel Blob, a daily session-timeout cron, and a
   documented production deploy checklist (since rewritten as [SCALING.md](SCALING.md)).
 
-[Unreleased]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.3...HEAD
+[Unreleased]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.3...v1.3.0
 [1.2.3]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.0...v1.2.1

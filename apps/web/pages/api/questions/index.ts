@@ -4,10 +4,9 @@ import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "@/lib/mongodb";
 import { Question, QuestionVote } from "@/lib/models";
 import { createLogger } from "@/lib/logger";
+import { PRE_ELECTION_LIMIT } from "@/lib/vote-quota";
 
 const log = createLogger("Questions");
-
-const PRE_ELECTION_LIMIT = 5;
 
 /** Sort by total turnout (ja+nej) descending, newest as tie-break. */
 function byTurnout(

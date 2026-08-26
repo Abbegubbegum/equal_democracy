@@ -3,10 +3,9 @@ import connectDB from "../../../../lib/mongodb";
 import { Question, QuestionVote } from "../../../../lib/models";
 import { verifyBearerToken } from "../../../../lib/mobile-jwt";
 import { createLogger } from "../../../../lib/logger";
+import { PRE_ELECTION_LIMIT } from "../../../../lib/vote-quota";
 
 const log = createLogger("MobileQuestions");
-
-const PRE_ELECTION_LIMIT = 5;
 
 // Closed questions are only reachable on Rösta (a question the user selected or
 // voted in that has since closed), so the tail doesn't need to be unbounded —

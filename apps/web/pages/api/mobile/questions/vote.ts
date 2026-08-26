@@ -3,16 +3,26 @@ import connectDB from "../../../../lib/mongodb";
 import { Question, QuestionVote } from "../../../../lib/models";
 import { verifyBearerToken } from "../../../../lib/mobile-jwt";
 import { createLogger } from "../../../../lib/logger";
+import { PRE_ELECTION_LIMIT, QUOTA_MESSAGE } from "../../../../lib/vote-quota";
 
 const log = createLogger("MobileQuestionVote");
 
-const PRE_ELECTION_LIMIT = 5;
-
 /**
  * POST /api/mobile/questions/vote
- * Cast or update a Ja/Nej vote on a Question. A brand-new vote is gated by
- * the question being active and the pre-election quota; changing an
- * existing vote is always free.
+ *
+ * ⚠️ **The unverified path, kept alive only for app builds already on phones.**
+ * Current builds vote through `/api/mobile/vote-verification`, which requires a
+ * BankID signature and a SPAR residency check; votes written here carry no
+ * `verifiedAt` and no `pnrHash`, so they are neither attributable to a real
+ * person nor deduplicated across accounts.
+ *
+ * It cannot simply be deleted: installed builds call it, and a 404 would leave
+ * them unable to vote with no explanation. Retire it in the same change that
+ * raises `MIN_SUPPORTED_MOBILE_VERSION` — see docs/bankid-go-live-checklist.md.
+ * The web equivalent had no such constraint and is already gone.
+ *
+ * A brand-new vote is gated by the question being active and the pre-election
+ * quota; changing an existing vote is always free.
  */
 export default async function handler(
   req: NextApiRequest,
@@ -53,10 +63,7 @@ export default async function handler(
 
       const used = await QuestionVote.countDocuments({ userId: user.id });
       if (used >= PRE_ELECTION_LIMIT) {
-        return res.status(403).json({
-          message:
-            "Du har röstat i 5 frågor — det är din kvot fram till valet den 13 september.",
-        });
+        return res.status(403).json({ message: QUOTA_MESSAGE });
       }
     }
 

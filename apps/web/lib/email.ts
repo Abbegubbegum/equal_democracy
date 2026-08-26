@@ -19,7 +19,12 @@ async function isOptedOut(email: string): Promise<boolean> {
   }
 }
 
-function getBaseUrl(): string {
+/**
+ * The origin the browser actually reaches us on — the base for OTP links and,
+ * since the BankID integration, for the callback GrandID redirects a voter back
+ * to. Must match NEXTAUTH_URL per environment; see the env notes in CLAUDE.md.
+ */
+export function getBaseUrl(): string {
   return process.env.NEXTAUTH_URL || "https://www.vallentuna.app";
 }
 

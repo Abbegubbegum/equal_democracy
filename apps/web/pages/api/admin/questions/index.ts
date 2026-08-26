@@ -55,27 +55,47 @@ export default async function handler(
               $group: {
                 _id: { questionId: "$questionId", choice: "$choice" },
                 count: { $sum: 1 },
+                // How many of these carry a BankID signature. Both kinds are
+                // counted in the tally, so without this an admin cannot tell a
+                // verified result from one an old app build produced.
+                verified: {
+                  $sum: { $cond: [{ $ifNull: ["$verifiedAt", false] }, 1, 0] },
+                },
               },
             },
           ])
         : [];
 
-      const countsByQuestion = new Map<string, { ja: number; nej: number }>();
+      const countsByQuestion = new Map<
+        string,
+        { ja: number; nej: number; verified: number }
+      >();
       for (const c of counts) {
         const key = c._id.questionId.toString();
-        const entry = countsByQuestion.get(key) || { ja: 0, nej: 0 };
+        const entry = countsByQuestion.get(key) || {
+          ja: 0,
+          nej: 0,
+          verified: 0,
+        };
         entry[c._id.choice as "ja" | "nej"] = c.count;
+        entry.verified += c.verified;
         countsByQuestion.set(key, entry);
       }
 
-      const withCounts = questions.map((q) => ({
-        ...q,
-        _id: q._id.toString(),
-        voteCounts: countsByQuestion.get(q._id.toString()) || {
+      const withCounts = questions.map((q) => {
+        const entry = countsByQuestion.get(q._id.toString()) || {
           ja: 0,
           nej: 0,
-        },
-      }));
+          verified: 0,
+        };
+        return {
+          ...q,
+          _id: q._id.toString(),
+          voteCounts: { ja: entry.ja, nej: entry.nej },
+          /** Of ja+nej, how many were signed with BankID. */
+          verifiedCount: entry.verified,
+        };
+      });
 
       return res.status(200).json(withCounts);
     } catch (error) {

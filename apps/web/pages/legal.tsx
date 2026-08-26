@@ -109,10 +109,22 @@ export default function LegalPage() {
               </table>
             </div>
             <p className="text-gray-600 text-sm leading-relaxed">
-              Vi samlar <strong>inte</strong> in personnummer i nuläget. Efter
-              valet, om Vallentuna Framåt får mandat, kommer e-legitimation
-              (BankID) att krävas för att verifiera att du är folkbokförd i
-              Vallentuna.
+              <strong>Varje röst signeras med BankID.</strong> När du röstar
+              signerar du texten &quot;Du röstar JA/NEJ på …&quot; med ditt
+              BankID. Vi hämtar samtidigt din folkbokföring från SPAR för att
+              kontrollera att du har fyllt 16 år och är folkbokförd i Vallentuna
+              kommun.
+            </p>
+            <p className="text-gray-600 text-sm leading-relaxed mt-2">
+              <strong>Vi sparar inte ditt personnummer.</strong> Vi sparar
+              varken namn, adress, kommun eller födelsedatum från SPAR — bara
+              själva utfallet av kontrollen. Till varje röst sparas en
+              kryptografisk kod som räknas fram ur ditt personnummer och den
+              specifika frågan. Koden kan inte räknas tillbaka till ditt
+              personnummer, och den enda sak den används till är att se till att
+              samma person inte röstar två gånger i samma fråga, ens med flera
+              konton. Koden är unik per fråga, så den kan inte användas för att
+              följa hur du röstat över tid.
             </p>
 
             <h3 className="font-bold text-gray-800 mt-6 mb-2">
@@ -135,6 +147,15 @@ export default function LegalPage() {
               Ditt konto och alla tillhörande uppgifter sparas så länge du är
               aktiv användare. Du kan när som helst begära radering (se punkt
               7).
+            </p>
+            <p className="text-gray-600 text-sm leading-relaxed mt-2">
+              <strong>Röster och BankID.</strong> Uppgifterna om en enskild
+              signering — bland annat en kontrollsumma av signaturen — raderas
+              automatiskt efter 30 dagar. När en fråga stängs anonymiseras
+              rösterna: kopplingen till ditt konto och den kryptografiska koden
+              tas bort permanent, så att resultatet inte längre går att härleda
+              till någon enskild person. Det innebär också att ett stängt
+              resultat inte kan ändras i efterhand om ett konto raderas.
             </p>
             <p className="text-gray-600 text-sm leading-relaxed mt-2">
               <strong>Undantag för betalningar.</strong> En inbetald

@@ -52,6 +52,8 @@ export type {
   QuestionVote,
   QuestionComment,
   QuestionCommentRating,
+  VerificationStatus,
+  VoteVerification,
 } from "./question";
 
 export type {
