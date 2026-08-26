@@ -46,6 +46,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [docs/gdpr-data-retention.md](docs/gdpr-data-retention.md) — what is stored, what is deleted, and
   why; including that a hashed personnummer is still personal data and a TTL is a compliance
   measure rather than an exemption.
+- BankID signing on the **web** too. `/rosta` was voting through a session-only endpoint into the
+  same tallies, so requiring BankID in the app alone would have left the browser as an unverified
+  path. Both surfaces now share one settle step. The unverified web endpoint is deleted outright —
+  unlike mobile, the web has no installed clients to break.
+- A rate limit of 10 BankID orders per user per hour. Every accepted order is a billable signature
+  and there is no sandbox, so this is a cost control as much as an abuse one.
+- The admin question list shows how many of a tally's votes carry a BankID signature, so a signed
+  result is distinguishable from one an older app build produced.
+- `BANKID_ALLOW_ANY_KOMMUN`, a development-only override that skips the Vallentuna residency check.
+  Without it the _eligible_ path cannot be reached by anyone not actually folkbokförd there, since
+  there is no GrandID sandbox and no synthetic identities. It waives residency and nothing else —
+  age, protected identity and samordningsnummer still reject — and three code-level guards keep it
+  off every deployment.
+
+### Changed
+
+- `/legal` now describes what BankID signing does: what is signed, what SPAR is asked, that no SPAR
+  data is retained, what the per-question code can and cannot do, and that votes are anonymised
+  when a question closes.
+- The store privacy disclosure no longer claims we do not collect personnummer. Apple gains
+  Identifiers → Government ID, Google Play gains Personal info → Other personal info. **Both store
+  consoles still need the answers transcribed by hand.**
 
 ### Fixed
 

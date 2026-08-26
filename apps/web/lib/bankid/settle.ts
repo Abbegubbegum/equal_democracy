@@ -13,9 +13,10 @@
 import crypto from "crypto";
 import { Question, QuestionVote } from "../models";
 import { createLogger } from "../logger";
-import { getGrandIdConfig } from "./config";
+import { allowAnyKommun, runtimeEnv } from "./config";
 import { checkEligibilityFromAttributes } from "./eligibility";
 import { votePseudonym } from "./pseudonym";
+import { QUOTA_MESSAGE, canVote } from "../vote-quota";
 import type { BankIdSession } from "./session";
 
 const log = createLogger("BankIdSettle");
@@ -89,16 +90,18 @@ export async function settleVerification(
     return settled(verification, status, reasonCode, message);
   };
 
-  // A verification created against the test service must never be able to write
-  // a real vote, the same guard Payment.env gives membership.
-  const { env } = getGrandIdConfig();
-  if (verification.env !== env) {
-    log.error("Verification environment does not match the runtime", {
+  // A verification started by a development server must never be completed by
+  // the deployment. Both share the production GrandID host, and `pnpm
+  // dev:web:live` shares the production database too, so this label is the only
+  // thing separating them.
+  const runtime = runtimeEnv();
+  if (verification.runtime !== runtime) {
+    log.error("Verification was created by a different runtime", {
       verificationId,
-      verificationEnv: verification.env,
-      runtimeEnv: env,
+      verificationRuntime: verification.runtime,
+      currentRuntime: runtime,
     });
-    return reject("FAILED", "ENV_MISMATCH", SYSTEM_MESSAGE);
+    return reject("FAILED", "RUNTIME_MISMATCH", SYSTEM_MESSAGE);
   }
 
   // Whether BankID signed or merely identified follows from the service key, not
@@ -129,7 +132,32 @@ export async function settleVerification(
     );
   }
 
-  const eligibility = checkEligibilityFromAttributes(session.userAttributes);
+  // Re-checked here and not only at start: start is what saves the voter a
+  // wasted signature, but this is where the vote is written, so this is the
+  // check that actually holds. A signature takes minutes, during which another
+  // device could have used the last slot.
+  if (
+    !(await canVote(
+      verification.userId.toString(),
+      verification.questionId.toString(),
+    ))
+  ) {
+    return reject("REJECTED", "QUOTA_REACHED", QUOTA_MESSAGE);
+  }
+
+  // Development only, and impossible to enable on a deployment — see
+  // allowAnyKommun(). Logged at warn every time, because a vote that skipped the
+  // residency check must never be silent in the record.
+  const bypassKommun = allowAnyKommun();
+  if (bypassKommun) {
+    log.warn("Residency check bypassed by BANKID_ALLOW_ANY_KOMMUN", {
+      verificationId,
+    });
+  }
+
+  const eligibility = checkEligibilityFromAttributes(session.userAttributes, {
+    allowAnyKommun: bypassKommun,
+  });
 
   if (eligibility.code === "SPAR_MISSING") {
     // Not a verdict about the voter — the SPAR add-on stopped arriving, which

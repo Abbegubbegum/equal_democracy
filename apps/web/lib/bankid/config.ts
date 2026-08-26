@@ -12,6 +12,11 @@
  * native type stripping.
  */
 
+/**
+ * Which GrandID host to call. Not the same thing as which runtime is calling —
+ * see `runtimeEnv()`. In practice this is `production` everywhere: the test host
+ * rejects our credentials (§8 of the integration plan), so there is no sandbox.
+ */
 export type GrandIdEnv = "test" | "production";
 
 /**
@@ -92,6 +97,61 @@ export function getGrandIdConfig(): GrandIdConfig {
 /** True when this runtime can produce real, legally meaningful verifications. */
 export function isProduction(): boolean {
   return getGrandIdConfig().env === "production";
+}
+
+/**
+ * Which runtime a verification was created by — **not** which GrandID host it
+ * used.
+ *
+ * These are deliberately separate. `GRANDID_ENV` selects the endpoint and stays
+ * `production` everywhere, because the test host rejects our credentials and
+ * there is no sandbox to move to. Stamping that on a row would therefore label
+ * every verification "production" including ones started from a laptop, which is
+ * exactly the distinction worth keeping.
+ *
+ * It matters most for `pnpm dev:web:live`, which points a development server at
+ * the production database: rows it creates land in production data and are
+ * identifiable only by this. `settleVerification` refuses to settle a row whose
+ * runtime is not the current one, so a development verification can never be
+ * completed by the deployment.
+ */
+export type VerificationRuntime = "development" | "production";
+
+export function runtimeEnv(): VerificationRuntime {
+  return process.env.NODE_ENV === "production" ? "production" : "development";
+}
+
+/**
+ * Development-only override that skips the Vallentuna residency check.
+ *
+ * It exists because the residency check cannot otherwise be passed by whoever is
+ * working on this: there is no GrandID sandbox and no synthetic identities, so
+ * the only way to reach the eligible branch is to actually be folkbokförd in
+ * Vallentuna. Without this the happy path is untestable for everyone else.
+ *
+ * Enabled in production, it would let anyone in Sweden vote in Vallentuna's
+ * election. Three independent conditions therefore have to hold, and only one of
+ * them is a setting:
+ *
+ * 1. `NODE_ENV !== "production"`. Vercel builds with NODE_ENV=production
+ *    always, so no deployment can turn this on however its env vars are set.
+ *    This is the load-bearing one — it is not configurable.
+ * 2. `BANKID_ALLOW_ANY_KOMMUN=true`, explicitly.
+ * 3. The database is not the production one. `pnpm dev:web:live` deliberately
+ *    points a *development* server at the production database, which would
+ *    otherwise satisfy (1) while writing real votes.
+ *
+ * Deliberately absent from `turbo.json`'s `env[]`: it cannot affect a build,
+ * and listing it there would imply it belongs in Vercel. It does not.
+ */
+export function allowAnyKommun(): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+  if (process.env.BANKID_ALLOW_ANY_KOMMUN !== "true") return false;
+
+  const productionUri = process.env.MONGODB_URI_PRODUCTION;
+  if (productionUri && process.env.MONGODB_URI === productionUri) return false;
+
+  return true;
 }
 
 /**

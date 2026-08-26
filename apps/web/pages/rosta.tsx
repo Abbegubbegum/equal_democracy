@@ -32,6 +32,12 @@ export default function RostaPage() {
   const [question, setQuestion] = useState(null);
   const [hasSelection, setHasSelection] = useState(true);
   const [loading, setLoading] = useState(true);
+  // Set while resolving the signature GrandID has just sent the voter back from.
+  const [verifying, setVerifying] = useState(false);
+  const [verdict, setVerdict] = useState<{
+    status: string;
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -80,6 +86,77 @@ export default function RostaPage() {
     const q = typeof router.query.q === "string" ? router.query.q : null;
     load(q);
   }, [session, router.isReady, router.query.q, load]);
+
+  /**
+   * Picks up a signature GrandID has just returned the voter from.
+   *
+   * The browser left the page entirely, so nothing could watch the order while
+   * it was happening — the redirect carries `?grandidsession=` and this resolves
+   * it. The server settles on the same request, so the first non-PENDING answer
+   * is the final one. It keeps polling while PENDING because the redirect can
+   * beat GrandID registering the signature by a second or two.
+   */
+  useEffect(() => {
+    if (!session || !router.isReady) return;
+    const grandidsession =
+      typeof router.query.grandidsession === "string"
+        ? router.query.grandidsession
+        : null;
+    if (!grandidsession) return;
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const poll = async () => {
+      if (cancelled) return;
+      if (attempts === 0) setVerifying(true);
+      attempts += 1;
+      try {
+        const res = await fetch(
+          `/api/questions/vote-verification?grandidsession=${encodeURIComponent(grandidsession)}`,
+        );
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (res.ok && data.status && data.status !== "PENDING") {
+          setVerifying(false);
+          setVerdict({ status: data.status, message: data.message });
+          if (data.status === "VERIFIED") {
+            setQuestion((q) =>
+              q && q.id === data.questionId
+                ? { ...q, voteCounts: data.voteCounts, userVote: data.userVote }
+                : q,
+            );
+          }
+          // Drop the parameter so a reload does not re-resolve a finished
+          // signature, and the URL stops carrying a session id.
+          router.replace("/rosta", undefined, { shallow: true });
+          return;
+        }
+      } catch {
+        // Transient — keep waiting.
+      }
+      // ~30s at 2s intervals, comfortably past the point where a completed
+      // signature should have registered.
+      if (!cancelled && attempts < 15) setTimeout(poll, 2000);
+      else if (!cancelled) {
+        setVerifying(false);
+        setVerdict({
+          status: "FAILED",
+          message:
+            "Vi kunde inte bekräfta signeringen. Ladda om sidan för att se om rösten registrerades.",
+        });
+      }
+    };
+
+    poll();
+    return () => {
+      cancelled = true;
+    };
+    // `load` is deliberately absent: this must run once per returned session,
+    // not every time the question reloads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, router.isReady, router.query.grandidsession]);
 
   const chooseAnother = () => {
     try {
@@ -138,6 +215,42 @@ export default function RostaPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {verifying && (
+          <div className="bg-white rounded-card border border-black/5 p-6 mb-5 text-center">
+            <p className="text-gray-800 font-bold">Bekräftar din signering…</p>
+            <p className="text-gray-500 text-sm mt-1">
+              Vi hämtar svaret från BankID. Det tar bara någon sekund.
+            </p>
+          </div>
+        )}
+
+        {verdict && (
+          <div
+            className={`rounded-card border p-5 mb-5 ${
+              verdict.status === "VERIFIED"
+                ? "bg-green-50 border-green-200"
+                : verdict.status === "REJECTED"
+                  ? "bg-amber-50 border-amber-200"
+                  : "bg-red-50 border-red-200"
+            }`}
+          >
+            <p className="font-bold text-gray-900">
+              {verdict.status === "VERIFIED"
+                ? "Din röst är registrerad"
+                : verdict.status === "REJECTED"
+                  ? "Du kan inte rösta i den här frågan"
+                  : "Signeringen gick inte igenom"}
+            </p>
+            <p className="text-sm text-gray-700 mt-1">{verdict.message}</p>
+            <button
+              onClick={() => setVerdict(null)}
+              className="mt-3 text-sm font-bold text-primary-700 hover:underline"
+            >
+              Stäng
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-12 text-gray-500">Laddar frågan…</div>
         ) : !hasSelection || !question ? (
@@ -155,13 +268,7 @@ export default function RostaPage() {
           </div>
         ) : (
           <>
-            <VoteCard
-              question={question}
-              onVoted={(voteCounts, userVote) =>
-                setQuestion((q) => ({ ...q, voteCounts, userVote }))
-              }
-              onChooseAnother={chooseAnother}
-            />
+            <VoteCard question={question} onChooseAnother={chooseAnother} />
             <DebateSection questionId={question.id} isAdmin={isAdmin} />
           </>
         )}
@@ -170,7 +277,7 @@ export default function RostaPage() {
   );
 }
 
-function VoteCard({ question, onVoted, onChooseAnother }) {
+function VoteCard({ question, onChooseAnother }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
@@ -189,23 +296,31 @@ function VoteCard({ question, onVoted, onChooseAnother }) {
       })
     : null;
 
+  /**
+   * A vote is a BankID signature, so this writes nothing. It starts an order and
+   * hands the browser to GrandID; the vote is recorded server-side once the
+   * signature comes back, and the page picks the outcome up on return via
+   * ?grandidsession= (see resolveVerification in RostaPage).
+   */
   const submitVote = async (choice) => {
     setSubmitting(true);
     setError("");
     try {
-      const res = await fetchWithCsrf("/api/questions/vote", {
+      const res = await fetchWithCsrf("/api/questions/vote-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ questionId: question.id, choice }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setError(data.message || "Röstning misslyckades");
+      if (!res.ok || !data.redirectUrl) {
+        setError(data.message || "BankID kunde inte startas");
         return;
       }
-      onVoted(data.voteCounts, data.userVote);
-      setEditing(false);
-    } finally {
+      // Leaves the page. Nothing after this runs, so `submitting` stays true —
+      // which is what we want while the browser is navigating away.
+      window.location.href = data.redirectUrl;
+    } catch {
+      setError("BankID kunde inte startas. Försök igen.");
       setSubmitting(false);
     }
   };
@@ -281,21 +396,28 @@ function VoteCard({ question, onVoted, onChooseAnother }) {
             </div>
           </div>
         ) : (
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <button
-              disabled={submitting}
-              onClick={() => submitVote("ja")}
-              className="py-3.5 rounded-btn font-extrabold text-base bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
-            >
-              Ja
-            </button>
-            <button
-              disabled={submitting}
-              onClick={() => submitVote("nej")}
-              className="py-3.5 rounded-btn font-extrabold text-base bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
-            >
-              Nej
-            </button>
+          <div className="mt-4">
+            <p className="text-white/80 text-xs font-semibold mb-2">
+              {submitting
+                ? "Öppnar BankID…"
+                : "Du signerar din röst med BankID."}
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                disabled={submitting}
+                onClick={() => submitVote("ja")}
+                className="py-3.5 rounded-btn font-extrabold text-base bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
+              >
+                Ja
+              </button>
+              <button
+                disabled={submitting}
+                onClick={() => submitVote("nej")}
+                className="py-3.5 rounded-btn font-extrabold text-base bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+              >
+                Nej
+              </button>
+            </div>
           </div>
         )}
 

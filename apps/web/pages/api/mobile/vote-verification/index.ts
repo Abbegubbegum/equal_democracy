@@ -7,8 +7,10 @@ import {
 } from "../../../../lib/models";
 import { verifyBearerToken } from "../../../../lib/mobile-jwt";
 import { createLogger } from "../../../../lib/logger";
-import { getGrandIdConfig } from "../../../../lib/bankid/config";
+import { runtimeEnv } from "../../../../lib/bankid/config";
 import { startBankIdSession } from "../../../../lib/bankid/session";
+import { QUOTA_MESSAGE, canVote } from "../../../../lib/vote-quota";
+import { checkStartThrottle } from "../../../../lib/bankid/rate-limit";
 
 const log = createLogger("MobileVoteVerification");
 
@@ -117,6 +119,24 @@ export default async function handler(
       });
     }
 
+    // Every accepted order is a billable signature, so this is a cost control as
+    // much as an abuse one.
+    const throttle = await checkStartThrottle(user.id);
+    if (throttle.limited) {
+      log.warn("Vote verification start throttled", { userId: user.id });
+      return res.status(429).json({
+        message:
+          "Du har startat för många BankID-signeringar. Försök igen om en stund.",
+        retryAfter: throttle.retryAfter,
+      });
+    }
+
+    // Checked before spending a signature. Settle checks again, because that is
+    // where the vote is written and minutes pass in between.
+    if (!(await canVote(user.id, String(questionId)))) {
+      return res.status(403).json({ message: QUOTA_MESSAGE });
+    }
+
     const inFlight: any = await VoteVerification.findOne({
       userId: user.id,
       status: "PENDING",
@@ -142,8 +162,6 @@ export default async function handler(
         resumed: true,
       });
     }
-
-    const { env } = getGrandIdConfig();
 
     // An unusable or missing returnUrl is not an error: the signature still
     // works, the voter is just left on GrandID's completion page instead of
@@ -173,13 +191,13 @@ export default async function handler(
       grandIdSession: started.sessionId,
       redirectUrl: started.redirectUrl,
       status: "PENDING",
-      env,
+      runtime: runtimeEnv(),
     });
 
     log.info("Vote verification started", {
       verificationId: verification._id.toString(),
       questionId: String(questionId),
-      env,
+      runtime: runtimeEnv(),
     });
 
     return res.status(201).json({

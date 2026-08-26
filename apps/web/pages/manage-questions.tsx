@@ -326,6 +326,30 @@ function QuestionArguments({ questionId }: { questionId: string }) {
   );
 }
 
+/**
+ * How much of a tally is BankID-backed.
+ *
+ * Both verified and unverified votes are counted in the same ja/nej figures, so
+ * without this an admin has no way to tell a signed result from one an app build
+ * predating BankID produced. Hidden when everything is verified — which is the
+ * expected steady state once the unverified endpoint is retired, and silence is
+ * the right amount of noise for "nothing to see".
+ */
+function VerifiedShare({
+  total,
+  verified,
+}: {
+  total: number;
+  verified: number;
+}) {
+  if (total === 0 || verified === total) return null;
+  return (
+    <p className="text-xs font-semibold text-amber-700 mt-0.5">
+      {verified} av {total} signerade med BankID
+    </p>
+  );
+}
+
 function QuestionsPanel() {
   const { data: session } = useSession();
   const { theme } = useConfig();
@@ -709,6 +733,10 @@ function QuestionsPanel() {
                     >
                       Ja {q.voteCounts?.ja ?? 0} / Nej {q.voteCounts?.nej ?? 0}
                     </p>
+                    <VerifiedShare
+                      total={(q.voteCounts?.ja ?? 0) + (q.voteCounts?.nej ?? 0)}
+                      verified={q.verifiedCount ?? 0}
+                    />
 
                     <div className="mt-3 pt-3 border-t border-green-200">
                       <p className="text-xs font-semibold text-slate-600 mb-2">
@@ -793,6 +821,10 @@ function QuestionsPanel() {
                 <p className="text-sm text-slate-600 mt-1">
                   Ja {q.voteCounts?.ja ?? 0} / Nej {q.voteCounts?.nej ?? 0}
                 </p>
+                <VerifiedShare
+                  total={(q.voteCounts?.ja ?? 0) + (q.voteCounts?.nej ?? 0)}
+                  verified={q.verifiedCount ?? 0}
+                />
                 {q.closedAt && (
                   <p className="text-sm text-slate-500">
                     Stängd:{" "}

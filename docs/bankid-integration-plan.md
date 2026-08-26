@@ -344,8 +344,10 @@ reasonCode      String|null               ← UNDERAGE | WRONG_KOMMUN | PROTECTE
                                             userCancel | startFailed | expiredTransaction
 voteId          ref QuestionVote, null    ← set on VERIFIED
 evidence        { notBefore, notAfter, bankIdIssueDate, ocspResponse, signature } | null
-env             "test" | "production"     ← same guard as Payment.env: a test verification
-                                            can never write a production vote
+runtime         "development" | "production"  ← which runtime created the row, NOT
+                                            which GrandID host it used. The host is
+                                            production everywhere; this is what stops a
+                                            dev server settling a row through dev:web:live
 lastPolledAt    Date                      ← enforces the ≥2 s poll floor server-side
 createdAt/updatedAt
 ```
@@ -373,8 +375,11 @@ per the Mongoose-cache rule in `CLAUDE.md`.
 
 ## 6. API endpoints
 
-All Bearer-auth, mobile-only. There is no public web voting page for `Question`s,
-so `apps/web` needs no UI work in this integration.
+All Bearer-auth, for the app. The web has its own equivalent at
+`pages/api/questions/vote-verification.ts` — session auth instead of a Bearer
+token, and resolved on return from the redirect rather than polled throughout —
+sharing the same `settleVerification`. (An earlier draft of this section claimed
+there was no web voting page; there is, see Stage 6.)
 
 | Route                                            | Does                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -437,8 +442,17 @@ accepted by `client.grandid.com`. Consequences, in order of how much they hurt:
 3. **The bad news**: there is no safe place to exercise the _ineligible_ branches.
    Under-16, wrong kommun, sekretessmarkering and samordningsnummer can only be
    covered by fixtures in Stage 2, never end to end.
-4. `BANKID_ALLOW_ANY_KOMMUN` as designed is useless — it was meant to work around
-   synthetic test data that does not exist. Drop it, and rely on fixtures.
+4. `BANKID_ALLOW_ANY_KOMMUN` **exists after all**, for the opposite reason to the
+   one originally planned. It was meant to work around synthetic test data; there
+   is none. But because there is none, the _eligible_ path cannot be reached by
+   anyone not actually folkbokförd in Vallentuna — so the override skips the
+   residency check and nothing else. Three guards keep it out of production, only
+   one of which is a setting: `NODE_ENV !== "production"` (not configurable, and
+   every Vercel build sets it), the flag set to exactly `"true"`, and the database
+   not being the production one — `pnpm dev:web:live` runs a _development_ server
+   against production data and would otherwise slip through. See
+   `allowAnyKommun()` in `lib/bankid/config.ts`; eligibility itself stays pure and
+   takes the decision as an option.
 
 **Worth asking Svensk E-identitet for test credentials anyway.** Not a blocker,
 but without them every CI-style rerun costs a transaction and a signature.
@@ -538,12 +552,12 @@ collection still holds a deleted user's id).
 
 **What is actually stored, and for how long:**
 
-| Where              | Field                                              | Lifetime                                         |
-| ------------------ | -------------------------------------------------- | ------------------------------------------------ |
-| `QuestionVote`     | `verifiedAt`                                       | forever — labels which results are BankID-backed |
-| `QuestionVote`     | `pnrHash`                                          | forever — per-question pseudonym, the dedup key  |
-| `VoteVerification` | ballot intent, status, reasonCode, env, poll clock | 30 days (TTL)                                    |
-| `VoteVerification` | `evidence.signature` + OCSP                        | 30 days (TTL)                                    |
+| Where              | Field                                                  | Lifetime                                         |
+| ------------------ | ------------------------------------------------------ | ------------------------------------------------ |
+| `QuestionVote`     | `verifiedAt`                                           | forever — labels which results are BankID-backed |
+| `QuestionVote`     | `pnrHash`                                              | forever — per-question pseudonym, the dedup key  |
+| `VoteVerification` | ballot intent, status, reasonCode, runtime, poll clock | 30 days (TTL)                                    |
+| `VoteVerification` | `evidence.signature` + OCSP                            | 30 days (TTL)                                    |
 
 **Never stored anywhere:** personnummer, name, address, kommun, birth date. The
 eligibility verdict is computed at settle and only its _outcome_ is kept.
@@ -575,7 +589,8 @@ the dev database and cleans up after itself. This is possible because
 seam each scenario would cost a real signature, and an under-16 or a protected
 identity could not be produced at all. 22 checks: happy path, replay, one person
 across two accounts, a second person on the same question, `NOT_SIGNED`,
-`QUESTION_CLOSED`, `ENV_MISMATCH`, `SPAR_MISSING`, `WRONG_KOMMUN`, `UNDERAGE`.
+`QUESTION_CLOSED`, `RUNTIME_MISMATCH`, `SPAR_MISSING`, `WRONG_KOMMUN`,
+`UNDERAGE`, `QUOTA_REACHED`, and the development residency override.
 
 Decisions made while building:
 
@@ -669,22 +684,76 @@ Expo Go; what needs a phone is the browser hand-off, the `bankid://` launch from
 GrandID's page, and the return. Expect the first attempt to cost a real
 signature — there is no sandbox (§8).
 
-### Stage 6 — Quota transition
+### Stage 6 — Quota transition and the web voting path ✅ complete
 
-`PRE_ELECTION_LIMIT = 5` exists precisely because votes were unverified. A
-verified Vallentuna resident should bypass it (that is already the stated plan in
-`CLAUDE.md`). Decide here what happens to the unverified
-`POST /api/mobile/questions/vote` — and remember installed builds still call it,
-so removing it needs `MIN_SUPPORTED_MOBILE_VERSION` raised in the same change.
+Stage 6 turned out to be twice the job, because this document was wrong about
+something load-bearing.
 
-### Stage 7 — Hardening
+**Correction to §6.** It said "There is no public web voting page for
+`Question`s, so `apps/web` needs no UI work in this integration." There is:
+`/rosta`, linked from the homepage nav and from municipal board pages, voting
+through `POST /api/questions/vote` on nothing but a NextAuth session. Stages 4
+and 5 were built on that false premise. Left alone, the website would have
+remained an unverified path into the same `QuestionVote` collection — the app
+would require BankID while the browser did not, which defeats the integration
+rather than merely limiting it.
 
-Per-user rate limit on starting verifications (each one costs money), admin
-visibility into verification outcomes, TTL purge verified, structured logging,
-and the docs: `CLAUDE.md`, `docs/app-store-privacy-disclosure.md` (this
-introduces **national ID processing** — both Apple's App Privacy answers and
-Google's Data safety form need updating), `/legal`, and
-`docs/bankid-go-live-checklist.md` mirroring the Swish one.
+**The web now verifies too**, through `pages/api/questions/vote-verification.ts`
+(session auth + CSRF) and the same `settleVerification`, so both surfaces write
+votes through identical rules. Web is the easier platform: a real `https`
+callback, no deep links, no `appRedirect` quirks.
+
+The shape differs from mobile in one way. The browser _leaves_ for GrandID, so
+nothing can poll while the signature happens. GrandID returns the voter to
+`/rosta?grandidsession=…` and the page resolves the outcome from there — keyed by
+GrandID's session id rather than ours, because that is what the redirect carries.
+It keeps polling briefly while `PENDING`, since the redirect can beat GrandID
+registering the signature.
+
+**`/api/questions/vote` is deleted outright.** The web has no installed clients,
+so the unverified path could go immediately — unlike mobile, where it has to
+survive until the store release.
+
+**The quota stays.** The 5-vote pre-election limit applies to verified voting
+too — a signature proves _who_ you are, not how many times you may vote before
+the election. What changed is that it is now enforced in one place rather than
+copy-pasted: `lib/vote-quota.ts` holds the constant and the two helpers, used by
+both verification start endpoints, `settleVerification`, the legacy mobile
+endpoint, and the two list endpoints that report it. Start endpoints check it so
+a doomed signature is never paid for; settle re-checks, because that is where the
+vote is written and minutes pass in between.
+
+`PRE_ELECTION_LIMIT` in `/api/mobile/questions/*` continues to serve app builds
+already on phones, and is retired with that endpoint per
+[bankid-go-live-checklist.md](bankid-go-live-checklist.md) §4.
+
+### Stage 7 — Hardening ✅ complete
+
+- **Rate limit on starting orders** (`lib/bankid/rate-limit.ts`): 10 per user per
+  hour, counted in the database because a Vercel deployment runs many lambdas and
+  an in-process counter would be per-instance and reset on every cold start.
+  This is a cost control as much as an abuse one — every accepted order is a
+  billable signature and there is no sandbox to absorb a loop. `retryAfter` is
+  measured from when the oldest order in the window ages out, not a flat hour.
+- **Admin visibility**: `/api/admin/questions` reports `verifiedCount` per
+  question, and `/manage-questions` shows "N av M signerade med BankID" whenever
+  the two differ. Both verified and unverified votes land in the same tally, so
+  without this an admin cannot tell a signed result from one an older app build
+  produced. Hidden when everything is verified, which is the steady state once
+  the legacy endpoint is retired.
+- **Store disclosure corrected**: the inventory said "We do NOT collect:
+  personnummer", which the release makes false. Apple gains **Identifiers →
+  Government ID**, Play gains **Personal info → Other personal info**. Declared
+  even though nothing is retained, because both stores ask whether data is
+  _collected_, and processing in transit counts.
+- **`/legal` rewritten** (§2 and §4): what is signed, what SPAR is asked, that no
+  SPAR data is kept, what the per-question code is and is not capable of, the
+  30-day purge, and the anonymisation at close.
+- **Go-live checklist**: [bankid-go-live-checklist.md](bankid-go-live-checklist.md).
+
+Deliberately not done: the TTL purge cannot be observed without waiting 30 days,
+so it rests on the index being present. Structured logging was already in place
+from Stage 4.
 
 ### Stage 8 — Production switch
 

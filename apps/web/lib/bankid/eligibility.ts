@@ -207,6 +207,15 @@ export interface EligibilityOptions {
    * deterministic whichever way decision 3b is configured.
    */
   now?: Date;
+  /**
+   * Skip the Vallentuna residency check — development only.
+   *
+   * Passed in rather than read from the environment here, so this module stays
+   * pure and the bypass is visible at the call site instead of hiding inside
+   * the rules. `allowAnyKommun()` in ./config.ts owns the decision and the
+   * guards that keep it out of production.
+   */
+  allowAnyKommun?: boolean;
 }
 
 /**
@@ -284,25 +293,30 @@ export function checkEligibility(
     };
   }
 
-  if (!facts.lanKod || !facts.kommunKod) {
-    return {
-      eligible: false,
-      code: "UNKNOWN_REGISTRATION",
-      message:
-        "Vi kunde inte avgöra var du är folkbokförd. Kontakta oss så hjälper vi dig.",
-    };
-  }
+  // Everything above still applies under the development override — it only
+  // waives *where* someone lives, never whether they are a real, living,
+  // old-enough person with an unprotected identity.
+  if (!options.allowAnyKommun) {
+    if (!facts.lanKod || !facts.kommunKod) {
+      return {
+        eligible: false,
+        code: "UNKNOWN_REGISTRATION",
+        message:
+          "Vi kunde inte avgöra var du är folkbokförd. Kontakta oss så hjälper vi dig.",
+      };
+    }
 
-  if (
-    facts.lanKod !== VALLENTUNA_LAN_KOD ||
-    facts.kommunKod !== VALLENTUNA_KOMMUN_KOD
-  ) {
-    return {
-      eligible: false,
-      code: "WRONG_KOMMUN",
-      message:
-        "Du är folkbokförd i en annan kommun än Vallentuna och kan därför inte rösta här.",
-    };
+    if (
+      facts.lanKod !== VALLENTUNA_LAN_KOD ||
+      facts.kommunKod !== VALLENTUNA_KOMMUN_KOD
+    ) {
+      return {
+        eligible: false,
+        code: "WRONG_KOMMUN",
+        message:
+          "Du är folkbokförd i en annan kommun än Vallentuna och kan därför inte rösta här.",
+      };
+    }
   }
 
   return {

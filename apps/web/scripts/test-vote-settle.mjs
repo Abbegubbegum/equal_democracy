@@ -22,19 +22,23 @@ import mongoose from "mongoose";
 
 loadEnv({ path: fileURLToPath(new URL("../.env.local", import.meta.url)) });
 process.env.LOG_LEVEL = process.argv.includes("--verbose") ? "debug" : "error";
+// The rules under test are the real ones. A developer with the residency
+// override enabled in .env.local would otherwise see the Göteborg case pass,
+// which is exactly the assertion that must not quietly flip.
+process.env.BANKID_ALLOW_ANY_KOMMUN = "false";
 register(new URL("./ts-resolve-hooks.mjs", import.meta.url));
 
 const { Question, QuestionVote, VoteVerification } =
   await import("../lib/models.ts");
 const { settleVerification } = await import("../lib/bankid/settle.ts");
-const { getGrandIdConfig } = await import("../lib/bankid/config.ts");
+const { runtimeEnv } = await import("../lib/bankid/config.ts");
 
 const dim = (s) => `\x1b[2m${s}\x1b[0m`;
 const bold = (s) => `\x1b[1m${s}\x1b[0m`;
 const red = (s) => `\x1b[31m${s}\x1b[0m`;
 const green = (s) => `\x1b[32m${s}\x1b[0m`;
 
-const RUNTIME_ENV = getGrandIdConfig().env;
+const RUNTIME = runtimeEnv();
 const oid = () => new mongoose.Types.ObjectId();
 
 /** A completed BankID session, shaped exactly like getBankIdSession returns. */
@@ -99,7 +103,7 @@ async function makeQuestion(status = "active") {
 
 async function makeVerification(
   question,
-  { choice = "ja", env = RUNTIME_ENV, userId = oid() } = {},
+  { choice = "ja", runtime = RUNTIME, userId = oid() } = {},
 ) {
   const v = await VoteVerification.create({
     userId,
@@ -108,7 +112,7 @@ async function makeVerification(
     grandIdSession: `test-${oid().toString()}`,
     redirectUrl: "https://login.grandid.com/?sessionid=test",
     status: "PENDING",
-    env,
+    runtime,
   });
   created.verifications.push(v._id);
   return v;
@@ -128,7 +132,7 @@ const check = (name, actual, expected) => {
 try {
   await mongoose.connect(process.env.MONGODB_URI);
   console.log(
-    `\n  ${bold("settleVerification")} ${dim(`(env ${RUNTIME_ENV})`)}\n`,
+    `\n  ${bold("settleVerification")} ${dim(`(runtime ${RUNTIME})`)}\n`,
   );
 
   // --- happy path -----------------------------------------------------------
@@ -217,10 +221,10 @@ try {
   {
     const q = await makeQuestion();
     const v = await makeVerification(q, {
-      env: RUNTIME_ENV === "production" ? "test" : "production",
+      runtime: RUNTIME === "production" ? "development" : "production",
     });
     const r = await settleVerification(v, session());
-    check("environment mismatch", r.reasonCode, "ENV_MISMATCH");
+    check("started by a different runtime", r.reasonCode, "RUNTIME_MISMATCH");
   }
   {
     const q = await makeQuestion();
@@ -246,6 +250,63 @@ try {
       session({ birthDate: "2015-01-01", personalNumber: "201501017577" }),
     );
     check("under 16", r.reasonCode, "UNDERAGE");
+  }
+
+  // --- the development residency override -----------------------------------
+  {
+    const q = await makeQuestion();
+    const v = await makeVerification(q);
+    process.env.BANKID_ALLOW_ANY_KOMMUN = "true";
+    const r = await settleVerification(
+      v,
+      session({ lanKod: "14", kommunKod: "80" }),
+    );
+    process.env.BANKID_ALLOW_ANY_KOMMUN = "false";
+    check("override: Göteborg is accepted", r.status, "VERIFIED");
+    check(
+      "  vote written",
+      await QuestionVote.countDocuments({ questionId: q._id }),
+      1,
+    );
+  }
+
+  // --- the pre-election quota ------------------------------------------------
+  {
+    const voter = oid();
+    // Five first-time votes already cast, on other questions.
+    for (let i = 0; i < 5; i += 1) {
+      const q = await makeQuestion();
+      await QuestionVote.create({
+        questionId: q._id,
+        userId: voter,
+        choice: "ja",
+      });
+    }
+
+    const sixth = await makeQuestion();
+    const v = await makeVerification(sixth, { userId: voter });
+    const r = await settleVerification(v, session());
+    check("sixth first-time vote", r.reasonCode, "QUOTA_REACHED");
+    check(
+      "  no vote written",
+      await QuestionVote.countDocuments({ questionId: sixth._id }),
+      0,
+    );
+
+    // Changing a vote already cast consumes no slot, so it must still work at
+    // the limit.
+    const already = await QuestionVote.findOne({ userId: voter });
+    const change = await makeVerification(
+      { _id: already.questionId },
+      { userId: voter, choice: "nej" },
+    );
+    const changed = await settleVerification(change, session());
+    check("changing an existing vote at the limit", changed.status, "VERIFIED");
+    check(
+      "  choice updated",
+      (await QuestionVote.findById(already._id)).choice,
+      "nej",
+    );
   }
 
   console.log(

@@ -1691,11 +1691,15 @@ const VoteVerificationSchema = new mongoose.Schema(
       notBefore: { type: String, default: null },
       notAfter: { type: String, default: null },
     },
-    // Guards against a test-environment verification ever writing a real vote,
-    // the same way Payment.env guards membership.
-    env: {
+    // Which runtime created this row — not which GrandID host it used. The host
+    // is `production` everywhere (there is no sandbox), so stamping that would
+    // label a verification started on a laptop "production" too. See
+    // runtimeEnv() in lib/bankid/config.ts; settle refuses to complete a row
+    // whose runtime is not the current one, which is what stops a development
+    // verification writing a real vote through `pnpm dev:web:live`.
+    runtime: {
       type: String,
-      enum: ["test", "production"],
+      enum: ["development", "production"],
       required: true,
     },
     // Enforces the API's own >= 2s GetSession poll floor server-side, so a

@@ -49,7 +49,8 @@ export interface VoteVerification extends BaseDocument {
   /** EligibilityCode or BankID hintCode. Never a personal detail. */
   reasonCode?: string | null;
   voteId?: string | null;
-  env: "test" | "production";
+  /** Which runtime created the row — not which GrandID host it used. */
+  runtime: "development" | "production";
   lastPolledAt?: string | null;
 }
 

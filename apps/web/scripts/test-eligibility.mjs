@@ -254,6 +254,43 @@ const CASES = [
     }),
     expect: "UNDERAGE",
   },
+  // The development override waives *where* someone lives and nothing else.
+  {
+    name: "bypass: Göteborg becomes eligible",
+    attributes: spar({ lanKod: "14", kommunKod: "80" }),
+    options: { allowAnyKommun: true },
+    expect: "ELIGIBLE",
+  },
+  {
+    name: "bypass: no registration data at all is fine too",
+    attributes: spar({ registration: { ns2DatumTill: "9999-12-31" } }),
+    options: { allowAnyKommun: true },
+    expect: "ELIGIBLE",
+  },
+  {
+    name: "bypass does NOT waive age",
+    attributes: spar({ birthDate: "2015-01-01", idNumber: "201501017577" }),
+    options: { allowAnyKommun: true },
+    expect: "UNDERAGE",
+  },
+  {
+    name: "bypass does NOT waive protected identity",
+    attributes: spar({ secrecy: "JA" }),
+    options: { allowAnyKommun: true },
+    expect: "PROTECTED_IDENTITY",
+  },
+  {
+    name: "bypass does NOT waive samordningsnummer",
+    attributes: spar({ idType: "SAMORDNINGSNUMMER" }),
+    options: { allowAnyKommun: true },
+    expect: "NOT_PERSONNUMMER",
+  },
+  {
+    name: "bypass does NOT waive a missing SPAR block",
+    attributes: {},
+    options: { allowAnyKommun: true },
+    expect: "SPAR_MISSING",
+  },
   {
     name: "hemvist 'På kommunen' still counts as resident",
     attributes: spar({
@@ -274,6 +311,7 @@ console.log(`\n  ${bold("Eligibility fixtures")}\n`);
 for (const testCase of CASES) {
   const result = checkEligibilityFromAttributes(testCase.attributes, {
     now: testCase.now,
+    ...testCase.options,
   });
   const pass = result.code === testCase.expect;
   if (!pass) failures += 1;
