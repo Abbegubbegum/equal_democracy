@@ -31,19 +31,16 @@ interface ArchivedSession {
 export default function ArchiveScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, isLoading } = useAuth();
+  const { isLoading } = useAuth();
   const [sessions, setSessions] = useState<ArchivedSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
+  // No auth guard: the archive is readable signed out, like the rest of the app.
   useEffect(() => {
-    if (!isLoading && !user) {
-      router.replace("/(auth)/login");
-      return;
-    }
-    if (user) load();
-  }, [user, isLoading]);
+    if (!isLoading) load();
+  }, [isLoading]);
 
   async function load() {
     setLoading(true);

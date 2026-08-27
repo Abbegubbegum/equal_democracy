@@ -2,7 +2,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../../../lib/mongodb";
 import { Proposal, ProposalRating } from "../../../../../lib/models";
 import { getRatingAggregates } from "../../../../../lib/rating-helper";
-import { verifyBearerToken } from "../../../../../lib/mobile-jwt";
+import { optionalBearerToken } from "../../../../../lib/mobile-jwt";
+import { requireParticipant } from "../../../../../lib/viewer";
 import { createLogger } from "../../../../../lib/logger";
 
 const log = createLogger("MobileProposals");
@@ -11,12 +12,8 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  // GET is public; POST re-resolves the caller through requireParticipant.
+  const user = optionalBearerToken(req.headers.authorization);
 
   const { id: sessionId } = req.query;
 
@@ -34,10 +31,12 @@ export default async function handler(
         "proposalId",
         proposalIds,
       );
-      const userRatings = await ProposalRating.find({
-        proposalId: { $in: proposalIds },
-        userId: user.id,
-      }).lean();
+      const userRatings = user
+        ? await ProposalRating.find({
+            proposalId: { $in: proposalIds },
+            userId: user.id,
+          }).lean()
+        : [];
       const userRatingMap = Object.fromEntries(
         userRatings.map((r) => [r.proposalId.toString(), r.rating]),
       );
@@ -68,6 +67,9 @@ export default async function handler(
   }
 
   if (req.method === "POST") {
+    const viewer = await requireParticipant(req, res);
+    if (!viewer) return;
+
     try {
       const { title, problem, solution } = req.body;
       if (!title?.trim()) {
@@ -79,7 +81,7 @@ export default async function handler(
         title: title.trim(),
         problem: problem?.trim() || "",
         solution: solution?.trim() || "",
-        authorId: user.id,
+        authorId: viewer.userId,
         status: "active",
       });
 

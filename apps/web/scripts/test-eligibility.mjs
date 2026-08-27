@@ -151,9 +151,13 @@ const CASES = [
     expect: "UNDERAGE",
   },
   {
+    // UNKNOWN_AGE, not UNKNOWN_REGISTRATION: age and residency both being
+    // undecidable used to share one code, which stopped working once the verdict
+    // started being cached on User.eligibility — storage keeps the code and
+    // discards everything else, so one code cannot carry two explanations.
     name: "no birth date and no id number",
     attributes: spar({ birthDate: null, idNumber: null }),
-    expect: "UNKNOWN_REGISTRATION",
+    expect: "UNKNOWN_AGE",
   },
   {
     name: "idType absent — BankID only issues to personnummer holders",

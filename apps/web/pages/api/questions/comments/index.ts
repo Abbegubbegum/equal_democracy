@@ -5,6 +5,7 @@ import connectDB from "@/lib/mongodb";
 import { Question, QuestionComment, QuestionCommentRating } from "@/lib/models";
 import { getRatingAggregates } from "@/lib/rating-helper";
 import { csrfProtection } from "@/lib/csrf";
+import { requireParticipant, requireAccount } from "@/lib/viewer";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("QuestionComments");
@@ -19,12 +20,12 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  // The debate is readable signed out. POST/PATCH/DELETE below each establish
+  // their own gate — see requireParticipant, which decides from the database.
   const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.id)
-    return res.status(401).json({ message: "Unauthorized" });
+  const userId = session?.user?.id ?? null;
 
   await connectDB();
-  const userId = session.user.id;
 
   if (req.method === "GET") {
     const { questionId } = req.query;
@@ -38,12 +39,17 @@ export default async function handler(
         "commentId",
         comments.map((c) => c._id),
       );
-      const userRatings = await QuestionCommentRating.find({
-        commentId: { $in: comments.map((c) => c._id) },
-        userId,
-      }).lean();
+      const userRatings = userId
+        ? await QuestionCommentRating.find({
+            commentId: { $in: comments.map((c) => c._id) },
+            userId,
+          }).lean()
+        : [];
       const userRatingByComment = new Map(
-        userRatings.map((r) => [r.commentId.toString(), r.rating]),
+        userRatings.map((r): [string, number] => [
+          r.commentId.toString(),
+          r.rating,
+        ]),
       );
 
       const result = comments
@@ -55,7 +61,7 @@ export default async function handler(
             type: c.type || "neutral",
             averageRating: agg?.averageRating || 0,
             createdAt: c.createdAt,
-            isOwn: c.userId.toString() === userId,
+            isOwn: !!userId && c.userId.toString() === userId,
             userRating: userRatingByComment.get(c._id.toString()) ?? 0,
           };
         })
@@ -76,6 +82,8 @@ export default async function handler(
 
   if (req.method === "POST") {
     if (!csrfProtection(req, res)) return;
+    const viewer = await requireParticipant(req, res);
+    if (!viewer) return;
 
     const { questionId, text, type } = req.body;
     if (!questionId || !text)
@@ -102,7 +110,7 @@ export default async function handler(
 
       const comment = await QuestionComment.create({
         questionId,
-        userId,
+        userId: viewer.userId,
         text,
         type: type || "neutral",
       });
@@ -128,6 +136,11 @@ export default async function handler(
 
   if (req.method === "PATCH") {
     if (!csrfProtection(req, res)) return;
+    // requireAccount rather than requireParticipant: editing or deleting your
+    // own words is not participation, and someone who has since become
+    // ineligible must still be able to take back what they already said.
+    const viewer = await requireAccount(req, res);
+    if (!viewer) return;
 
     const { commentId, text } = req.body;
     if (!commentId || !text || typeof text !== "string" || !text.trim())
@@ -142,8 +155,8 @@ export default async function handler(
       if (!comment)
         return res.status(404).json({ message: "Kommentaren hittades inte" });
 
-      const isOwner = comment.userId.toString() === userId;
-      const isAdmin = !!(session.user?.isAdmin || session.user?.isSuperAdmin);
+      const isOwner = comment.userId.toString() === viewer.userId;
+      const isAdmin = viewer.isAdmin || viewer.isSuperAdmin;
       if (!isOwner && !isAdmin) {
         return res
           .status(403)
@@ -166,6 +179,11 @@ export default async function handler(
 
   if (req.method === "DELETE") {
     if (!csrfProtection(req, res)) return;
+    // requireAccount rather than requireParticipant: editing or deleting your
+    // own words is not participation, and someone who has since become
+    // ineligible must still be able to take back what they already said.
+    const viewer = await requireAccount(req, res);
+    if (!viewer) return;
 
     const commentId = req.body?.commentId || req.query?.commentId;
     if (!commentId) return res.status(400).json({ message: "commentId krävs" });
@@ -175,8 +193,8 @@ export default async function handler(
       if (!comment)
         return res.status(404).json({ message: "Kommentaren hittades inte" });
 
-      const isOwner = comment.userId.toString() === userId;
-      const isAdmin = !!(session.user?.isAdmin || session.user?.isSuperAdmin);
+      const isOwner = comment.userId.toString() === viewer.userId;
+      const isAdmin = viewer.isAdmin || viewer.isSuperAdmin;
       if (!isOwner && !isAdmin) {
         return res
           .status(403)

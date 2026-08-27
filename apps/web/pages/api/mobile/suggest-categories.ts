@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { classifyCategories } from "../../../lib/ai";
-import { verifyBearerToken } from "../../../lib/mobile-jwt";
+import { requireParticipant } from "../../../lib/viewer";
 
 // ── Input / Output contract ──────────────────────────────────────────────────
 // POST { title: string, description?: string }
@@ -15,11 +15,8 @@ export default async function handler(
 ) {
   if (req.method !== "POST") return res.status(405).end();
 
-  try {
-    verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+  const viewer = await requireParticipant(req, res);
+  if (!viewer) return;
 
   const { title, description } = req.body as {
     title?: string;

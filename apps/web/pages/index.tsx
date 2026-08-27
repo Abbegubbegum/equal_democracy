@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useState, useEffect, useCallback } from "react";
@@ -42,17 +43,12 @@ export default function HomePage() {
     }
   }, []);
 
+  // No redirect to /login. The front page is readable signed out — the
+  // questions, the tallies and the activity feed are the point of it — and the
+  // API answers anonymously. Only acting needs an account.
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    }
-  }, [status, router]);
-
-  useEffect(() => {
-    if (session) {
-      fetchQuestions();
-    }
-  }, [session, fetchQuestions]);
+    fetchQuestions();
+  }, [fetchQuestions]);
 
   // When the activity slot is set to "livesession", resolve the current active
   // session so the tile can deep-link straight to it.
@@ -118,10 +114,6 @@ export default function HomePage() {
     );
   }
 
-  if (!session) {
-    return null;
-  }
-
   // Get theme colors
   const primaryColor = theme.colors.primary[600] || "#002d75";
   const primaryDark = theme.colors.primary[800] || "#001c55";
@@ -152,8 +144,8 @@ export default function HomePage() {
       <ApplyAdminView
         onSubmit={handleApplyForAdmin}
         onBack={() => setView("home")}
-        userEmail={session.user.email}
-        userName={session.user.name}
+        userEmail={session?.user?.email}
+        userName={session?.user?.name}
         t={t}
         theme={theme}
       />
@@ -191,7 +183,7 @@ export default function HomePage() {
               </div>
             </button>
             <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm">
-              {session.user.isSuperAdmin && (
+              {session?.user?.isSuperAdmin && (
                 <>
                   <button
                     onClick={() => router.push("/admin")}
@@ -207,7 +199,7 @@ export default function HomePage() {
                   </button>
                 </>
               )}
-              {session.user.isAdmin && !session.user.isSuperAdmin && (
+              {session?.user?.isAdmin && !session?.user?.isSuperAdmin && (
                 <>
                   <button
                     onClick={() => router.push("/manage-content")}
@@ -217,7 +209,7 @@ export default function HomePage() {
                   </button>
                 </>
               )}
-              {!session.user.isAdmin && !session.user.isSuperAdmin && (
+              {!session?.user?.isAdmin && !session?.user?.isSuperAdmin && (
                 <button
                   onClick={() => setView("apply-admin")}
                   className="text-white hover:text-accent-400 font-medium whitespace-nowrap"
@@ -225,18 +217,38 @@ export default function HomePage() {
                   {t("nav.applyForAdmin")}
                 </button>
               )}
-              <button
-                onClick={() => signOut()}
-                className="text-white hover:text-accent-400 whitespace-nowrap"
-              >
-                {t("auth.logout")}
-              </button>
+              {/* An anonymous visitor reaches this header too, now that the
+                  front page renders signed out — so it has to offer the way in
+                  rather than a way out of a session that does not exist. */}
+              {session ? (
+                <button
+                  onClick={() => signOut()}
+                  className="text-white hover:text-accent-400 whitespace-nowrap"
+                >
+                  {t("auth.logout")}
+                </button>
+              ) : (
+                <Link
+                  href="/login"
+                  className="text-white hover:text-accent-400 font-semibold whitespace-nowrap"
+                >
+                  Logga in
+                </Link>
+              )}
             </div>
           </div>
           <p className="text-white/90 text-sm sm:text-base mt-4">
-            Hej{" "}
-            <span className="font-bold text-white">{session.user.name}</span> –
-            välkommen att påverka Vallentuna!
+            {session ? (
+              <>
+                Hej{" "}
+                <span className="font-bold text-white">
+                  {session.user?.name}
+                </span>{" "}
+                – välkommen att påverka Vallentuna!
+              </>
+            ) : (
+              "Välkommen att påverka Vallentuna — läs fritt, logga in med BankID för att delta."
+            )}
           </p>
         </div>
       </div>

@@ -26,6 +26,7 @@ import CelebrationModal from "../../lib/CelebrationModal";
 import MajReviewSheet, { type MajReview } from "../../lib/MajReviewSheet";
 import { addStars } from "../../lib/stars";
 import LoadingLoop from "../../lib/LoadingLoop";
+import { useActionGate } from "../../lib/RestrictedNotice";
 
 interface CitizenProposal {
   id: string;
@@ -62,6 +63,7 @@ function ProposalBlock({
     ratingCount: number,
   ) => void;
 }) {
+  const { requireAct, gate } = useActionGate();
   const [localRating, setLocalRating] = useState(proposal.userRating);
   const [localAvg, setLocalAvg] = useState(proposal.averageRating);
   const [localCount, setLocalCount] = useState(proposal.ratingCount);
@@ -96,6 +98,7 @@ function ProposalBlock({
   }
 
   async function handleRate(stars: number) {
+    if (!requireAct()) return;
     if (busy) return;
     setBusy(true);
     const prev = localRating;
@@ -129,6 +132,7 @@ function ProposalBlock({
 
   return (
     <View style={{ width: "100%", height }}>
+      {gate}
       {/* Background */}
       {bgUri ? (
         <Image

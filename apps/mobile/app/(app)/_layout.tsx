@@ -3,12 +3,7 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { useRef, useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import {
-  usePathname,
-  useRouter,
-  withLayoutContext,
-  Redirect,
-} from "expo-router";
+import { usePathname, useRouter, withLayoutContext } from "expo-router";
 import {
   createMaterialTopTabNavigator,
   type MaterialTopTabNavigationOptions,
@@ -25,12 +20,15 @@ import { useAuth } from "../../lib/auth-context";
 import XAIModal from "../../lib/XAIModal";
 import InterestsModal from "../../lib/InterestsModal";
 import { SettingsModal } from "../../lib/SettingsModal";
+import { LinkGate } from "../../lib/LinkGate";
 import { selectQuestion } from "../../lib/selected-question";
 import {
   incrementLoginCount,
   getOnboardingState,
   markPromptShown,
+  takeClaimPrompt,
 } from "../../lib/onboarding";
+import { EmailClaimSheet } from "../../lib/EmailClaimSheet";
 
 const IS_EXPO_GO = Constants.executionEnvironment === "storeClient";
 
@@ -131,6 +129,7 @@ function BottomBar({
 
 function TabNavigator() {
   const router = useRouter();
+  const { user } = useAuth();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const [showXAI, setShowXAI] = useState(false);
@@ -209,19 +208,28 @@ function TabNavigator() {
         pathname={normPath}
       />
 
-      {/* Gear button — top-right, visible only on Bli medlem tab */}
+      {/* Top-right on the Info tab. Settings when there is an account to
+          configure; otherwise the way in — the sheet's contents (contact
+          details, interests) all belong to an account, so offering it to a
+          visitor would be a form that saves nothing. */}
       {normPath === "/membership" && !showSettings && (
         <TouchableOpacity
-          style={[styles.gearBtn, { top: insets.top + 10 }]}
-          onPress={() => setShowSettings(true)}
+          style={[
+            user ? styles.gearBtn : styles.loginPill,
+            { top: insets.top + 10 },
+          ]}
+          onPress={() =>
+            user ? setShowSettings(true) : router.push("/(auth)/login")
+          }
           activeOpacity={0.8}
           hitSlop={8}
         >
           <Ionicons
-            name="settings-outline"
+            name={user ? "settings-outline" : "log-in-outline"}
             size={20}
-            color="rgba(255,255,255,0.85)"
+            color={user ? "rgba(255,255,255,0.85)" : "#002d75"}
           />
+          {user ? null : <Text style={styles.loginPillText}>Logga in</Text>}
         </TouchableOpacity>
       )}
 
@@ -236,6 +244,7 @@ function TabNavigator() {
 export default function AppLayout() {
   const { user, isLoading } = useAuth();
   const [showInterests, setShowInterests] = useState(false);
+  const [showClaim, setShowClaim] = useState(false);
   const startupDone = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -270,6 +279,15 @@ export default function AppLayout() {
         }
       }
 
+      // Right after BankID created the account, ask once whether they already
+      // had one under an email. Before the interest prompt, and not on a timer:
+      // it is about the account they just made, so it belongs to that moment
+      // rather than 30 seconds into browsing.
+      if (await takeClaimPrompt()) {
+        setShowClaim(true);
+        return;
+      }
+
       // Progressive onboarding
       const loginCount = await incrementLoginCount();
       const { promptShownCount, profileCompleted } = await getOnboardingState();
@@ -287,10 +305,22 @@ export default function AppLayout() {
   }, [user]);
 
   if (isLoading) return null;
-  if (!user) return <Redirect href="/(auth)/login" />;
+  // No auth guard. The whole app is readable signed out; the actions inside it
+  // gate themselves, and LinkGate handles the one account state that must not
+  // be browsed in.
   return (
     <>
       <TabNavigator />
+      <LinkGate />
+      {/* Asked once, right after BankID created the account — see
+          markClaimPromptPending. Skipping is a real answer; the same flow stays
+          available from the settings sheet. */}
+      <EmailClaimSheet
+        visible={showClaim}
+        mode="prompt"
+        onClose={() => setShowClaim(false)}
+        onClaimed={() => setShowClaim(false)}
+      />
       <InterestsModal
         visible={showInterests}
         onClose={() => setShowInterests(false)}
@@ -317,6 +347,24 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 2,
   },
+  loginPill: {
+    position: "absolute",
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    height: 40,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: "#f5a623",
+    justifyContent: "center",
+    zIndex: 100,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  loginPillText: { color: "#002d75", fontSize: 14, fontWeight: "800" },
   gearBtn: {
     position: "absolute",
     right: 16,

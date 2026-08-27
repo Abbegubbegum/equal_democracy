@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { chat } from "../../../lib/ai";
-import { verifyBearerToken } from "../../../lib/mobile-jwt";
+import { requireAccount } from "../../../lib/viewer";
 import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("MobileXAI");
@@ -24,11 +24,12 @@ export default async function handler(
   if (req.method !== "POST")
     return res.status(405).json({ message: "Method not allowed" });
 
-  try {
-    verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  // requireAccount, not requireParticipant: MAJ is a conversation, not an
+  // action on the platform, so someone who may not vote here may still ask it
+  // things. It stays behind the login only because every call is
+  // Anthropic-billed and this is a public URL (docs/bankid-login-plan.md D4).
+  const viewer = await requireAccount(req, res);
+  if (!viewer) return;
 
   const { message, context } = req.body;
   if (!message || typeof message !== "string" || message.trim().length === 0) {

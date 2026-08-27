@@ -1,7 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]";
 import { Session } from "@/lib/models";
 import { getActiveSession } from "@/lib/session-helper";
 import { createLogger } from "@/lib/logger";
@@ -18,10 +16,9 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+  // Public. Despite the file's history this no longer registers anyone as
+  // active — registerActiveUser() moved to the action endpoints — so there is
+  // nothing here that needs to know who is asking.
 
   try {
     // Get sessionId from query parameter (optional for backward compatibility)

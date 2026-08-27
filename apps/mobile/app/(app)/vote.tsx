@@ -33,6 +33,7 @@ import {
 } from "../../lib/VotingQuestionCard";
 import VotingDebateSection from "../../lib/VotingDebateSection";
 import LoadingLoop from "../../lib/LoadingLoop";
+import { useActionGate } from "../../lib/RestrictedNotice";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
@@ -42,6 +43,7 @@ const BLURHASH = "L6PZfSi_.AyE_3t7t7R**0o#DgR4";
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 
 export default function VoteScreen() {
+  const { requireAct, gate } = useActionGate();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
 
@@ -130,6 +132,10 @@ export default function VoteScreen() {
    * comes back. See docs/bankid-integration-plan.md.
    */
   function handleVote() {
+    // A signed-out or ineligible viewer can read the question and the debate;
+    // this is where that stops. Server-side requireParticipant refuses too —
+    // this only means they find out before paying for a BankID signature.
+    if (!requireAct()) return;
     if (!selected || !selectedSession || signing) return;
     setVoteError(null);
     setSigning(true);
@@ -224,6 +230,7 @@ export default function VoteScreen() {
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" />
+      {gate}
 
       {/* Background from selected session's image */}
       {uri ? (

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import {
+  KeyboardAvoidingView,
   Linking,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -14,16 +16,17 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { INTEREST_TO_CATEGORIES, INTEREST_AREAS } from "@repo/types";
+import { useRouter } from "expo-router";
 import { useAuth } from "./auth-context";
-import { getItem, setItem } from "./storage";
-import { apiClient, BASE_URL } from "./api";
+import { getItem, setItem, STORAGE_PHONE } from "./storage";
+import { ApiError, apiClient, BASE_URL } from "./api";
+import { EmailClaimSheet } from "./EmailClaimSheet";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
 
 export const STORAGE_INTERESTS = "user_interests";
 export const STORAGE_INTERESTS_ONLY = "user_interests_only";
-export const STORAGE_PHONE = "user_phone_number";
 
 export function SettingsModal({
   visible,
@@ -36,9 +39,13 @@ export function SettingsModal({
 }) {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
+  const router = useRouter();
   const [localInterests, setLocalInterests] = useState<string[]>(["budget"]);
   const [localOnly, setLocalOnly] = useState(true);
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [email, setEmail] = useState("");
+  const [contactError, setContactError] = useState<string | null>(null);
+  const [claimEmail, setClaimEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -49,6 +56,18 @@ export function SettingsModal({
       if (savedOnly !== null) setLocalOnly(savedOnly === "true");
       const savedPhone = await getItem(STORAGE_PHONE);
       setPhoneNumber(savedPhone ?? "");
+      setContactError(null);
+      // Read from the account rather than from storage: a BankID account may
+      // have been created on another device, and the address belongs to the
+      // account rather than to this phone.
+      try {
+        const me = await apiClient<{ user: { email: string | null } | null }>(
+          "/api/mobile/user/me",
+        );
+        setEmail(me.user?.email ?? "");
+      } catch {
+        // Signed out or offline — leave the field blank.
+      }
     })();
   }, [visible]);
 
@@ -86,165 +105,290 @@ export function SettingsModal({
     } catch {
       // fail silently — local value still saved
     }
+
+    // The email is not mirrored locally, so a rejection here has to be shown
+    // rather than swallowed: otherwise the sheet closes and the address the
+    // user typed is simply gone. The common rejection is a real one — the
+    // address already belongs to another account.
+    try {
+      await apiClient("/api/mobile/user/email", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim() }),
+      });
+    } catch (err) {
+      // The address belongs to an account that predates BankID — almost always
+      // this person's own. Offer the merge instead of reporting a failure; it
+      // is verified, so they still have to prove the mailbox.
+      if (err instanceof ApiError && err.body?.code === "MERGE_AVAILABLE") {
+        setClaimEmail(email.trim());
+        return;
+      }
+      setContactError(
+        (err as Error).message || "E-postadressen kunde inte sparas.",
+      );
+      return;
+    }
+
     onClose();
     onSaved?.();
   }
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={st.backdrop}>
-          <TouchableWithoutFeedback>
-            <View style={[st.sheet, { paddingBottom: 0 }]}>
-              <View style={st.handle} />
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
-              >
-                <View style={st.introBox}>
-                  <View style={st.introRow}>
-                    <Text style={st.introTitle}>INSTÄLLNINGAR</Text>
-                    <TouchableOpacity onPress={onClose} hitSlop={12}>
-                      <Ionicons name="close" size={22} color="#666" />
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={st.introText}>
-                    Ingen är intresserad av allt. Välj ett eller flera områden
-                    och spara.
-                  </Text>
-                </View>
-
-                {INTEREST_AREAS.map((area) => {
-                  const checked = localInterests.includes(area.key);
-                  return (
-                    <View key={area.key}>
-                      {area.groupLabel ? (
-                        <View style={st.groupHeader}>
-                          <View style={st.divider} />
-                          <Text style={st.groupLabelText}>
-                            {area.groupLabel}
-                          </Text>
-                        </View>
-                      ) : null}
-                      <TouchableOpacity
-                        style={[st.row, area.alwaysOn && st.rowFixed]}
-                        onPress={() => toggle(area.key)}
-                        activeOpacity={area.alwaysOn ? 1 : 0.7}
-                      >
-                        <View style={[st.checkbox, checked && st.checkboxOn]}>
-                          {checked && (
-                            <Ionicons name="checkmark" size={14} color="#fff" />
-                          )}
-                        </View>
-                        <View style={st.rowText}>
-                          <Text
-                            style={[
-                              st.rowLabel,
-                              area.alwaysOn && st.rowLabelFixed,
-                            ]}
-                          >
-                            {area.label}
-                          </Text>
-                          {area.note ? (
-                            <Text style={st.rowNote}>{area.note}</Text>
-                          ) : null}
-                        </View>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-
-                <View style={st.divider} />
-
-                <View style={st.toggleRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={st.toggleLabel}>Visa bara mina intressen</Text>
-                    <Text style={st.toggleHint}>
-                      Filtrerar notiser och flödet
-                    </Text>
-                  </View>
-                  <Switch
-                    value={localOnly}
-                    onValueChange={setLocalOnly}
-                    trackColor={{ false: "#e5e7eb", true: BLUE }}
-                    thumbColor="#fff"
-                  />
-                </View>
-
-                <View style={st.divider} />
-
-                <View style={{ marginBottom: 4 }}>
-                  <Text style={st.toggleLabel}>Mobilnummer</Text>
-                  <Text style={st.toggleHint}>
-                    Få en sms-påminnelse inför viktiga omröstningar, t.ex. valet
-                    den 13 september.
-                  </Text>
-                  <TextInput
-                    style={st.phoneInput}
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                    placeholder="07XX-XXX XX XX"
-                    placeholderTextColor="#aaa"
-                    keyboardType="phone-pad"
-                    autoComplete="tel"
-                  />
-                </View>
-
-                {user?.isAdmin && (
-                  <TouchableOpacity
-                    style={st.adminBtn}
-                    onPress={() =>
-                      Linking.openURL(
-                        `${BASE_URL}${user.isSuperAdmin ? "/admin" : "/manage-sessions"}`,
-                      )
-                    }
-                    activeOpacity={0.85}
+    <>
+      {/* A sibling of the settings sheet, not a child: nested Modals stack
+          unreliably in React Native, and on Android the inner one can end up
+          behind the outer backdrop. */}
+      <EmailClaimSheet
+        visible={!!claimEmail}
+        mode="merge"
+        initialEmail={claimEmail ?? ""}
+        onClose={() => setClaimEmail(null)}
+        onClaimed={() => {
+          setClaimEmail(null);
+          setContactError(null);
+          onClose();
+          onSaved?.();
+        }}
+      />
+      <Modal
+        visible={visible && !claimEmail}
+        animationType="slide"
+        transparent
+        onRequestClose={onClose}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <TouchableWithoutFeedback onPress={onClose}>
+            <View style={st.backdrop}>
+              <TouchableWithoutFeedback>
+                <View style={[st.sheet, { paddingBottom: 0 }]}>
+                  <View style={st.handle} />
+                  <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={{
+                      paddingBottom: insets.bottom + 20,
+                    }}
                   >
-                    <Ionicons
-                      name="shield-checkmark-outline"
-                      size={20}
-                      color="#fff"
-                    />
-                    <Text style={st.adminBtnText}>Admin</Text>
-                  </TouchableOpacity>
-                )}
+                    <View style={st.introBox}>
+                      <View style={st.introRow}>
+                        <Text style={st.introTitle}>INSTÄLLNINGAR</Text>
+                        <TouchableOpacity onPress={onClose} hitSlop={12}>
+                          <Ionicons name="close" size={22} color="#666" />
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={st.introText}>
+                        Ingen är intresserad av allt. Välj ett eller flera
+                        områden och spara.
+                      </Text>
+                    </View>
 
-                <TouchableOpacity
-                  style={st.saveBtn}
-                  onPress={handleSave}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons
-                    name="checkmark-circle-outline"
-                    size={20}
-                    color={BLUE}
-                  />
-                  <Text style={st.saveBtnText}>Spara inställningar</Text>
-                </TouchableOpacity>
+                    {INTEREST_AREAS.map((area) => {
+                      const checked = localInterests.includes(area.key);
+                      return (
+                        <View key={area.key}>
+                          {area.groupLabel ? (
+                            <View style={st.groupHeader}>
+                              <View style={st.divider} />
+                              <Text style={st.groupLabelText}>
+                                {area.groupLabel}
+                              </Text>
+                            </View>
+                          ) : null}
+                          <TouchableOpacity
+                            style={[st.row, area.alwaysOn && st.rowFixed]}
+                            onPress={() => toggle(area.key)}
+                            activeOpacity={area.alwaysOn ? 1 : 0.7}
+                          >
+                            <View
+                              style={[st.checkbox, checked && st.checkboxOn]}
+                            >
+                              {checked && (
+                                <Ionicons
+                                  name="checkmark"
+                                  size={14}
+                                  color="#fff"
+                                />
+                              )}
+                            </View>
+                            <View style={st.rowText}>
+                              <Text
+                                style={[
+                                  st.rowLabel,
+                                  area.alwaysOn && st.rowLabelFixed,
+                                ]}
+                              >
+                                {area.label}
+                              </Text>
+                              {area.note ? (
+                                <Text style={st.rowNote}>{area.note}</Text>
+                              ) : null}
+                            </View>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
 
-                <TouchableOpacity
-                  style={st.logoutBtn}
-                  onPress={() => {
-                    onClose();
-                    logout();
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="log-out-outline" size={20} color="#dc2626" />
-                  <Text style={st.logoutBtnText}>Logga ut</Text>
-                </TouchableOpacity>
-              </ScrollView>
+                    <View style={st.divider} />
+
+                    <View style={st.toggleRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={st.toggleLabel}>
+                          Visa bara mina intressen
+                        </Text>
+                        <Text style={st.toggleHint}>
+                          Filtrerar notiser och flödet
+                        </Text>
+                      </View>
+                      <Switch
+                        value={localOnly}
+                        onValueChange={setLocalOnly}
+                        trackColor={{ false: "#e5e7eb", true: BLUE }}
+                        thumbColor="#fff"
+                      />
+                    </View>
+
+                    <View style={st.divider} />
+
+                    <View style={{ marginBottom: 4 }}>
+                      <Text style={st.toggleLabel}>E-post</Text>
+                      <Text style={st.toggleHint}>
+                        Så att vi kan nå dig. Krävs för medlemskap. Du loggar
+                        alltid in med BankID — aldrig med e-post.
+                      </Text>
+                      <TextInput
+                        style={st.phoneInput}
+                        value={email}
+                        onChangeText={(v) => {
+                          setEmail(v);
+                          setContactError(null);
+                        }}
+                        placeholder="namn@exempel.se"
+                        placeholderTextColor="#aaa"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoComplete="email"
+                        returnKeyType="done"
+                        onSubmitEditing={handleSave}
+                      />
+                      {contactError ? (
+                        <Text style={st.contactError}>{contactError}</Text>
+                      ) : null}
+                    </View>
+
+                    <View style={st.divider} />
+
+                    <View style={{ marginBottom: 4 }}>
+                      <Text style={st.toggleLabel}>Mobilnummer</Text>
+                      <Text style={st.toggleHint}>
+                        Få en sms-påminnelse inför viktiga omröstningar, t.ex.
+                        valet den 13 september.
+                      </Text>
+                      <View style={st.inputRow}>
+                        <TextInput
+                          style={[st.phoneInput, st.inputRowField]}
+                          value={phoneNumber}
+                          onChangeText={setPhoneNumber}
+                          placeholder="07XX-XXX XX XX"
+                          placeholderTextColor="#aaa"
+                          keyboardType="phone-pad"
+                          autoComplete="tel"
+                          returnKeyType="done"
+                          onSubmitEditing={handleSave}
+                        />
+                        {/* A phone-pad keyboard has no return key on either
+                            platform, so without this the only way to commit is
+                            the button at the bottom of a sheet the keyboard is
+                            covering. */}
+                        <TouchableOpacity
+                          style={st.inlineSaveBtn}
+                          onPress={handleSave}
+                          activeOpacity={0.85}
+                          accessibilityLabel="Spara"
+                        >
+                          <Ionicons name="checkmark" size={20} color="#fff" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {user?.isAdmin && (
+                      <TouchableOpacity
+                        style={st.adminBtn}
+                        onPress={() =>
+                          Linking.openURL(
+                            `${BASE_URL}${user.isSuperAdmin ? "/admin" : "/manage-sessions"}`,
+                          )
+                        }
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons
+                          name="shield-checkmark-outline"
+                          size={20}
+                          color="#fff"
+                        />
+                        <Text style={st.adminBtnText}>Admin</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    <TouchableOpacity
+                      style={st.saveBtn}
+                      onPress={handleSave}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons
+                        name="checkmark-circle-outline"
+                        size={20}
+                        color={BLUE}
+                      />
+                      <Text style={st.saveBtnText}>Spara inställningar</Text>
+                    </TouchableOpacity>
+
+                    {/* An anonymous viewer reaches this sheet too — the settings
+                    themselves are local — so it must offer the way in rather
+                    than a way out of a session that does not exist. */}
+                    {user ? (
+                      <TouchableOpacity
+                        style={st.logoutBtn}
+                        onPress={() => {
+                          onClose();
+                          logout();
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons
+                          name="log-out-outline"
+                          size={20}
+                          color="#dc2626"
+                        />
+                        <Text style={st.logoutBtnText}>Logga ut</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={st.loginBtn}
+                        onPress={() => {
+                          onClose();
+                          router.push("/(auth)/login");
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons
+                          name="log-in-outline"
+                          size={20}
+                          color={BLUE}
+                        />
+                        <Text style={st.loginBtnText}>Logga in med BankID</Text>
+                      </TouchableOpacity>
+                    )}
+                  </ScrollView>
+                </View>
+              </TouchableWithoutFeedback>
             </View>
           </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
+        </KeyboardAvoidingView>
+      </Modal>
+    </>
   );
 }
 
@@ -338,6 +482,18 @@ const st = StyleSheet.create({
   },
   toggleLabel: { fontSize: 15, fontWeight: "600", color: "#222" },
   toggleHint: { fontSize: 12, color: "#aaa", marginTop: 2 },
+  inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
+  inputRowField: { flex: 1 },
+  inlineSaveBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 10,
+    backgroundColor: "#002d75",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+  },
+  contactError: { color: "#dc2626", fontSize: 13, marginTop: 6 },
   phoneInput: {
     borderWidth: 1.5,
     borderColor: "#e5e7eb",
@@ -370,6 +526,17 @@ const st = StyleSheet.create({
     marginTop: 8,
   },
   adminBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  loginBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#f5a623",
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginTop: 10,
+  },
+  loginBtnText: { color: BLUE, fontSize: 16, fontWeight: "800" },
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",

@@ -3,8 +3,7 @@ import formidable from "formidable";
 import fs from "fs";
 import { put, del } from "@vercel/blob";
 import { compressImage } from "@/lib/image";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]";
+import { requireAccount } from "@/lib/viewer";
 import connectDB from "@/lib/mongodb";
 import { CitizenProposal } from "@/lib/models";
 import { createLogger } from "@/lib/logger";
@@ -26,9 +25,8 @@ export default async function handler(
   if (req.method !== "POST")
     return res.status(405).json({ message: "Method not allowed" });
 
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.id)
-    return res.status(401).json({ message: "Unauthorized" });
+  const viewer = await requireAccount(req, res);
+  if (!viewer) return;
 
   const form = formidable({
     keepExtensions: true,
@@ -64,7 +62,7 @@ export default async function handler(
       .lean<{ authorId?: any; imageUrl?: string | null } | null>();
     if (!proposal)
       return res.status(404).json({ message: "Förslaget hittades inte." });
-    if (proposal.authorId?.toString() !== session.user.id) {
+    if (proposal.authorId?.toString() !== viewer.userId) {
       return res
         .status(403)
         .json({ message: "Du får inte ändra det här förslaget." });

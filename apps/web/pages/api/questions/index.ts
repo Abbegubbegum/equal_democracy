@@ -33,22 +33,25 @@ export default async function handler(
   if (req.method !== "GET")
     return res.status(405).json({ message: "Method not allowed" });
 
+  // Public: /rosta is readable signed out — the questions and the running
+  // tallies are the point of the page. Only the caller's own vote and quota
+  // need an account, and both are simply absent without one.
   const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.id)
-    return res.status(401).json({ message: "Unauthorized" });
+  const userId = session?.user?.id ?? null;
 
   try {
     await connectDB();
-    const userId = session.user.id;
 
     const [activeQuestions, used] = await Promise.all([
       Question.find({ status: "active" })
         .select("_id text imageUrl deadline createdAt status categories")
         .sort({ createdAt: -1 })
         .lean(),
-      QuestionVote.countDocuments({ userId }),
+      userId ? QuestionVote.countDocuments({ userId }) : 0,
     ]);
-    const quota = { used, limit: PRE_ELECTION_LIMIT };
+    // Null rather than "0 of 5" for a signed-out reader: an unused quota reads
+    // as an invitation, and they cannot vote at all.
+    const quota = userId ? { used, limit: PRE_ELECTION_LIMIT } : null;
 
     if (activeQuestions.length === 0)
       return res.status(200).json({ questions: [], quota });
@@ -56,7 +59,12 @@ export default async function handler(
     const questionIds = activeQuestions.map((q) => q._id);
     const [allVotes, userVotes] = await Promise.all([
       QuestionVote.find({ questionId: { $in: questionIds } }).lean(),
-      QuestionVote.find({ questionId: { $in: questionIds }, userId }).lean(),
+      userId
+        ? QuestionVote.find({
+            questionId: { $in: questionIds },
+            userId,
+          }).lean()
+        : [],
     ]);
     const userVoteMap = Object.fromEntries(
       userVotes.map((v) => [v.questionId.toString(), v.choice]),

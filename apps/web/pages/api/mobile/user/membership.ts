@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { MEMBERSHIP_YEARS } from "@repo/types";
 import connectDB from "../../../../lib/mongodb";
 import { User } from "../../../../lib/models";
-import { verifyBearerToken } from "../../../../lib/mobile-jwt";
+import { getViewer } from "../../../../lib/viewer";
 import { createLogger } from "../../../../lib/logger";
 import { getMembershipFee } from "../../../../lib/membership";
 
@@ -23,33 +23,30 @@ export default async function handler(
   if (req.method !== "GET")
     return res.status(405).json({ message: "Method not allowed" });
 
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-
+  // **No auth.** What membership costs and which years it covers is public
+  // information — the Info tab is readable signed out, and a visitor deciding
+  // whether to join needs to see the price before they log in. Only the
+  // caller's own status is account-scoped, and that is simply "none" without
+  // one.
   try {
     await connectDB();
+    const viewer = await getViewer(req, res);
 
-    const dbUser: any = await User.findById(user.id)
-      .select("membershipStatus membershipPaidUntil membershipFirstPaidAt")
-      .lean();
-    if (!dbUser) return res.status(401).json({ message: "Unauthorized" });
+    const dbUser: any = viewer.userId
+      ? await User.findById(viewer.userId)
+          .select("membershipStatus membershipPaidUntil membershipFirstPaidAt")
+          .lean()
+      : null;
 
     return res.status(200).json({
-      status: dbUser.membershipStatus ?? "none",
-      paidUntil: dbUser.membershipPaidUntil ?? null,
-      firstPaidAt: dbUser.membershipFirstPaidAt ?? null,
+      status: dbUser?.membershipStatus ?? "none",
+      paidUntil: dbUser?.membershipPaidUntil ?? null,
+      firstPaidAt: dbUser?.membershipFirstPaidAt ?? null,
       feeSek: getMembershipFee(),
       years: MEMBERSHIP_YEARS,
     });
   } catch (err: any) {
-    log.error("Failed to read membership", {
-      userId: user.id,
-      error: err?.message,
-    });
+    log.error("Failed to read membership", { error: err?.message });
     return res.status(500).json({ message: "Kunde inte hämta medlemskap." });
   }
 }

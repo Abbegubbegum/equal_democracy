@@ -17,7 +17,6 @@ import {
 import PagerView from "react-native-pager-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { apiClient } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import CelebrationModal from "../lib/CelebrationModal";
@@ -444,8 +443,7 @@ function SessionPage({
 
 export default function SessionsScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { user, isLoading } = useAuth();
+  const { isLoading } = useAuth();
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [proposalsMap, setProposalsMap] = useState<Record<string, Proposal[]>>(
     {},
@@ -457,13 +455,11 @@ export default function SessionsScreen() {
   const pagerRef = useRef<PagerView>(null);
   const isJumpingRef = useRef(false);
 
+  // No auth guard: sessions are readable signed out. Acting inside one is what
+  // needs an account, and each action gates itself.
   useEffect(() => {
-    if (!isLoading && !user) {
-      router.replace("/(auth)/login");
-      return;
-    }
-    if (user) load();
-  }, [user, isLoading]);
+    if (!isLoading) load();
+  }, [isLoading]);
 
   useEffect(() => {
     if (sessions.length === 0) return;

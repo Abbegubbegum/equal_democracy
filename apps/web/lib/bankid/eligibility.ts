@@ -51,6 +51,14 @@ export type EligibilityCode =
   | "DEREGISTERED"
   | "UNDERAGE"
   | "WRONG_KOMMUN"
+  /**
+   * SPAR answered, but with no usable birth date — so age cannot be decided.
+   * Split from UNKNOWN_REGISTRATION once the verdict started being cached on
+   * `User.eligibility`: only the code survives storage, so two situations
+   * sharing one code would have to share one message, and "we could not work out
+   * your age" is not interchangeable with "we could not work out where you live".
+   */
+  | "UNKNOWN_AGE"
   /** SPAR answered, but not with anything that says where the person lives. */
   | "UNKNOWN_REGISTRATION";
 
@@ -81,6 +89,48 @@ export interface EligibilityResult {
   code: EligibilityCode;
   /** Swedish, safe to show the voter. Never leaks a raw SPAR field. */
   message: string;
+}
+
+/**
+ * What each verdict is allowed to tell the user.
+ *
+ * A lookup rather than strings inline in `checkEligibility`, because only the
+ * **code** is stored on `User.eligibility` — the SPAR data it was derived from
+ * is deliberately thrown away — so anything rendering a cached verdict has to
+ * get back to the wording from the code alone. Two copies of these sentences
+ * would drift, and the one users see would be the stale one.
+ *
+ * Every message is safe to show: none of them repeats a SPAR field back.
+ */
+export const ELIGIBILITY_MESSAGES: Record<EligibilityCode, string> = {
+  ELIGIBLE: "Du är röstberättigad i Vallentuna.",
+  SPAR_MISSING:
+    "Vi kunde inte hämta dina folkbokföringsuppgifter just nu. Försök igen om en stund.",
+  NOT_PERSONNUMMER:
+    "Röstning kräver ett svenskt personnummer. Samordningsnummer ger inte rösträtt.",
+  PROTECTED_IDENTITY:
+    "Du har skyddade personuppgifter, så vi kan inte kontrollera din folkbokföring automatiskt. Kontakta oss så löser vi din röstning manuellt.",
+  DECEASED: "Folkbokföringen medger inte röstning.",
+  DEREGISTERED:
+    "Du är avregistrerad från folkbokföringen och kan därför inte rösta.",
+  UNDERAGE: `Du måste ha fyllt ${MINIMUM_AGE} år för att rösta.`,
+  WRONG_KOMMUN:
+    "Du är folkbokförd i en annan kommun än Vallentuna och kan därför inte rösta här.",
+  UNKNOWN_AGE:
+    "Vi kunde inte avgöra din ålder utifrån folkbokföringen. Kontakta oss så hjälper vi dig.",
+  UNKNOWN_REGISTRATION:
+    "Vi kunde inte avgöra var du är folkbokförd. Kontakta oss så hjälper vi dig.",
+};
+
+/**
+ * The wording for a verdict read back from storage.
+ *
+ * Falls back to the generic system message rather than an empty string: an
+ * unrecognised code means the enum changed under stored data, and a user should
+ * be told to try again rather than shown nothing at all.
+ */
+export function eligibilityMessage(code: string | null | undefined): string {
+  return ELIGIBILITY_MESSAGES[code] || ELIGIBILITY_MESSAGES.SPAR_MISSING;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -235,8 +285,7 @@ export function checkEligibility(
     return {
       eligible: false,
       code: "SPAR_MISSING",
-      message:
-        "Vi kunde inte hämta dina folkbokföringsuppgifter just nu. Försök igen om en stund.",
+      message: ELIGIBILITY_MESSAGES.SPAR_MISSING,
     };
   }
 
@@ -244,8 +293,7 @@ export function checkEligibility(
     return {
       eligible: false,
       code: "NOT_PERSONNUMMER",
-      message:
-        "Röstning kräver ett svenskt personnummer. Samordningsnummer ger inte rösträtt.",
+      message: ELIGIBILITY_MESSAGES.NOT_PERSONNUMMER,
     };
   }
 
@@ -253,8 +301,7 @@ export function checkEligibility(
     return {
       eligible: false,
       code: "PROTECTED_IDENTITY",
-      message:
-        "Du har skyddade personuppgifter, så vi kan inte kontrollera din folkbokföring automatiskt. Kontakta oss så löser vi din röstning manuellt.",
+      message: ELIGIBILITY_MESSAGES.PROTECTED_IDENTITY,
     };
   }
 
@@ -262,7 +309,7 @@ export function checkEligibility(
     return {
       eligible: false,
       code: "DECEASED",
-      message: "Folkbokföringen medger inte röstning.",
+      message: ELIGIBILITY_MESSAGES.DECEASED,
     };
   }
 
@@ -270,8 +317,7 @@ export function checkEligibility(
     return {
       eligible: false,
       code: "DEREGISTERED",
-      message:
-        "Du är avregistrerad från folkbokföringen och kan därför inte rösta.",
+      message: ELIGIBILITY_MESSAGES.DEREGISTERED,
     };
   }
 
@@ -280,16 +326,15 @@ export function checkEligibility(
   if (!birthDate) {
     return {
       eligible: false,
-      code: "UNKNOWN_REGISTRATION",
-      message:
-        "Vi kunde inte avgöra din ålder utifrån folkbokföringen. Kontakta oss så hjälper vi dig.",
+      code: "UNKNOWN_AGE",
+      message: ELIGIBILITY_MESSAGES.UNKNOWN_AGE,
     };
   }
   if (yearsBetween(birthDate, reference) < MINIMUM_AGE) {
     return {
       eligible: false,
       code: "UNDERAGE",
-      message: `Du måste ha fyllt ${MINIMUM_AGE} år för att rösta.`,
+      message: ELIGIBILITY_MESSAGES.UNDERAGE,
     };
   }
 
@@ -301,8 +346,7 @@ export function checkEligibility(
       return {
         eligible: false,
         code: "UNKNOWN_REGISTRATION",
-        message:
-          "Vi kunde inte avgöra var du är folkbokförd. Kontakta oss så hjälper vi dig.",
+        message: ELIGIBILITY_MESSAGES.UNKNOWN_REGISTRATION,
       };
     }
 
@@ -313,8 +357,7 @@ export function checkEligibility(
       return {
         eligible: false,
         code: "WRONG_KOMMUN",
-        message:
-          "Du är folkbokförd i en annan kommun än Vallentuna och kan därför inte rösta här.",
+        message: ELIGIBILITY_MESSAGES.WRONG_KOMMUN,
       };
     }
   }
@@ -322,7 +365,7 @@ export function checkEligibility(
   return {
     eligible: true,
     code: "ELIGIBLE",
-    message: "Du är röstberättigad i Vallentuna.",
+    message: ELIGIBILITY_MESSAGES.ELIGIBLE,
   };
 }
 

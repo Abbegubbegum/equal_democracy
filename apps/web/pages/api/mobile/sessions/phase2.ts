@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../../lib/mongodb";
 import { Session, Proposal, FinalVote } from "../../../../lib/models";
-import { verifyBearerToken } from "../../../../lib/mobile-jwt";
+import { optionalBearerToken } from "../../../../lib/mobile-jwt";
 import { createLogger } from "../../../../lib/logger";
 
 const log = createLogger("MobilePhase2");
@@ -13,12 +13,8 @@ export default async function handler(
   if (req.method !== "GET")
     return res.status(405).json({ message: "Method not allowed" });
 
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  // Public. A signed-out viewer sees the tallies but has no vote of their own.
+  const user = optionalBearerToken(req.headers.authorization);
 
   try {
     await connectDB();
@@ -47,10 +43,12 @@ export default async function handler(
           sessionId: session._id,
         }).lean();
 
-        const userVotes = await FinalVote.find({
-          proposalId: { $in: proposalIds },
-          userId: user.id,
-        }).lean();
+        const userVotes = user
+          ? await FinalVote.find({
+              proposalId: { $in: proposalIds },
+              userId: user.id,
+            }).lean()
+          : [];
         const userVoteMap = Object.fromEntries(
           userVotes.map((v) => [v.proposalId.toString(), v.choice]),
         );

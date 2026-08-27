@@ -157,7 +157,7 @@ than a fallback.
 
 **What this means for us.** `…69dc` is the service a vote must use, and it is
 what `.env.local` points at. The danger is not a request being downgraded — it
-is pointing `GRANDID_SERVICE_KEY` at the wrong service. Do that and every vote
+is pointing `GRANDID_SIGN_SERVICE_KEY` at the wrong service. Do that and every vote
 returns a perfectly ordinary success carrying `funcId: Identification`: BankID
 identified the voter, signed nothing, bound them to no ballot, and reported no
 error anywhere in the response. The only symptom is the BankID app saying
@@ -767,7 +767,7 @@ Production service key, production BankID certs, `GRANDID_ENV=production`,
 ```env
 GRANDID_ENV=test                 # test | production
 GRANDID_API_KEY=
-GRANDID_SERVICE_KEY=             # the authenticateServiceKey
+GRANDID_SIGN_SERVICE_KEY=             # the authenticateServiceKey
 VOTE_ID_PEPPER=                  # HMAC pepper (decision 3a). Never rotate.
 ```
 

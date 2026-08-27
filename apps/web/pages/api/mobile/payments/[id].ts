@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import mongoose from "mongoose";
 import connectDB from "../../../../lib/mongodb";
 import { Payment, User } from "../../../../lib/models";
-import { verifyBearerToken } from "../../../../lib/mobile-jwt";
+import { requireAccount } from "../../../../lib/viewer";
 import { createLogger } from "../../../../lib/logger";
 import {
   getPaymentRequest,
@@ -55,12 +55,8 @@ export default async function handler(
   if (req.method !== "GET")
     return res.status(405).json({ message: "Method not allowed" });
 
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  const viewer = await requireAccount(req, res);
+  if (!viewer) return;
 
   const { id } = req.query;
   if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
@@ -72,7 +68,10 @@ export default async function handler(
 
     // Scoped to the caller: one user must never be able to read another's
     // payment by guessing an id.
-    const payment: any = await Payment.findOne({ _id: id, userId: user.id });
+    const payment: any = await Payment.findOne({
+      _id: id,
+      userId: viewer.userId,
+    });
     if (!payment) {
       return res.status(404).json({ message: "Betalningen hittades inte." });
     }
@@ -102,7 +101,7 @@ export default async function handler(
       }
     }
 
-    const dbUser: any = await User.findById(user.id)
+    const dbUser: any = await User.findById(viewer.userId)
       .select("membershipStatus membershipPaidUntil")
       .lean();
 

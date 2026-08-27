@@ -11,6 +11,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiClient } from "./api";
 import { addStars } from "./stars";
 import MajReviewSheet, { type MajReview } from "./MajReviewSheet";
+import { useActionGate } from "./RestrictedNotice";
+import { useAuth } from "./auth-context";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
@@ -67,6 +69,8 @@ export default function VotingDebateSection({
   questionId: string;
   canPost: boolean;
 }) {
+  const { canAct, requireAct, gate } = useActionGate();
+  const { capability, capabilityMessage } = useAuth();
   const [comments, setComments] = useState<VotingComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
@@ -123,6 +127,7 @@ export default function VotingDebateSection({
   // Step 1: let MAJ offer writing tips before posting (fail-open — an outage
   // still shows the sheet so the flow is consistent).
   async function handleSend() {
+    if (!requireAct()) return;
     const trimmed = text.trim();
     if (!trimmed || submitting) return;
     setSubmitting(true);
@@ -174,6 +179,7 @@ export default function VotingDebateSection({
   }
 
   async function handleRate(commentId: string, rating: number) {
+    if (!requireAct()) return;
     if (!canPost) return;
     setComments((prev) =>
       sortComments(
@@ -210,7 +216,22 @@ export default function VotingDebateSection({
 
   return (
     <View style={styles.section}>
+      {gate}
       <Text style={styles.title}>Debatt</Text>
+
+      {/* Said up front rather than only when the send button is tapped: the
+          composer looks usable, and finding out after writing an argument is
+          worse than knowing before starting one. */}
+      {canPost && !canAct ? (
+        <View style={styles.readOnlyNotice}>
+          <Text style={styles.readOnlyNoticeText}>
+            {capability === "anonymous"
+              ? "Du kan läsa debatten utan konto. Logga in med BankID för att skriva och betygsätta."
+              : capabilityMessage ||
+                "Ditt konto kan läsa debatten men inte skriva i den."}
+          </Text>
+        </View>
+      ) : null}
 
       {canPost ? (
         <View style={styles.composer}>
@@ -451,6 +472,15 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
 
+  readOnlyNotice: {
+    backgroundColor: "#eef2ff",
+    borderColor: "#c7d2fe",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  readOnlyNoticeText: { color: "#3730a3", fontSize: 13, lineHeight: 19 },
   composer: { gap: 8, paddingTop: 4 },
   typeRow: { flexDirection: "row", gap: 8 },
   typePill: {

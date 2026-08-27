@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../../lib/mongodb";
 import { User } from "../../../../lib/models";
-import { verifyBearerToken } from "../../../../lib/mobile-jwt";
+import { requireAccount } from "../../../../lib/viewer";
 import { formatPhoneNumber } from "../../../../lib/sms";
 
 export default async function handler(
@@ -10,12 +10,8 @@ export default async function handler(
 ) {
   if (req.method !== "POST") return res.status(405).end();
 
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+  const viewer = await requireAccount(req, res);
+  if (!viewer) return;
 
   const { phoneNumber } = req.body as { phoneNumber?: unknown };
   if (typeof phoneNumber !== "string")
@@ -25,7 +21,7 @@ export default async function handler(
 
   const trimmed = phoneNumber.trim();
   if (trimmed === "") {
-    await User.findByIdAndUpdate(user.id, {
+    await User.findByIdAndUpdate(viewer.userId, {
       phoneNumber: "",
       notificationPreference: "email",
     });
@@ -36,7 +32,7 @@ export default async function handler(
   if (!formatted)
     return res.status(400).json({ error: "Ogiltigt telefonnummer" });
 
-  await User.findByIdAndUpdate(user.id, {
+  await User.findByIdAndUpdate(viewer.userId, {
     phoneNumber: formatted,
     notificationPreference: "both",
   });

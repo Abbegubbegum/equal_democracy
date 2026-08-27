@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]";
+import { requireParticipant } from "@/lib/viewer";
 import connectDB from "../../../../lib/mongodb";
 import { BudgetArgument } from "../../../../lib/models";
 import { csrfProtection } from "../../../../lib/csrf";
@@ -17,9 +16,8 @@ export default async function handler(
 
   await connectDB();
 
-  const session = await getServerSession(req, res, authOptions);
-  if (!session)
-    return res.status(401).json({ message: "You must be logged in" });
+  const viewer = await requireParticipant(req, res);
+  if (!viewer) return;
 
   if (!csrfProtection(req, res)) return;
 
@@ -28,7 +26,7 @@ export default async function handler(
     return res.status(400).json({ message: "argumentId required" });
 
   try {
-    const userId = session.user.id;
+    const userId = viewer.userId;
     const arg = await BudgetArgument.findById(argumentId);
     if (!arg) return res.status(404).json({ message: "Argument not found" });
 

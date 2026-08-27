@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
 import { CitizenProposal, CitizenProposalRating } from "../../../lib/models";
+import { requireParticipant } from "@/lib/viewer";
 import { csrfProtection } from "../../../lib/csrf";
 import { createLogger } from "@/lib/logger";
 
@@ -18,11 +19,9 @@ export default async function handler(
 ) {
   await connectDB();
 
+  // GET is public and simply reports no rating when signed out — the aggregate
+  // it sits beside is public too. POST gates itself below.
   const session = await getServerSession(req, res, authOptions);
-
-  if (!session) {
-    return res.status(401).json({ message: "You must be logged in" });
-  }
 
   // GET - Get user's rating for a proposal
   if (req.method === "GET") {
@@ -33,10 +32,12 @@ export default async function handler(
         return res.status(400).json({ message: "Proposal ID required" });
       }
 
-      const rating = await CitizenProposalRating.findOne({
-        proposalId,
-        userId: session.user.id,
-      });
+      const rating = session?.user?.id
+        ? await CitizenProposalRating.findOne({
+            proposalId,
+            userId: session.user.id,
+          })
+        : null;
 
       return res.status(200).json({
         userRating: rating ? rating.rating : null,
@@ -55,6 +56,8 @@ export default async function handler(
     if (!csrfProtection(req, res)) {
       return;
     }
+    const viewer = await requireParticipant(req, res);
+    if (!viewer) return;
 
     try {
       const { proposalId, rating } = req.body;
@@ -87,7 +90,7 @@ export default async function handler(
       // Check if user has already rated
       let existingRating = await CitizenProposalRating.findOne({
         proposalId,
-        userId: session.user.id,
+        userId: viewer.userId,
       });
 
       let oldRating = 0;
@@ -101,7 +104,7 @@ export default async function handler(
         // Create new rating
         existingRating = new CitizenProposalRating({
           proposalId,
-          userId: session.user.id,
+          userId: viewer.userId,
           rating,
         });
         await existingRating.save();
@@ -117,7 +120,7 @@ export default async function handler(
           : 0;
 
       log.info("Proposal rated", {
-        userId: session.user.id,
+        userId: viewer.userId,
         proposalId,
         oldRating,
         newRating: rating,

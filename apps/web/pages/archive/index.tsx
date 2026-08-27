@@ -57,10 +57,7 @@ export default function ArchivePage() {
 
   useEffect(() => {
     if (status === "loading") return;
-    if (!session) {
-      router.replace("/login");
-      return;
-    }
+    // The archive is the record this platform publishes. No account needed.
     (async () => {
       try {
         const [pRes, mRes, bRes, sRes] = await Promise.all([

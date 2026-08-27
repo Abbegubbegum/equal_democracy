@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../../lib/mongodb";
 import { Question, QuestionVote } from "../../../../lib/models";
-import { verifyBearerToken } from "../../../../lib/mobile-jwt";
+import { requireParticipant } from "../../../../lib/viewer";
 import { createLogger } from "../../../../lib/logger";
 import { PRE_ELECTION_LIMIT, QUOTA_MESSAGE } from "../../../../lib/vote-quota";
 
@@ -31,12 +31,15 @@ export default async function handler(
   if (req.method !== "POST")
     return res.status(405).json({ message: "Method not allowed" });
 
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  // Deliberately behind the same gate as every other action, even though this
+  // route exists only for app builds that predate BankID voting: a vote written
+  // here carries no signature, so the least it can require is a verified,
+  // eligible account. Old builds whose users have not linked BankID therefore
+  // cannot vote at all, which is the intended outcome — every vote is a BankID
+  // vote now, and this path is only alive until MIN_SUPPORTED_MOBILE_VERSION
+  // rises far enough to delete it.
+  const viewer = await requireParticipant(req, res);
+  if (!viewer) return;
 
   const { questionId, choice } = req.body;
   if (!questionId) return res.status(400).json({ message: "questionId krävs" });
@@ -48,7 +51,7 @@ export default async function handler(
 
     const existingVote = await QuestionVote.findOne({
       questionId,
-      userId: user.id,
+      userId: viewer.userId,
     }).lean();
 
     if (!existingVote) {
@@ -61,14 +64,14 @@ export default async function handler(
           .json({ message: "Den här frågan är stängd för röstning." });
       }
 
-      const used = await QuestionVote.countDocuments({ userId: user.id });
+      const used = await QuestionVote.countDocuments({ userId: viewer.userId });
       if (used >= PRE_ELECTION_LIMIT) {
         return res.status(403).json({ message: QUOTA_MESSAGE });
       }
     }
 
     await QuestionVote.findOneAndUpdate(
-      { questionId, userId: user.id },
+      { questionId, userId: viewer.userId },
       { choice },
       { upsert: true, new: true },
     );

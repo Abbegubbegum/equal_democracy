@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { verifyBearerToken } from "@/lib/mobile-jwt";
+import { requireAccount } from "@/lib/viewer";
 import connectDB from "@/lib/mongodb";
 import { User } from "@/lib/models";
 
@@ -9,12 +9,8 @@ export default async function handler(
 ) {
   if (req.method !== "POST") return res.status(405).end();
 
-  let user: ReturnType<typeof verifyBearerToken>;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+  const viewer = await requireAccount(req, res);
+  if (!viewer) return;
 
   const { token } = req.body;
   if (
@@ -26,7 +22,7 @@ export default async function handler(
   }
 
   await connectDB();
-  await User.findByIdAndUpdate(user.id, { expoPushToken: token });
+  await User.findByIdAndUpdate(viewer.userId, { expoPushToken: token });
 
   return res.status(200).json({ ok: true });
 }

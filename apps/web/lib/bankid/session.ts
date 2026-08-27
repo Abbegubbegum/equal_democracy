@@ -1,13 +1,24 @@
 /**
- * BankID signing via GrandID's hosted UI.
+ * BankID via GrandID's hosted UI — signing for votes, identification for login.
  *
- * The whole integration is one configuration, established by live testing on
- * 2026-08-24/25 (see docs/bankid-integration-plan.md §2): service key `…69dc`,
- * `gui=true`, sign mode. That is the only combination that returns a real
- * signature *and* the SPAR folkbokföring block in a single transaction, so the
- * alternatives — authentication mode, `gui=false`, QR, same-device app-switch —
- * are deliberately not exposed. They were explored, they lost, and carrying
- * them as parameters would only invite a caller to pick a broken one.
+ * `gui=true` is the whole integration, established by live testing on
+ * 2026-08-24/25 (see docs/bankid-integration-plan.md §2). It is the only mode
+ * that returns the SPAR folkbokföring block, so the alternatives — `gui=false`,
+ * QR, same-device app-switch — are deliberately not exposed. They were explored,
+ * they lost, and carrying them as parameters would only invite a caller to pick
+ * a broken one.
+ *
+ * What *is* exposed is `service`, because there are two legitimate
+ * configurations and they are not interchangeable:
+ *
+ *   `sign` (`…69dc`) → `funcId: Signing`        — a vote
+ *   `auth` (`…7c8c`) → `funcId: Identification` — a login
+ *
+ * Both were measured returning SPAR in GUI mode. The failure this shape guards
+ * against is that the service key, not the request, decides which one you get
+ * (§2a) — so asking for one and receiving the other raises no error anywhere.
+ * `EXPECTED_ORDER_TYPE` is how every consumer catches that, and it must be
+ * checked before a transaction is treated as meaning anything.
  *
  * What this module exists to absorb: `GetSession` has four response shapes and
  * none of them carries a field saying which one you got. A completed
@@ -20,7 +31,11 @@
  * import it under Node's native type stripping.
  */
 
-import type { GrandIdConfig } from "./config";
+import {
+  getGrandIdConfig,
+  type GrandIdConfig,
+  type GrandIdService,
+} from "./config";
 import {
   GrandIdApiError,
   grandIdRequest,
@@ -36,6 +51,19 @@ export const MIN_POLL_INTERVAL_MS = 2000;
 
 /** What BankID actually ran, as recorded in the signed XML's `funcId`. */
 export type BankIdOrderType = "Signing" | "Identification";
+
+/**
+ * What each service must produce for the transaction to mean what we asked for.
+ *
+ * Not advisory. A `sign` order that comes back `Identification` bound nobody to
+ * the ballot they were shown; an `auth` order that comes back `Signing` means we
+ * made someone sign a document to log in, which is not what they consented to.
+ * Both look like complete, healthy transactions in every other respect.
+ */
+export const EXPECTED_ORDER_TYPE: Record<GrandIdService, BankIdOrderType> = {
+  sign: "Signing",
+  auth: "Identification",
+};
 
 /**
  * Reads the order type out of a BankID signature.
@@ -54,7 +82,7 @@ export type BankIdOrderType = "Signing" | "Identification";
  * BANKID_AUTH_NOT_ALLOWED — a signing service cannot do anything else.)
  *
  * So this function verifies **which service we are actually talking to**. Point
- * `GRANDID_SERVICE_KEY` at the authentication service and every vote would come
+ * `GRANDID_SIGN_SERVICE_KEY` at the authentication service and every vote would come
  * back a successful `Identification`, binding nobody to any ballot, with no
  * error anywhere in the API response. That is the failure this guards against,
  * and the user-visible symptom is the BankID app saying "verifiering" instead
@@ -91,10 +119,22 @@ export interface StartedBankIdSession {
 
 export interface StartBankIdSessionParams {
   /**
-   * The text BankID signs and displays. It must be the whole of what the user
-   * is agreeing to, because it is what binds them to the ballot.
+   * Which configured service to run — and therefore whether this transaction is
+   * a signature or an identification. See `GrandIdService` in ./config.ts.
    */
-  visibleText: string;
+  service: GrandIdService;
+  /**
+   * The text BankID displays.
+   *
+   * For `sign` it is also what BankID signs, so it must be the whole of what the
+   * user is agreeing to — it is what binds them to the ballot, and the signing
+   * service refuses a request without it.
+   *
+   * For `auth` nothing is being agreed to, so it is optional and purely a
+   * courtesy: it is what the BankID app shows the user about where they are
+   * logging in.
+   */
+  visibleText?: string;
   /**
    * Signed but never shown — the place to bind machine-readable context (which
    * ballot, which verification row) into the signature, so the evidence can
@@ -153,12 +193,15 @@ export async function startBankIdSession(
   // The signing service refuses a request without userVisibleData outright
   // (BANKID_AUTH_NOT_ALLOWED), so this only saves a round trip and gives a
   // clearer message than GrandID's. It is not what makes the call a signature —
-  // the service key is (see readOrderType).
-  if (!params.visibleText) {
+  // the service key is (see readOrderType). The authentication service has no
+  // such requirement: there is nothing to agree to.
+  if (params.service === "sign" && !params.visibleText) {
     throw new Error(
-      "visibleText is required — it is the text BankID signs, and the signing service rejects a request without it.",
+      "visibleText is required for a signing order — it is the text BankID signs, and the signing service rejects a request without it.",
     );
   }
+
+  const config = params.config || getGrandIdConfig(params.service);
 
   const body = await grandIdRequest<FederatedLoginResponse>(
     "FederatedLogin",
@@ -172,12 +215,14 @@ export async function startBankIdSession(
       appRedirect: params.appRedirect,
       mobileBankId: true,
       desktopBankId: false,
-      userVisibleData: base64(params.visibleText),
+      userVisibleData: params.visibleText
+        ? base64(params.visibleText)
+        : undefined,
       userNonVisibleData: params.hiddenData
         ? base64(params.hiddenData)
         : undefined,
     },
-    { config: params.config },
+    { config },
   );
 
   throwOnErrorObject(body);
@@ -256,12 +301,14 @@ function text(value: unknown): string | null {
  */
 export async function getBankIdSession(
   sessionId: string,
-  options: { config?: GrandIdConfig } = {},
+  options: { service: GrandIdService; config?: GrandIdConfig },
 ): Promise<BankIdSession> {
+  // Must be the same service that created the session — GrandID scopes a
+  // sessionId to the service key it was issued under.
   const body = await grandIdRequest<GetSessionResponse>(
     "GetSession",
     { sessionId },
-    { config: options.config },
+    { config: options.config || getGrandIdConfig(options.service) },
   );
 
   if (body.errorObject) {
@@ -319,13 +366,16 @@ export async function getBankIdSession(
  */
 export async function cancelBankIdSession(
   sessionId: string,
-  options: { config?: GrandIdConfig } = {},
+  options: { service: GrandIdService; config?: GrandIdConfig },
 ): Promise<boolean> {
   try {
     await grandIdRequest(
       "Logout",
       { sessionId, cancelBankID: true },
-      { method: "GET", config: options.config },
+      {
+        method: "GET",
+        config: options.config || getGrandIdConfig(options.service),
+      },
     );
     return true;
   } catch {

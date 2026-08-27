@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { MEMBERSHIP_PAYMENT_MESSAGE, MEMBERSHIP_YEARS } from "@repo/types";
 import connectDB from "../../../../lib/mongodb";
 import { Payment, User } from "../../../../lib/models";
-import { verifyBearerToken } from "../../../../lib/mobile-jwt";
+import { requireAccount } from "../../../../lib/viewer";
 import { createLogger } from "../../../../lib/logger";
 import { getMembershipFee } from "../../../../lib/membership";
 import { getSwishConfig } from "../../../../lib/swish/config";
@@ -35,18 +35,14 @@ export default async function handler(
   if (req.method !== "POST")
     return res.status(405).json({ message: "Method not allowed" });
 
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  const viewer = await requireAccount(req, res);
+  if (!viewer) return;
 
   try {
     await connectDB();
 
-    const dbUser: any = await User.findById(user.id)
-      .select("membershipStatus")
+    const dbUser: any = await User.findById(viewer.userId)
+      .select("membershipStatus email phoneNumber")
       .lean();
     if (!dbUser) return res.status(401).json({ message: "Unauthorized" });
 
@@ -54,9 +50,40 @@ export default async function handler(
       return res.status(409).json({ message: "Du är redan medlem." });
     }
 
+    // Membership needs a verified identity and a way to reach the member — a
+    // party member roll is not something to keep against an account we cannot
+    // contact. Enforced here as well as in the UI because this is the gate that
+    // actually holds: the client check only exists so nobody reaches it.
+    //
+    // The order matters. BankID first, because it is the one requirement the
+    // user cannot satisfy from this screen.
+    if (viewer.capability !== "participant") {
+      return res.status(403).json({
+        code: "MEMBERSHIP_REQUIREMENTS",
+        missing: ["bankid"],
+        message:
+          viewer.message ||
+          "Du behöver logga in med BankID innan du kan bli medlem.",
+      });
+    }
+
+    const missing = [
+      dbUser.email ? null : "email",
+      dbUser.phoneNumber ? null : "phone",
+    ].filter(Boolean);
+
+    if (missing.length) {
+      return res.status(403).json({
+        code: "MEMBERSHIP_REQUIREMENTS",
+        missing,
+        message:
+          "Lägg till e-postadress och mobilnummer på ditt konto innan du blir medlem.",
+      });
+    }
+
     // Resume an in-flight request rather than starting a competing one.
     const inFlight: any = await Payment.findOne({
-      userId: user.id,
+      userId: viewer.userId,
       status: "CREATED",
       createdAt: { $gt: new Date(Date.now() - IN_FLIGHT_WINDOW_MS) },
       token: { $ne: null },
@@ -67,7 +94,7 @@ export default async function handler(
     if (inFlight) {
       log.info("Reusing in-flight payment", {
         paymentId: inFlight._id.toString(),
-        userId: user.id,
+        userId: viewer.userId,
       });
       return res.status(200).json({
         paymentId: inFlight._id.toString(),
@@ -82,7 +109,7 @@ export default async function handler(
     // Created before the Swish call on purpose: its _id is what we send as
     // payeePaymentReference, which is how a callback finds its way back here.
     const payment = await Payment.create({
-      userId: user.id,
+      userId: viewer.userId,
       instructionId: newInstructionId(),
       callbackIdentifier: newCallbackIdentifier(),
       amount: getMembershipFee(),
@@ -147,7 +174,7 @@ export default async function handler(
     return res.status(502).json({ message: result.message });
   } catch (err: any) {
     log.error("Failed to create Swish payment", {
-      userId: user.id,
+      userId: viewer.userId,
       error: err?.message,
     });
     return res.status(500).json({

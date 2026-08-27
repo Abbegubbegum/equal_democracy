@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../../lib/mongodb";
 import { Question, QuestionVote } from "../../../../lib/models";
-import { verifyBearerToken } from "../../../../lib/mobile-jwt";
+import { optionalBearerToken } from "../../../../lib/mobile-jwt";
 import { createLogger } from "../../../../lib/logger";
 import { PRE_ELECTION_LIMIT } from "../../../../lib/vote-quota";
 
@@ -39,12 +39,10 @@ export default async function handler(
   if (req.method !== "GET")
     return res.status(405).json({ message: "Method not allowed" });
 
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  // Readable without an account: the app is fully browsable signed out, so a
+  // missing or expired token is an ordinary way to call this, not a failure.
+  // A signed-out caller simply has no vote of their own and no quota.
+  const user = optionalBearerToken(req.headers.authorization);
 
   try {
     await connectDB();
@@ -59,9 +57,11 @@ export default async function handler(
         .sort({ createdAt: -1 })
         .limit(CLOSED_QUESTION_LIMIT)
         .lean(),
-      QuestionVote.countDocuments({ userId: user.id }),
+      user ? QuestionVote.countDocuments({ userId: user.id }) : 0,
     ]);
-    const quota = { used, limit: PRE_ELECTION_LIMIT };
+    // Null rather than a zeroed quota for a signed-out viewer: "0 of 5 used"
+    // reads as an invitation, and they cannot vote at all.
+    const quota = user ? { used, limit: PRE_ELECTION_LIMIT } : null;
 
     const allQuestions = [...activeQuestions, ...pastQuestions];
     if (allQuestions.length === 0)
@@ -82,19 +82,24 @@ export default async function handler(
           },
         },
       ]),
-      QuestionVote.find({
-        questionId: { $in: questionIds },
-        userId: user.id,
-      })
-        .select("questionId choice")
-        .lean(),
+      user
+        ? QuestionVote.find({
+            questionId: { $in: questionIds },
+            userId: user.id,
+          })
+            .select("questionId choice")
+            .lean()
+        : [],
     ]);
 
     const tallyMap = new Map<string, { ja: number; nej: number }>(
       tallies.map((t) => [t._id.toString(), { ja: t.ja, nej: t.nej }]),
     );
     const userVoteMap = new Map<string, string>(
-      userVotes.map((v) => [v.questionId.toString(), v.choice]),
+      userVotes.map((v): [string, string] => [
+        v.questionId.toString(),
+        v.choice,
+      ]),
     );
 
     const result = allQuestions.map((q) => {

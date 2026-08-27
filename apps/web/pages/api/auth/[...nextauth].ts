@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import connectDB from "../../../lib/mongodb";
 import { User, LoginCode } from "../../../lib/models";
+import { consumeVerification } from "../../../lib/bankid/login";
 import { createLogger } from "../../../lib/logger";
 
 const log = createLogger("Auth");
@@ -53,21 +54,25 @@ export const authOptions: NextAuthOptions = {
           // One-time: consume code
           await LoginCode.deleteMany({ email });
 
-          let user = await User.findOne({ email });
+          const user = await User.findOne({ email });
 
+          // Accounts are not created here any more. BankID is the only way to
+          // become a user; this provider survives solely so a legacy email
+          // account can be signed into once, to reach the link gate.
           if (!user) {
-            const name =
-              email
-                .split("@")[0]
-                .replace(/[._-]/g, " ")
-                .replace(/\b\w/g, (c) => c.toUpperCase())
-                .slice(0, 60) || "Citizen";
+            throw new Error(
+              "Det finns inget konto med den e-postadressen. Logga in med BankID.",
+            );
+          }
 
-            user = await User.create({
-              name: name,
-              email,
-              // no password
-            });
+          // **C1 — no ID-växling.** Once an account carries a BankID identity,
+          // that is the only thing that may open a session for it. Its email is
+          // a contact channel from then on, and letting a code sent to it log in
+          // would be exactly the credential-issuing this rule forbids.
+          if (user.authMethod === "bankid" || user.bankidSubject) {
+            throw new Error(
+              "Det här kontot loggar in med BankID. Använd BankID-knappen.",
+            );
           }
 
           return {
@@ -82,6 +87,53 @@ export const authOptions: NextAuthOptions = {
           log.error("Authentication failed", { error: error.message });
           throw error;
         }
+      },
+    }),
+    CredentialsProvider({
+      id: "bankid",
+      name: "BankID",
+      credentials: {
+        pollToken: { label: "Poll token", type: "text" },
+      },
+      /**
+       * Turns a settled BankID identification into a session.
+       *
+       * It verifies nothing about the person — that already happened in
+       * `settleLogin`, against GrandID, minutes ago. All this does is spend the
+       * row exactly once, and `consumeVerification` makes that atomic: the
+       * `consumedAt: null` predicate is part of the update, so two racing
+       * requests cannot both come away with a session.
+       *
+       * A settled row is therefore a credential until it is spent, which is why
+       * `pollToken` is 32 random bytes and never the row's own ObjectId.
+       */
+      async authorize(credentials) {
+        await connectDB();
+
+        const pollToken = credentials?.pollToken?.trim();
+        if (!pollToken) throw new Error("Inloggningen kunde inte slutföras.");
+
+        const spent = await consumeVerification(pollToken);
+        if (!spent) {
+          // Either it was never verified, or it has already been used. Both mean
+          // "start again", and saying which would tell an attacker whether a
+          // guessed token exists.
+          throw new Error("Inloggningen har gått ut. Försök igen.");
+        }
+
+        const user = await User.findById(spent.userId);
+        if (!user) throw new Error("Kontot kunde inte hittas.");
+
+        log.info("BankID session established", { userId: spent.userId });
+
+        return {
+          id: user._id.toString(),
+          email: user.email,
+          name: user.name,
+          isAdmin: !!user.isAdmin,
+          isSuperAdmin: !!user.isSuperAdmin,
+          adminStatus: user.adminStatus || "none",
+        };
       },
     }),
   ],

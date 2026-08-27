@@ -16,6 +16,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiClient } from "./api";
+import { useAuth } from "./auth-context";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
@@ -169,6 +170,7 @@ export default function XAIModal({
   pathname: string;
 }) {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
   const [messages, setMessages] = useState<Message[]>([
     { role: "xai", text: GREETING },
@@ -219,6 +221,24 @@ export default function XAIModal({
   async function send(text: string) {
     const msg = text.trim();
     if (!msg || loading) return;
+
+    // Stop here rather than round-tripping to a 401 and reporting it as "MAJ is
+    // temporarily unavailable" — which is untrue, and leaves the user retrying
+    // something that cannot work. MAJ needs an account because every reply is
+    // Anthropic-billed and this is a public URL.
+    if (!user) {
+      setInput("");
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", text: msg },
+        {
+          role: "xai",
+          text: "Du behöver logga in med BankID för att chatta med mig. Du kan läsa hela appen utan konto.",
+        },
+      ]);
+      return;
+    }
+
     setInput("");
     setMessages((prev) => [...prev, { role: "user", text: msg }]);
     setLoading(true);

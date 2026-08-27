@@ -72,21 +72,33 @@ export default async function handler(
       await LoginCode.deleteMany({ email });
     }
 
-    let user = await User.findOne({ email });
-    if (!user) {
-      const name =
-        email
-          .split("@")[0]
-          .replace(/[._-]/g, " ")
-          .replace(/\b\w/g, (c: string) => c.toUpperCase())
-          .slice(0, 60) || "Citizen";
+    const user = await User.findOne({ email });
 
-      user = await User.create({ name, email });
+    // Accounts are not created here any more — BankID is the only way to become
+    // a user. This path survives so a legacy email account can be signed into
+    // once, from an app build old enough to still offer the form, and reach the
+    // link gate. It goes away with MIN_SUPPORTED_MOBILE_VERSION.
+    if (!user) {
+      return res.status(404).json({
+        message:
+          "Det finns inget konto med den e-postadressen. Logga in med BankID.",
+      });
+    }
+
+    // **C1 — no ID-växling.** Once an account carries a BankID identity, that is
+    // the only thing that may open a session for it. Its email is a contact
+    // channel from then on, and a code sent to it must not be a way back in.
+    if (user.authMethod === "bankid" || user.bankidSubject) {
+      return res.status(403).json({
+        code: "BANKID_ACCOUNT",
+        message:
+          "Det här kontot loggar in med BankID. Uppdatera appen och använd BankID.",
+      });
     }
 
     const tokenPayload = {
       id: user._id.toString(),
-      email: user.email,
+      email: user.email ?? null,
       name: user.name,
       isAdmin: !!user.isAdmin,
       isSuperAdmin: !!user.isSuperAdmin,

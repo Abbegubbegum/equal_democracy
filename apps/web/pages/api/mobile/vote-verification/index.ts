@@ -5,7 +5,7 @@ import {
   QuestionVote,
   VoteVerification,
 } from "../../../../lib/models";
-import { verifyBearerToken } from "../../../../lib/mobile-jwt";
+import { requireParticipant } from "../../../../lib/viewer";
 import { createLogger } from "../../../../lib/logger";
 import { runtimeEnv } from "../../../../lib/bankid/config";
 import { startBankIdSession } from "../../../../lib/bankid/session";
@@ -78,12 +78,8 @@ export default async function handler(
   if (req.method !== "POST")
     return res.status(405).json({ message: "Method not allowed" });
 
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  const viewer = await requireParticipant(req, res);
+  if (!viewer) return;
 
   const { questionId, choice, returnUrl } = req.body || {};
   if (!questionId) return res.status(400).json({ message: "questionId krävs" });
@@ -109,7 +105,7 @@ export default async function handler(
     // the case where a verified vote already exists and nothing would change.
     const existing: any = await QuestionVote.findOne({
       questionId,
-      userId: user.id,
+      userId: viewer.userId,
     })
       .select("choice verifiedAt")
       .lean();
@@ -121,9 +117,9 @@ export default async function handler(
 
     // Every accepted order is a billable signature, so this is a cost control as
     // much as an abuse one.
-    const throttle = await checkStartThrottle(user.id);
+    const throttle = await checkStartThrottle(viewer.userId);
     if (throttle.limited) {
-      log.warn("Vote verification start throttled", { userId: user.id });
+      log.warn("Vote verification start throttled", { userId: viewer.userId });
       return res.status(429).json({
         message:
           "Du har startat för många BankID-signeringar. Försök igen om en stund.",
@@ -133,12 +129,12 @@ export default async function handler(
 
     // Checked before spending a signature. Settle checks again, because that is
     // where the vote is written and minutes pass in between.
-    if (!(await canVote(user.id, String(questionId)))) {
+    if (!(await canVote(viewer.userId, String(questionId)))) {
       return res.status(403).json({ message: QUOTA_MESSAGE });
     }
 
     const inFlight: any = await VoteVerification.findOne({
-      userId: user.id,
+      userId: viewer.userId,
       status: "PENDING",
       createdAt: { $gt: new Date(Date.now() - IN_FLIGHT_WINDOW_MS) },
     })
@@ -169,11 +165,12 @@ export default async function handler(
     const callbackUrl = normaliseReturnUrl(returnUrl);
     if (returnUrl && !callbackUrl) {
       log.warn("Ignoring a returnUrl that is not an allowed deep link", {
-        userId: user.id,
+        userId: viewer.userId,
       });
     }
 
     const started = await startBankIdSession({
+      service: "sign",
       visibleText: ballotText(question.text, choice),
       callbackUrl,
       // Same destination, different journey: callbackUrl is where the browser
@@ -185,7 +182,7 @@ export default async function handler(
     // Created after the BankID call, unlike the Swish flow: GrandID hands us the
     // session id rather than taking ours, so there is nothing to reserve first.
     const verification = await VoteVerification.create({
-      userId: user.id,
+      userId: viewer.userId,
       questionId,
       choice,
       grandIdSession: started.sessionId,
@@ -207,7 +204,7 @@ export default async function handler(
     });
   } catch (error) {
     log.error("Failed to start vote verification", {
-      userId: user.id,
+      userId: viewer.userId,
       error: error.message,
       code: error.code,
     });

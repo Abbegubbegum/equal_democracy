@@ -1,24 +1,41 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
-import { useAuth } from "../../lib/auth-context";
 import { useRouter } from "expo-router";
+import { useAuth } from "../../lib/auth-context";
+import { markClaimPromptPending } from "../../lib/onboarding";
+import {
+  cancelBankIdLogin,
+  dismissHostedLogin,
+  openHostedLogin,
+  startBankIdLogin,
+  watchBankIdLogin,
+} from "../../lib/bankid-login";
+
+/**
+ * BankID is the only way in.
+ *
+ * The email/OTP form that used to live here is gone. It could not lead anywhere
+ * different — someone without BankID loses account access either way, and
+ * someone with it authenticates with BankID regardless — so it only added a
+ * second door onto the same room, which read as a choice when it was not one.
+ * The OTP endpoints stay alive for app builds that predate this screen
+ * (docs/bankid-login-plan.md §7.4, §12 D3).
+ *
+ * This is now a pushed route rather than a wall: the app is fully browsable
+ * signed out, so "Fortsätt utan konto" is a real option and not a consolation.
+ */
 
 const BLUE = "#002d75";
 const DARK_BLUE = "#001c55";
 const AMBER = "#f5a623";
-
-type Step = "email" | "code";
 
 function AppIcon({ size = 72 }: { size?: number }) {
   return (
@@ -35,139 +52,136 @@ function AppIcon({ size = 72 }: { size?: number }) {
   );
 }
 
+type Phase = "idle" | "starting" | "awaiting";
+
 export default function LoginScreen() {
-  const { requestCode, login } = useAuth();
   const router = useRouter();
-  const [step, setStep] = useState<Step>("email");
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { signInWithTokens } = useAuth();
+  const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const stopRef = useRef<(() => void) | null>(null);
+  const tokenRef = useRef<string | null>(null);
 
-  async function handleRequestCode() {
+  useEffect(
+    () => () => {
+      stopRef.current?.();
+      // Release an abandoned order so the next attempt is not refused for the
+      // three minutes it would otherwise take to expire.
+      if (tokenRef.current) cancelBankIdLogin(tokenRef.current);
+    },
+    [],
+  );
+
+  async function start() {
     setError(null);
-    setLoading(true);
+    setNotice(null);
+    setPhase("starting");
+
     try {
-      await requestCode(email.trim().toLowerCase());
-      setStep("code");
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
+      const started = await startBankIdLogin("login");
+      tokenRef.current = started.pollToken;
+      setPhase("awaiting");
+
+      stopRef.current = watchBankIdLogin(started.pollToken, {
+        onState: async (state) => {
+          if (state.status === "VERIFIED" && state.accessToken) {
+            tokenRef.current = null;
+            dismissHostedLogin();
+            await signInWithTokens(
+              state.accessToken,
+              state.refreshToken!,
+              state.user!,
+            );
+
+            // BankID created the account rather than finding one, so this
+            // person may well have used the app before, under an email. Hand
+            // the ask to the tab layout — this screen is about to unmount.
+            if (state.createdAccount) await markClaimPromptPending();
+
+            // An ineligible person is genuinely signed in — they just may not
+            // act here. Telling them now beats letting them discover it at
+            // their first tap on a vote button.
+            if (state.capability !== "participant" && state.capabilityMessage) {
+              setPhase("idle");
+              setNotice(state.capabilityMessage);
+              return;
+            }
+            router.replace("/(app)");
+            return;
+          }
+
+          if (state.status === "ALREADY_CONSUMED") {
+            // The first poll already took the tokens. Nothing is wrong.
+            tokenRef.current = null;
+            setPhase("idle");
+            return;
+          }
+
+          if (state.status === "PENDING") return;
+
+          tokenRef.current = null;
+          setPhase("idle");
+          setError(state.message || "Inloggningen kunde inte slutföras.");
+        },
+        onTimeout: () => {
+          tokenRef.current = null;
+          setPhase("idle");
+          setError("Inloggningen tog för lång tid. Försök igen.");
+        },
+      });
+
+      await openHostedLogin(started.redirectUrl);
+    } catch (err) {
+      setPhase("idle");
+      setError((err as Error).message);
     }
   }
 
-  async function handleLogin() {
-    setError(null);
-    setLoading(true);
-    try {
-      await login(email.trim().toLowerCase(), code.trim());
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const busy = phase !== "idle";
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Logo + title */}
+    <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.logoRow}>
-          <AppIcon size={64} />
-          <View style={styles.titleBlock}>
-            <Text style={styles.titleTop}>VALLENTUNA</Text>
-            <Text style={styles.titleSub}>Framåt</Text>
+          <AppIcon />
+          <View>
+            <Text style={styles.wordmark}>VALLENTUNA</Text>
+            <Text style={styles.wordmarkSub}>Framåt</Text>
           </View>
         </View>
 
-        {/* Card */}
         <View style={styles.card}>
-          <Text style={styles.cardSubtitle}>
-            {step === "email"
-              ? "Ange din e-postadress för att få en inloggningskod"
-              : `Koden skickades till ${email}`}
+          <Text style={styles.subtitle}>
+            Logga in med BankID för att rösta, kommentera och lämna förslag.
           </Text>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
+          {notice && !error ? (
+            <Text style={styles.notice}>{notice}</Text>
+          ) : null}
 
-          {step === "email" ? (
-            <>
-              <Text style={styles.label}>E-postadress</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="din@epost.se"
-                placeholderTextColor="rgba(255,255,255,0.35)"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                editable={!loading}
-              />
-              <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
-                onPress={handleRequestCode}
-                disabled={loading || !email.trim()}
-                activeOpacity={0.85}
-              >
-                {loading ? (
-                  <ActivityIndicator color={DARK_BLUE} />
-                ) : (
-                  <Text style={styles.buttonText}>Skicka kod</Text>
-                )}
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Text style={styles.label}>Engångskod</Text>
-              <TextInput
-                style={[styles.input, styles.inputCode]}
-                placeholder="••••••"
-                placeholderTextColor="rgba(255,255,255,0.35)"
-                value={code}
-                onChangeText={setCode}
-                keyboardType="number-pad"
-                maxLength={6}
-                autoComplete="one-time-code"
-                editable={!loading}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  (loading || code.length < 6) && styles.buttonDisabled,
-                ]}
-                onPress={handleLogin}
-                disabled={loading || code.length < 6}
-                activeOpacity={0.85}
-              >
-                {loading ? (
-                  <ActivityIndicator color={DARK_BLUE} />
-                ) : (
-                  <Text style={styles.buttonText}>Logga in</Text>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.linkButton}
-                onPress={() => {
-                  setStep("email");
-                  setCode("");
-                  setError(null);
-                }}
-              >
-                <Text style={styles.linkText}>
-                  Använd en annan e-postadress
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <TouchableOpacity
+            style={[styles.button, busy && styles.buttonDisabled]}
+            onPress={start}
+            disabled={busy}
+          >
+            {busy ? (
+              <ActivityIndicator color={DARK_BLUE} />
+            ) : (
+              <Text style={styles.buttonText}>Logga in med BankID</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={() => router.replace("/(app)")}
+            disabled={busy}
+          >
+            <Text style={styles.linkText}>
+              Fortsätt utan konto — du kan läsa allt ändå
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.legalText}>
@@ -181,7 +195,7 @@ export default function LoginScreen() {
           .
         </Text>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -200,83 +214,65 @@ const styles = StyleSheet.create({
     gap: 14,
     marginBottom: 32,
   },
-  titleBlock: { flexDirection: "column" },
-  titleTop: {
+  wordmark: {
+    color: "#fff",
     fontSize: 26,
     fontWeight: "900",
-    color: "#fff",
     letterSpacing: 3,
-    lineHeight: 28,
   },
-  titleSub: {
-    fontSize: 18,
-    fontWeight: "500",
-    color: "rgba(255,255,255,0.85)",
-    marginTop: -2,
-  },
+  wordmarkSub: { color: "#fff", fontSize: 17, marginTop: -2 },
   card: {
     backgroundColor: "rgba(255,255,255,0.07)",
-    borderWidth: 1,
     borderColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1,
     borderRadius: 24,
     padding: 24,
-    gap: 12,
-    marginBottom: 20,
+    gap: 18,
   },
-  cardSubtitle: {
-    color: "rgba(255,255,255,0.65)",
-    fontSize: 14,
+  subtitle: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 15,
     textAlign: "center",
-    marginBottom: 4,
+    lineHeight: 21,
   },
-  label: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: -4,
-  },
-  input: {
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.2)",
+  error: {
+    color: "#fca5a5",
+    backgroundColor: "rgba(239,68,68,0.15)",
+    borderColor: "rgba(239,68,68,0.3)",
+    borderWidth: 1,
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    color: "#fff",
+    padding: 12,
+    fontSize: 13,
   },
-  inputCode: {
-    textAlign: "center",
-    fontSize: 22,
-    letterSpacing: 6,
+  notice: {
+    color: "#fde68a",
+    backgroundColor: "rgba(245,166,35,0.15)",
+    borderColor: "rgba(245,166,35,0.35)",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 13,
   },
   button: {
     backgroundColor: AMBER,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingVertical: 16,
     alignItems: "center",
-    marginTop: 4,
   },
-  buttonDisabled: { opacity: 0.4 },
-  buttonText: { color: DARK_BLUE, fontSize: 16, fontWeight: "800" },
-  linkButton: { alignItems: "center", paddingVertical: 6 },
-  linkText: { color: "rgba(255,255,255,0.6)", fontSize: 14 },
-  error: {
-    color: "#fca5a5",
+  buttonDisabled: { opacity: 0.5 },
+  buttonText: { color: DARK_BLUE, fontSize: 17, fontWeight: "800" },
+  linkButton: { paddingVertical: 4 },
+  linkText: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 13,
     textAlign: "center",
-    fontSize: 14,
-    backgroundColor: "rgba(239,68,68,0.15)",
-    borderRadius: 8,
-    padding: 10,
   },
   legalText: {
-    color: "rgba(255,255,255,0.35)",
+    color: "rgba(255,255,255,0.4)",
     fontSize: 12,
     textAlign: "center",
+    marginTop: 28,
     lineHeight: 18,
   },
-  legalLink: {
-    color: AMBER,
-    textDecorationLine: "underline",
-  },
+  legalLink: { textDecorationLine: "underline" },
 });

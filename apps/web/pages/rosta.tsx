@@ -39,10 +39,8 @@ export default function RostaPage() {
     message: string;
   } | null>(null);
 
-  useEffect(() => {
-    if (status === "loading") return;
-    if (!session) router.replace("/login");
-  }, [status, session, router]);
+  // Readable signed out: the question, the debate and the running tally are
+  // public. Voting and commenting refuse on their own, with a reason.
 
   const load = useCallback(async (preferredId?: string | null) => {
     // A ?q= param (e.g. from a municipal item's "Diskutera & Rösta" button)
@@ -167,8 +165,7 @@ export default function RostaPage() {
     router.push("/");
   };
 
-  if (status === "loading" || !session)
-    return <div className="p-8">Laddar…</div>;
+  if (status === "loading") return <div className="p-8">Laddar…</div>;
 
   const primaryColor = theme?.colors?.primary?.[600] || "#002d75";
   const primaryDark = theme?.colors?.primary?.[800] || "#001c55";

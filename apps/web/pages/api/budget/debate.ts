@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
 import { BudgetArgument } from "../../../lib/models";
+import { requireParticipant } from "@/lib/viewer";
 import { csrfProtection } from "../../../lib/csrf";
 import { createLogger } from "@/lib/logger";
 
@@ -14,9 +15,8 @@ export default async function handler(
 ) {
   await connectDB();
 
+  // The debate is public. Only writing needs an account.
   const session = await getServerSession(req, res, authOptions);
-  if (!session)
-    return res.status(401).json({ message: "You must be logged in" });
 
   // GET — fetch all visible arguments for a session
   if (req.method === "GET") {
@@ -30,12 +30,13 @@ export default async function handler(
         .lean();
 
       // Annotate each argument with whether the current user has voted it helpful
-      const userId = session.user.id;
+      const userId = session?.user?.id ?? null;
       const annotated = args.map((a) => ({
         ...a,
         helpfulCount: a.helpfulVotes.length,
-        userFoundHelpful: a.helpfulVotes.some((id) => id.toString() === userId),
-        isOwn: a.userId.toString() === userId,
+        userFoundHelpful:
+          !!userId && a.helpfulVotes.some((id) => id.toString() === userId),
+        isOwn: !!userId && a.userId.toString() === userId,
       }));
 
       return res.status(200).json({ arguments: annotated });
@@ -48,6 +49,8 @@ export default async function handler(
   // POST — create or update an argument (one per user/category/direction)
   if (req.method === "POST") {
     if (!csrfProtection(req, res)) return;
+    const viewer = await requireParticipant(req, res);
+    if (!viewer) return;
 
     const { sessionId, categoryId, categoryName, direction, text } = req.body;
 
@@ -68,7 +71,7 @@ export default async function handler(
 
     try {
       const arg = await BudgetArgument.findOneAndUpdate(
-        { sessionId, userId: session.user.id, categoryId, direction },
+        { sessionId, userId: viewer.userId, categoryId, direction },
         {
           $set: {
             userName: session.user.name,
@@ -77,7 +80,7 @@ export default async function handler(
           },
           $setOnInsert: {
             sessionId,
-            userId: session.user.id,
+            userId: viewer.userId,
             categoryId,
             direction,
             helpfulVotes: [],

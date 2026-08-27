@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]";
+import { requireParticipant } from "@/lib/viewer";
 import connectDB from "../../../lib/mongodb";
 import { BudgetSession, BudgetVote, User } from "../../../lib/models";
 import { csrfProtection } from "../../../lib/csrf";
@@ -15,13 +14,10 @@ export default async function handler(
 ) {
   await connectDB();
 
-  const session = await getServerSession(req, res, authOptions);
+  const viewer = await requireParticipant(req, res);
+  if (!viewer) return;
 
-  if (!session) {
-    return res.status(401).json({ message: "You must be logged in" });
-  }
-
-  const user = await User.findById(session.user.id);
+  const user = await User.findById(viewer.userId);
 
   if (!user) {
     return res.status(404).json({ message: "User not found" });

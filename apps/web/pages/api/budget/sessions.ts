@@ -18,15 +18,18 @@ export default async function handler(
 ) {
   await connectDB();
 
+  // GET is public — budget figures, results and meeting agendas are the record
+  // this platform exists to publish. Everything that writes still needs an
+  // account, and most of it needs admin, checked per branch below.
   const session = await getServerSession(req, res, authOptions);
 
-  if (!session) {
+  if (req.method !== "GET" && !session) {
     return res.status(401).json({ message: "You must be logged in" });
   }
 
-  const user = await User.findById(session.user.id);
+  const user = session?.user?.id ? await User.findById(session.user.id) : null;
 
-  if (!user) {
+  if (req.method !== "GET" && !user) {
     return res.status(404).json({ message: "User not found" });
   }
 

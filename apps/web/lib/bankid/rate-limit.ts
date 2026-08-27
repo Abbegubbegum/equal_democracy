@@ -16,7 +16,7 @@
  * case (a double tap on the same ballot). This catches the rest.
  */
 
-import { VoteVerification } from "../models";
+import { LoginVerification, VoteVerification } from "../models";
 
 /**
  * Generous against real use, tight against a loop. A voter has at most five
@@ -52,6 +52,62 @@ export async function checkStartThrottle(
     userId,
     createdAt: { $gt: windowStart },
   })
+    .sort({ createdAt: 1 })
+    .select("createdAt")
+    .lean();
+
+  const retryAfter = oldest
+    ? Math.max(
+        1,
+        Math.ceil(
+          (new Date(oldest.createdAt).getTime() + WINDOW_MS - Date.now()) /
+            1000,
+        ),
+      )
+    : 60;
+
+  return { limited: true, retryAfter };
+}
+
+// ---------------------------------------------------------------------------
+// Login starts
+// ---------------------------------------------------------------------------
+
+/**
+ * Same idea as above, for `LoginVerification`.
+ *
+ * It needs its own counter because a login start is the one BankID endpoint
+ * with **no account behind it** — there is no userId to key on until the
+ * identification succeeds. So an anonymous start is throttled by a hash of the
+ * caller's IP instead, which is weaker (a NAT shares one, a phone changes its
+ * own) but is the only handle that exists at that moment. It is not the
+ * security boundary; it is a spending cap.
+ *
+ * Deliberately looser than the voting limit. Logging in is the very first thing
+ * a new user does, retries are common while people work out that BankID lives
+ * on a different device, and a household behind one address may hold several
+ * accounts.
+ */
+export const MAX_LOGIN_STARTS_PER_HOUR = 20;
+
+export async function checkLoginThrottle(key: {
+  userId?: string | null;
+  ipHash?: string | null;
+}): Promise<ThrottleResult> {
+  const windowStart = new Date(Date.now() - WINDOW_MS);
+  const query: Record<string, unknown> = { createdAt: { $gt: windowStart } };
+  if (key.userId) query.userId = key.userId;
+  else if (key.ipHash) query.ipHash = key.ipHash;
+  // Neither available: nothing to count, so nothing to limit. Only reachable if
+  // the request carries no usable address at all.
+  else return { limited: false, retryAfter: 0 };
+
+  const recent = await LoginVerification.countDocuments(query);
+  if (recent < MAX_LOGIN_STARTS_PER_HOUR) {
+    return { limited: false, retryAfter: 0 };
+  }
+
+  const oldest: any = await LoginVerification.findOne(query)
     .sort({ createdAt: 1 })
     .select("createdAt")
     .lean();
