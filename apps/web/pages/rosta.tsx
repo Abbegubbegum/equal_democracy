@@ -169,7 +169,7 @@ export default function RostaPage() {
 
   const primaryColor = theme?.colors?.primary?.[600] || "#002d75";
   const primaryDark = theme?.colors?.primary?.[800] || "#001c55";
-  const isAdmin = !!(session.user?.isAdmin || session.user?.isSuperAdmin);
+  const isAdmin = !!(session?.user?.isAdmin || session?.user?.isSuperAdmin);
 
   return (
     <div className="min-h-screen bg-[#f7f8fb]">

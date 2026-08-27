@@ -45,8 +45,17 @@ export function LinkGate() {
 
   useEffect(
     () => () => {
+      // Stop polling, but **do not cancel the order**.
+      //
+      // Cancelling here killed live BankID orders: opening the hosted page
+      // backgrounds the app, and any remount in that window ran this cleanup
+      // while the user was still signing. The log for one such attempt showed a
+      // DELETE thirteen seconds in, long before anyone could have finished.
+      //
+      // An abandoned order expires on its own in about three minutes, which is
+      // a far smaller cost than destroying one the user is actively completing.
+      // Explicit cancellation is a button, not a lifecycle event.
       stopRef.current?.();
-      if (tokenRef.current) cancelBankIdLogin(tokenRef.current);
     },
     [],
   );
@@ -88,10 +97,12 @@ export function LinkGate() {
     }
   }
 
-  if (capability !== "needs_bankid") return null;
-
   return (
-    <Modal visible transparent animationType="fade">
+    <Modal
+      visible={capability === "needs_bankid"}
+      transparent
+      animationType="fade"
+    >
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <Text style={styles.title}>Koppla ditt BankID</Text>
@@ -116,9 +127,23 @@ export function LinkGate() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={logout} disabled={busy}>
-            <Text style={styles.secondaryText}>Fortsätt utan konto</Text>
-          </TouchableOpacity>
+          {busy ? (
+            <TouchableOpacity
+              onPress={() => {
+                // The one place cancelling is right: the user said so.
+                stopRef.current?.();
+                if (tokenRef.current) cancelBankIdLogin(tokenRef.current);
+                tokenRef.current = null;
+                setBusy(false);
+              }}
+            >
+              <Text style={styles.secondaryText}>Avbryt</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={logout}>
+              <Text style={styles.secondaryText}>Fortsätt utan konto</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </Modal>

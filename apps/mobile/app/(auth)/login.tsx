@@ -65,10 +65,17 @@ export default function LoginScreen() {
 
   useEffect(
     () => () => {
+      // Stop polling, but **do not cancel the order**.
+      //
+      // Cancelling here killed live BankID orders: opening the hosted page
+      // backgrounds the app, and any remount in that window ran this cleanup
+      // while the user was still signing. The log for one such attempt showed a
+      // DELETE thirteen seconds in, long before anyone could have finished.
+      //
+      // An abandoned order expires on its own in about three minutes, which is
+      // a far smaller cost than destroying one the user is actively completing.
+      // Explicit cancellation is a button, not a lifecycle event.
       stopRef.current?.();
-      // Release an abandoned order so the next attempt is not refused for the
-      // three minutes it would otherwise take to expire.
-      if (tokenRef.current) cancelBankIdLogin(tokenRef.current);
     },
     [],
   );
@@ -173,15 +180,29 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.linkButton}
-            onPress={() => router.replace("/(app)")}
-            disabled={busy}
-          >
-            <Text style={styles.linkText}>
-              Fortsätt utan konto — du kan läsa allt ändå
-            </Text>
-          </TouchableOpacity>
+          {busy ? (
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={() => {
+                // The one place cancelling is right: the user said so.
+                stopRef.current?.();
+                if (tokenRef.current) cancelBankIdLogin(tokenRef.current);
+                tokenRef.current = null;
+                setPhase("idle");
+              }}
+            >
+              <Text style={styles.linkText}>Avbryt</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={() => router.replace("/(app)")}
+            >
+              <Text style={styles.linkText}>
+                Fortsätt utan konto — du kan läsa allt ändå
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <Text style={styles.legalText}>

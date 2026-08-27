@@ -131,7 +131,7 @@ export default function BudgetIndexPage() {
           </div>
         )}
 
-        {session.user?.isSuperAdmin && (
+        {session?.user?.isSuperAdmin && (
           <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-800">
               <strong>Admin:</strong> Manage budget sessions from the{" "}

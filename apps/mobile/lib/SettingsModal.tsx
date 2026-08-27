@@ -162,6 +162,11 @@ export function SettingsModal({
         >
           <TouchableWithoutFeedback onPress={onClose}>
             <View style={st.backdrop}>
+              {/* Painted behind the sheet, anchored to the bottom. When the
+                  keyboard lifts the sheet, this is what shows in the gap —
+                  without it the app is visible underneath and the sheet looks
+                  detached. */}
+              <View pointerEvents="none" style={st.keyboardFiller} />
               <TouchableWithoutFeedback>
                 <View style={[st.sheet, { paddingBottom: 0 }]}>
                   <View style={st.handle} />
@@ -286,31 +291,17 @@ export function SettingsModal({
                         Få en sms-påminnelse inför viktiga omröstningar, t.ex.
                         valet den 13 september.
                       </Text>
-                      <View style={st.inputRow}>
-                        <TextInput
-                          style={[st.phoneInput, st.inputRowField]}
-                          value={phoneNumber}
-                          onChangeText={setPhoneNumber}
-                          placeholder="07XX-XXX XX XX"
-                          placeholderTextColor="#aaa"
-                          keyboardType="phone-pad"
-                          autoComplete="tel"
-                          returnKeyType="done"
-                          onSubmitEditing={handleSave}
-                        />
-                        {/* A phone-pad keyboard has no return key on either
-                            platform, so without this the only way to commit is
-                            the button at the bottom of a sheet the keyboard is
-                            covering. */}
-                        <TouchableOpacity
-                          style={st.inlineSaveBtn}
-                          onPress={handleSave}
-                          activeOpacity={0.85}
-                          accessibilityLabel="Spara"
-                        >
-                          <Ionicons name="checkmark" size={20} color="#fff" />
-                        </TouchableOpacity>
-                      </View>
+                      <TextInput
+                        style={st.phoneInput}
+                        value={phoneNumber}
+                        onChangeText={setPhoneNumber}
+                        placeholder="07XX-XXX XX XX"
+                        placeholderTextColor="#aaa"
+                        keyboardType="phone-pad"
+                        autoComplete="tel"
+                        returnKeyType="done"
+                        onSubmitEditing={handleSave}
+                      />
                     </View>
 
                     {user?.isAdmin && (
@@ -393,6 +384,14 @@ export function SettingsModal({
 }
 
 const st = StyleSheet.create({
+  keyboardFiller: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "60%",
+    backgroundColor: "#fff",
+  },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -482,17 +481,6 @@ const st = StyleSheet.create({
   },
   toggleLabel: { fontSize: 15, fontWeight: "600", color: "#222" },
   toggleHint: { fontSize: 12, color: "#aaa", marginTop: 2 },
-  inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
-  inputRowField: { flex: 1 },
-  inlineSaveBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 10,
-    backgroundColor: "#002d75",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 10,
-  },
   contactError: { color: "#dc2626", fontSize: 13, marginTop: 6 },
   phoneInput: {
     borderWidth: 1.5,

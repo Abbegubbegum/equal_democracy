@@ -23,6 +23,8 @@ export default async function handler(
   if (req.method !== "GET")
     return res.status(405).json({ message: "Method not allowed" });
 
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+
   // **No auth.** What membership costs and which years it covers is public
   // information — the Info tab is readable signed out, and a visitor deciding
   // whether to join needs to see the price before they log in. Only the

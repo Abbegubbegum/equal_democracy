@@ -21,7 +21,7 @@ export default function BudgetDebatePage() {
   const [editingDirection, setEditingDirection] = useState(null); // "up" | "down" | null
 
   useEffect(() => {
-    if (status === "unauthenticated") router.push("/login");
+    // Public: the budget debate is readable without an account.
   }, [status, router]);
 
   const fetchBudgetSession = useCallback(async () => {
@@ -160,9 +160,7 @@ export default function BudgetDebatePage() {
     );
   }
 
-  if (!session) return null;
-
-  const isAdmin = session.user?.isAdmin || session.user?.isSuperAdmin;
+  const isAdmin = session?.user?.isAdmin || session?.user?.isSuperAdmin;
 
   return (
     <div className="min-h-screen bg-gray-50">

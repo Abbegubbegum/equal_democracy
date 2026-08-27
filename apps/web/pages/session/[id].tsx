@@ -791,7 +791,7 @@ export default function SessionPage() {
     return (
       <VoteView
         proposals={topProposals}
-        currentUser={session.user}
+        currentUser={session?.user ?? null}
         onVote={handleFinalVote}
         onBack={() => {
           setView("home");
@@ -859,7 +859,7 @@ export default function SessionPage() {
                 </h1>
                 <p className="text-primary-100 text-xs sm:text-sm wrap-break-word">
                   {session
-                    ? `${t("auth.hello")}, ${session.user?.name}!`
+                    ? `${t("auth.hello")}, ${session?.user?.name}!`
                     : "Du läser som besökare — logga in med BankID för att delta."}
                 </p>
               </div>

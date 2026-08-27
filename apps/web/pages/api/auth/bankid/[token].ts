@@ -24,6 +24,13 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  // **Never cached.** Next.js puts an ETag on API responses by default, so a
+  // client polling this gets 304s — and a 304 either has no body to parse or is
+  // transparently served from the platform HTTP cache with the *previous*
+  // answer. Either way the poller keeps seeing PENDING after the order has
+  // settled, and the flow simply never completes.
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+
   const token = req.query.token;
   if (typeof token !== "string" || !token) {
     return res.status(400).json({ message: "Ogiltig token" });

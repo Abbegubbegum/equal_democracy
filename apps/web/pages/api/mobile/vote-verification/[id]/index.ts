@@ -42,6 +42,8 @@ export default async function handler(
   if (req.method !== "GET")
     return res.status(405).json({ message: "Method not allowed" });
 
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+
   const viewer = await requireParticipant(req, res);
   if (!viewer) return;
 
