@@ -46,7 +46,7 @@ These are the items most likely to be forgotten, and the most damaging to miss.
 
 - [x] **`docs/app-store-privacy-disclosure.md`** updated: the false "we do NOT
       collect personnummer" line is gone, the inventory gains the three BankID
-      rows, Apple gains **Identifiers → Government ID** and Play gains
+      rows, Apple gains **Other Data** (there is no Government ID type) and Play gains
       **Personal info → Other personal info**.
 - [ ] **Transcribe those answers into the store consoles.** The document is only
       the source of truth; Apple's App Privacy and Play's Data safety forms are

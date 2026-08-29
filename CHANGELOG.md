@@ -112,9 +112,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/legal` now describes what BankID signing does: what is signed, what SPAR is asked, that no SPAR
   data is retained, what the per-question code can and cannot do, and that votes are anonymised
   when a question closes.
-- The store privacy disclosure no longer claims we do not collect personnummer. Apple gains
-  Identifiers → Government ID, Google Play gains Personal info → Other personal info. **Both store
-  consoles still need the answers transcribed by hand.**
+- The store privacy disclosure no longer claims we do not collect personnummer, and was checked
+  against Apple's real data-type list: there is no "Government ID" type, so the personnummer is
+  declared under **Other Data**, and the two hashes derived from it under **Identifiers → User ID**.
+  Membership makes **Sensitive Info → political opinion** unavoidable on Apple and **Personal info →
+  Political or religious beliefs** on Play. Financial Info is "No" throughout — Swish is entered
+  outside the app, so the fee record is **Purchases** and the paying number is Contact Info.
+  **Both store consoles still need the answers transcribed by hand.**
 - The email OTP flow no longer creates accounts, and refuses any account that has BankID. It
   survives only so a legacy account can be signed into once, from an app build old enough to still
   offer the form, and reach the link gate. `/api/auth/request-code` silently declines to send to an

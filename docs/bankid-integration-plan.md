@@ -743,7 +743,7 @@ already on phones, and is retired with that endpoint per
   the legacy endpoint is retired.
 - **Store disclosure corrected**: the inventory said "We do NOT collect:
   personnummer", which the release makes false. Apple gains **Identifiers →
-  Government ID**, Play gains **Personal info → Other personal info**. Declared
+  Other Data** — Apple has no Government ID type — and Play gains **Personal info → Other personal info**. Declared
   even though nothing is retained, because both stores ask whether data is
   _collected_, and processing in transit counts.
 - **`/legal` rewritten** (§2 and §4): what is signed, what SPAR is asked, that no

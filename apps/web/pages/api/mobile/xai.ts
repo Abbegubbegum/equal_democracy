@@ -40,10 +40,15 @@ export default async function handler(
   }
 
   const started = Date.now();
+  // **Never log the conversation.** What people ask MAJ is what they are unsure
+  // about in local politics, often phrased personally — that does not belong in
+  // log aggregation. Logging it also retained it, which is what stopped the
+  // exchange counting as ephemeral under Google Play's Data safety rules and
+  // put "Meddelanden" on the store listing (docs/app-store-privacy-disclosure.md
+  // §3). Lengths and timings answer the same diagnostic questions.
   log.info("XAI request", {
     context: context ?? null,
     messageLength: message.length,
-    messagePreview: message.slice(0, 120),
     hasKey: !!process.env.ANTHROPIC_API_KEY,
   });
 
@@ -64,10 +69,11 @@ export default async function handler(
       });
       throw new Error("empty reply");
     }
+    // The reply goes too, for the same reason: a model answer routinely quotes
+    // the question back, so logging it leaks the message by another route.
     log.info("XAI reply", {
       durationMs: Date.now() - started,
       replyLength: reply.length,
-      replyPreview: reply.slice(0, 200),
     });
     return res.status(200).json({ reply });
   } catch (error) {
