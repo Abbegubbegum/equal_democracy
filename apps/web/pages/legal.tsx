@@ -78,21 +78,38 @@ export default function LegalPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {[
-                    ["E-postadress", "Inloggning via engångskod"],
-                    ["Namn", "Visning i appen"],
+                    [
+                      "Kod som identifierar ditt konto",
+                      "Räknas fram ur ditt personnummer när du loggar in med BankID. Den är det som gör att du kommer tillbaka till samma konto — och att en person bara kan ha ett konto",
+                    ],
+                    [
+                      "Namn",
+                      "Förnamn och efternamn från BankID, visas i appen",
+                    ],
+                    [
+                      "Utfallet av folkbokföringskontrollen",
+                      "Om du är röstberättigad i Vallentuna, och varför inte om du inte är det",
+                    ],
+                    [
+                      "E-postadress",
+                      "Frivillig kontaktuppgift. Du loggar aldrig in med den — den kan läggas till och tas bort när du vill",
+                    ],
                     ["Röster och förslag", "Demokratiskt deltagande"],
                     ["Intresseområden", "Anpassa notiser och innehåll"],
                     ["Push-notis-token", "Skicka aviseringar till din enhet"],
                     ["Telefonnummer", "SMS-notiser (valfritt)"],
                     [
-                      "Medlemskap",
-                      "Om du betalat medlemsavgift och vilka år den täcker",
+                      "Medlemskap i partiet",
+                      "Om du betalat medlemsavgift och vilka år den täcker. Uppgift om partimedlemskap är en känslig personuppgift — se punkt 3",
                     ],
                     [
                       "Betalningsuppgifter (Swish)",
                       "Belopp, tidpunkt, status och Swish betalningsreferens samt det telefonnummer som betalade — krävs för att genomföra och bokföra medlemsavgiften",
                     ],
-                    ["IP-adress", "Säkerhet och felsökning"],
+                    [
+                      "IP-adress",
+                      "Säkerhet och felsökning. Vid inloggning sparas dessutom en envägskodad (hashad) IP-adress i högst 7 dagar, för att begränsa antalet BankID-beställningar",
+                    ],
                     [
                       "Anonym användningsstatistik",
                       "Förbättra appen (t.ex. antal appöppningar) – kan inte kopplas till dig",
@@ -109,22 +126,46 @@ export default function LegalPage() {
               </table>
             </div>
             <p className="text-gray-600 text-sm leading-relaxed">
+              <strong>Du kan läsa hela appen utan konto.</strong> Frågor,
+              resultat, debatter, förslag, budgetar och kallelser är öppna för
+              alla. Vi samlar inte in något om dig förrän du loggar in.
+            </p>
+            <p className="text-gray-600 text-sm leading-relaxed mt-2">
+              <strong>Du loggar in med BankID.</strong> Det är enda sättet att
+              skapa och öppna ett konto. Vid inloggningen hämtar vi din
+              folkbokföring från SPAR för att kontrollera att du har fyllt 16 år
+              och är folkbokförd i Vallentuna kommun — så att du får veta direkt
+              vad du kan göra, i stället för först när du försöker rösta.
+            </p>
+            <p className="text-gray-600 text-sm leading-relaxed mt-2">
               <strong>Varje röst signeras med BankID.</strong> När du röstar
               signerar du texten &quot;Du röstar JA/NEJ på …&quot; med ditt
-              BankID. Vi hämtar samtidigt din folkbokföring från SPAR för att
-              kontrollera att du har fyllt 16 år och är folkbokförd i Vallentuna
-              kommun.
+              BankID, och folkbokföringen kontrolleras igen i samma stund.
             </p>
             <p className="text-gray-600 text-sm leading-relaxed mt-2">
               <strong>Vi sparar inte ditt personnummer.</strong> Vi sparar
-              varken namn, adress, kommun eller födelsedatum från SPAR — bara
-              själva utfallet av kontrollen. Till varje röst sparas en
-              kryptografisk kod som räknas fram ur ditt personnummer och den
-              specifika frågan. Koden kan inte räknas tillbaka till ditt
-              personnummer, och den enda sak den används till är att se till att
-              samma person inte röstar två gånger i samma fråga, ens med flera
-              konton. Koden är unik per fråga, så den kan inte användas för att
-              följa hur du röstat över tid.
+              varken adress, kommun eller födelsedatum från SPAR — bara utfallet
+              av kontrollen och ditt namn. Däremot sparar vi två kryptografiska
+              koder som räknas fram ur ditt personnummer. Ingen av dem går att
+              räkna tillbaka till personnumret:
+            </p>
+            <ul className="list-disc pl-5 text-gray-600 text-sm leading-relaxed mt-2 space-y-1">
+              <li>
+                <strong>En kod per konto.</strong> Den är densamma varje gång du
+                loggar in, för det är så vi vet att det är ditt konto du kommer
+                tillbaka till. Den gör också att en person bara kan ha ett
+                konto.
+              </li>
+              <li>
+                <strong>En kod per fråga och röst.</strong> Den ser till att
+                samma person inte röstar två gånger i samma fråga, ens med flera
+                konton. Den är unik för varje fråga, så den kan inte användas
+                för att följa hur du röstat över tid.
+              </li>
+            </ul>
+            <p className="text-gray-600 text-sm leading-relaxed mt-2">
+              När en fråga stängs tas kopplingen mellan dig och din röst bort
+              helt. Ett publicerat resultat är därefter anonyma uppgifter.
             </p>
 
             <h3 className="font-bold text-gray-800 mt-6 mb-2">
@@ -138,6 +179,16 @@ export default function LegalPage() {
               <strong>avtal</strong> (ditt medlemskap och betalningen av
               medlemsavgiften) och <strong>rättslig förpliktelse</strong>{" "}
               (bokföring av inbetalda medlemsavgifter).
+            </p>
+            <p className="text-gray-600 text-sm leading-relaxed mt-2">
+              <strong>Känsliga personuppgifter.</strong> Uppgift om att du är
+              medlem i ett politiskt parti — och hur du röstat, så länge en
+              fråga är öppen — räknas som en känslig personuppgift enligt
+              artikel 9 i GDPR, eftersom den kan avslöja politisk åsikt. Vi
+              behandlar den med stöd av <strong>artikel 9.2 d</strong>: en
+              ideell förening med politiskt syfte får behandla sådana uppgifter
+              om sina egna medlemmar. Vi lämnar aldrig ut dem till någon utanför
+              föreningen. Röster anonymiseras när frågan stängs.
             </p>
 
             <h3 className="font-bold text-gray-800 mt-6 mb-2">
@@ -156,6 +207,12 @@ export default function LegalPage() {
               tas bort permanent, så att resultatet inte längre går att härleda
               till någon enskild person. Det innebär också att ett stängt
               resultat inte kan ändras i efterhand om ett konto raderas.
+            </p>
+            <p className="text-gray-600 text-sm leading-relaxed mt-2">
+              <strong>Inloggningar.</strong> Uppgifterna om ett enskilt
+              inloggningsförsök — inklusive den hashade IP-adressen — raderas
+              automatiskt efter 7 dagar. Engångskoder till e-post raderas efter
+              10 minuter.
             </p>
             <p className="text-gray-600 text-sm leading-relaxed mt-2">
               <strong>Undantag för betalningar.</strong> En inbetald
@@ -193,6 +250,12 @@ export default function LegalPage() {
               </li>
               <li>
                 <strong>Twilio</strong> — SMS-notiser (om du valt det)
+              </li>
+              <li>
+                <strong>Svensk e-identitet AB</strong> — förmedlar inloggning
+                och signering med BankID. De hanterar ditt personnummer och
+                hämtar folkbokföringen från SPAR åt oss. Vi sparar inte
+                personnumret.
               </li>
               <li>
                 <strong>Getswish AB</strong> — hantering av medlemsavgift via
