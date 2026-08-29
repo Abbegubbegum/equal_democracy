@@ -75,11 +75,19 @@ export async function addressOwner(
 /**
  * Sends a six-digit code to an address the caller wants to claim.
  *
- * Refuses only the one case that can never work — an address held by another
- * BankID account. A free address is allowed through: the post-signup prompt
- * cannot know in advance whether the user actually had an old account, and
- * "there was nothing to merge, but the address is yours now" is a perfectly good
- * outcome.
+ * **A merge is only ever offered for a legacy, email-only account.** Three of
+ * the four cases are refused before a code is sent, because none of them is a
+ * merge and sending a code would imply otherwise:
+ *
+ *   taken      another BankID account holds it — that person's account is not
+ *              available to absorb, whoever types the address
+ *   self       already this account's own address — there is nothing to merge,
+ *              and a code round trip would be theatre
+ *   free       nobody holds it — again nothing to merge; the plain contact
+ *              field at /api/mobile/user/email is where an address is attached,
+ *              and it needs no proof because it grants nothing
+ *
+ * Only `mergeable` proceeds.
  */
 export async function requestEmailClaim(
   userId: string,
@@ -92,12 +100,28 @@ export async function requestEmailClaim(
     return { ok: false, status: 400, message: "Ogiltig e-postadress." };
   }
 
-  if ((await addressOwner(email, userId)) === "taken") {
+  const owner = await addressOwner(email, userId);
+  if (owner === "taken") {
     return {
       ok: false,
       status: 409,
       message:
         "Den e-postadressen används redan av ett annat konto som loggar in med BankID.",
+    };
+  }
+  if (owner === "self") {
+    return {
+      ok: false,
+      status: 409,
+      message: "Den e-postadressen tillhör redan det här kontot.",
+    };
+  }
+  if (owner === "free") {
+    return {
+      ok: false,
+      status: 404,
+      message:
+        "Vi hittar inget äldre konto med den e-postadressen. Du kan lägga till adressen under Inställningar.",
     };
   }
 
@@ -178,17 +202,19 @@ export async function confirmEmailClaim(
 
   // Re-checked rather than trusted from the request: minutes pass while someone
   // reads their inbox, and the address could have changed hands in between.
-  if (owner === "taken") {
+  if (owner !== "mergeable") {
     return {
       ok: false,
       status: 409,
       message:
-        "Den e-postadressen används redan av ett annat konto som loggar in med BankID.",
+        owner === "taken"
+          ? "Den e-postadressen används redan av ett annat konto som loggar in med BankID."
+          : "Det finns inget äldre konto att slå ihop med den adressen längre.",
     };
   }
 
   let merged = false;
-  if (owner === "mergeable") {
+  {
     const legacy: any = await User.findOne({ email }).select("_id").lean();
     try {
       await mergeAccounts(legacy._id.toString(), String(userId));
@@ -207,8 +233,7 @@ export async function confirmEmailClaim(
     }
   }
 
-  // After a merge the address has already moved across, but setting it again is
-  // both harmless and correct for the plain attach case.
+  // The merge already moved the address across; this is belt and braces.
   await User.updateOne({ _id: userId }, { $set: { email } });
 
   log.info("Email claim confirmed", { userId, merged });
@@ -216,8 +241,6 @@ export async function confirmEmailClaim(
     ok: true,
     status: 200,
     merged,
-    message: merged
-      ? "Klart — ditt gamla konto är nu ihopslaget med det här."
-      : "Din e-postadress är sparad.",
+    message: "Klart — ditt gamla konto är nu ihopslaget med det här.",
   };
 }

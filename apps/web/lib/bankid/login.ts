@@ -145,6 +145,79 @@ export async function startLogin(
   };
 }
 
+/**
+ * Nobiliary and toponymic particles that belong to the surname rather than
+ * standing between the names.
+ *
+ * Without these, "Anna von Sydow" would be shortened to "Anna Sydow" — which is
+ * not her name.
+ */
+const SURNAME_PARTICLES = new Set([
+  "von",
+  "af",
+  "de",
+  "del",
+  "della",
+  "di",
+  "du",
+  "la",
+  "le",
+  "van",
+  "der",
+  "den",
+  "ten",
+  "ter",
+]);
+
+function pick(attributes: Record<string, unknown>, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = attributes[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+/**
+ * A display name: first name and surname, nothing else.
+ *
+ * BankID returns the full registered name — every given name a person has —
+ * so "Albin Erik Nöjback" is what arrives for someone everybody calls Albin
+ * Nöjback. That is more than this app ever shows and more than it needs.
+ *
+ * Structured attributes are used when GrandID sends them, because splitting a
+ * name is guesswork and reading two fields is not. The fallback only runs when
+ * they are absent: first token, plus the last token and any particle attached
+ * to it.
+ */
+export function displayNameFrom(
+  session: Extract<BankIdSession, { state: "complete" }>,
+): string {
+  const attributes = session.userAttributes || {};
+
+  const given = pick(attributes, "givenName", "givenname", "firstName");
+  const family = pick(attributes, "surname", "sn", "lastName", "familyName");
+  if (given && family) {
+    return `${given.split(/\s+/)[0]} ${family}`.slice(0, 60);
+  }
+
+  const parts = String(session.name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return "Medborgare";
+  if (parts.length === 1) return parts[0].slice(0, 60);
+
+  let surnameStart = parts.length - 1;
+  while (
+    surnameStart > 1 &&
+    SURNAME_PARTICLES.has(parts[surnameStart - 1].toLowerCase())
+  ) {
+    surnameStart -= 1;
+  }
+
+  return `${parts[0]} ${parts.slice(surnameStart).join(" ")}`.slice(0, 60);
+}
+
 export interface SettleLoginResult {
   changed: boolean;
   status: string;
@@ -273,9 +346,9 @@ export async function settleLogin(
     code: eligibility.code,
     checkedAt: new Date(),
   };
-  // BankID's own name, used only when we have nothing better. Not overwritten
-  // on every login: a user who has edited their display name should keep it.
-  const bankIdName = (session.name || "").slice(0, 60) || "Medborgare";
+  // First name and surname only — see displayNameFrom. Not overwritten on every
+  // login: a user who has edited their display name should keep it.
+  const bankIdName = displayNameFrom(session);
 
   let resultUserId: string;
   let createdAccount = false;
@@ -309,7 +382,7 @@ export async function settleLogin(
     }
   } else {
     // link / reverify — the caller was already signed in.
-    const current: any = await User.findById(verification.userId);
+    let current: any = await User.findById(verification.userId);
     if (!current) {
       return reject("FAILED", "USER_GONE", SYSTEM_MESSAGE);
     }
@@ -344,6 +417,14 @@ export async function settleLogin(
         });
         return reject("FAILED", "MERGE_FAILED", SYSTEM_MESSAGE);
       }
+
+      // Re-read before writing. `current` was loaded *before* the merge, and
+      // mergeAccounts writes to the surviving account directly — membership,
+      // admin flags, a contact email, interests. Saving the stale document
+      // below would quietly revert every one of them, which is the opposite of
+      // what a merge is for.
+      current = await User.findById(verification.userId);
+      if (!current) return reject("FAILED", "USER_GONE", SYSTEM_MESSAGE);
     }
 
     current.bankidSubject = subject;

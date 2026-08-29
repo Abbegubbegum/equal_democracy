@@ -72,9 +72,14 @@ let takenThisSession = false;
 
 export async function takeClaimPrompt(): Promise<boolean> {
   if (takenThisSession) return false;
-  takenThisSession = true;
 
   const pending = (await getItem(CLAIM_KEY)) === "true";
-  if (pending) await setItem(CLAIM_KEY, "false");
-  return pending;
+  if (!pending) return false;
+
+  // Latched only once something was actually consumed. Setting it on every call
+  // meant the first read — which can happen before the login screen has written
+  // the flag — permanently disarmed the prompt.
+  takenThisSession = true;
+  await setItem(CLAIM_KEY, "false");
+  return true;
 }

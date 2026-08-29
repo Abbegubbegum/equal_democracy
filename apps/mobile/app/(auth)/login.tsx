@@ -95,16 +95,18 @@ export default function LoginScreen() {
           if (state.status === "VERIFIED" && state.accessToken) {
             tokenRef.current = null;
             dismissHostedLogin();
+
+            // Written *before* the session lands. signInWithTokens sets the
+            // user, which is what wakes the tab layout — and the layout reads
+            // this flag. Writing it afterwards let the read win the race, and
+            // the prompt never appeared.
+            if (state.createdAccount) await markClaimPromptPending();
+
             await signInWithTokens(
               state.accessToken,
               state.refreshToken!,
               state.user!,
             );
-
-            // BankID created the account rather than finding one, so this
-            // person may well have used the app before, under an email. Hand
-            // the ask to the tab layout — this screen is about to unmount.
-            if (state.createdAccount) await markClaimPromptPending();
 
             // An ineligible person is genuinely signed in — they just may not
             // act here. Telling them now beats letting them discover it at

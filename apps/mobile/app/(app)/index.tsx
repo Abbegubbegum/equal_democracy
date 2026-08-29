@@ -184,6 +184,9 @@ export default function HomeScreen() {
         ListHeaderComponent={
           <View style={styles.feedHeader}>
             <Text style={styles.feedTitle}>Välj en fråga att rösta på</Text>
+            {/* Only for someone who has a quota to spend. The endpoint returns
+                null for a signed-out visitor, so this does not render for them
+                — "0 av 5" read as an invitation they cannot accept. */}
             {quota && (
               <Text style={styles.quotaLine}>
                 {quota.limit - quota.used} av {quota.limit} röster kvar
@@ -232,14 +235,11 @@ const styles = StyleSheet.create({
     gap: 4,
     marginBottom: CARD_GAP,
   },
+  quotaLine: { color: "#9aa4b2", fontSize: 13, fontWeight: "600" },
   feedTitle: {
     color: "#fff",
     fontSize: 20,
     fontWeight: "800",
-  },
-  quotaLine: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 13,
   },
 
   card: {
