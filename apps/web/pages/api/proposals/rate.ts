@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
+import { requireParticipant } from "@/lib/viewer";
 import connectDB from "../../../lib/mongodb";
 import { ProposalRating } from "../../../lib/models";
 import {
@@ -26,11 +27,8 @@ export default async function handler(
   }
 
   if (req.method === "POST") {
-    const session = await getServerSession(req, res, authOptions);
-
-    if (!session) {
-      return res.status(401).json({ message: "You have to be logged in" });
-    }
+    const viewer = await requireParticipant(req, res);
+    if (!viewer) return;
 
     const { proposalId, rating, sessionId } = req.body;
 
@@ -56,7 +54,7 @@ export default async function handler(
 
       const existingVote = await ProposalRating.findOne({
         proposalId,
-        userId: session.user.id,
+        userId: viewer.userId,
       });
 
       if (existingVote) {
@@ -65,12 +63,12 @@ export default async function handler(
       } else {
         await ProposalRating.create({
           proposalId,
-          userId: session.user.id,
+          userId: viewer.userId,
           rating: rating || 5,
         });
 
         // Register user as active in session
-        await registerActiveUser(session.user.id, activeSession._id.toString());
+        await registerActiveUser(viewer.userId, activeSession._id.toString());
       }
 
       const agg = (
@@ -101,19 +99,19 @@ export default async function handler(
   }
 
   if (req.method === "GET") {
+    // Public: reports no rating when signed out, beside an aggregate that is
+    // public anyway.
     const session = await getServerSession(req, res, authOptions);
-
-    if (!session) {
-      return res.status(401).json({ message: "You have to be logged in" });
-    }
 
     const { proposalId } = req.query;
 
     if (proposalId) {
-      const vote = await ProposalRating.findOne({
-        proposalId,
-        userId: session.user.id,
-      });
+      const vote = session?.user?.id
+        ? await ProposalRating.findOne({
+            proposalId,
+            userId: session.user.id,
+          })
+        : null;
 
       return res.status(200).json({
         voted: !!vote,
@@ -121,9 +119,11 @@ export default async function handler(
       });
     }
 
-    const votes = await ProposalRating.find({ userId: session.user.id })
-      .populate("proposalId")
-      .lean();
+    const votes = session?.user?.id
+      ? await ProposalRating.find({ userId: session.user.id })
+          .populate("proposalId")
+          .lean()
+      : [];
 
     return res.status(200).json(votes);
   }

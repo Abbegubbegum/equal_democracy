@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]";
+import { requireParticipant } from "@/lib/viewer";
 import connectDB from "@/lib/mongodb";
 import { Question, QuestionComment, QuestionCommentRating } from "@/lib/models";
 import { csrfProtection } from "@/lib/csrf";
@@ -21,12 +20,11 @@ export default async function handler(
   if (req.method !== "POST")
     return res.status(405).json({ message: "Method not allowed" });
 
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.id)
-    return res.status(401).json({ message: "Unauthorized" });
+  const viewer = await requireParticipant(req, res);
+  if (!viewer) return;
   if (!csrfProtection(req, res)) return;
 
-  const userId = session.user.id;
+  const userId = viewer.userId;
   const { commentId, rating } = req.body;
   if (!commentId || !rating)
     return res.status(400).json({ message: "commentId och rating krävs" });

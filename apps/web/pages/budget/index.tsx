@@ -13,11 +13,8 @@ export default function BudgetIndexPage() {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    }
-  }, [status, router]);
+  // Budget figures are public — see /api/budget/sessions, which serves GET
+  // without a session.
 
   const fetchActiveSessions = useCallback(async () => {
     try {
@@ -38,10 +35,8 @@ export default function BudgetIndexPage() {
   }, [router]);
 
   useEffect(() => {
-    if (session) {
-      fetchActiveSessions();
-    }
-  }, [session, fetchActiveSessions]);
+    fetchActiveSessions();
+  }, [fetchActiveSessions]);
 
   if (status === "loading" || loading) {
     return (
@@ -50,8 +45,6 @@ export default function BudgetIndexPage() {
       </div>
     );
   }
-
-  if (!session) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -138,7 +131,7 @@ export default function BudgetIndexPage() {
           </div>
         )}
 
-        {session.user?.isSuperAdmin && (
+        {session?.user?.isSuperAdmin && (
           <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-800">
               <strong>Admin:</strong> Manage budget sessions from the{" "}

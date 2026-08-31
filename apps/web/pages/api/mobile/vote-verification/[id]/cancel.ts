@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import mongoose from "mongoose";
 import connectDB from "../../../../../lib/mongodb";
 import { VoteVerification } from "../../../../../lib/models";
-import { verifyBearerToken } from "../../../../../lib/mobile-jwt";
+import { requireParticipant } from "../../../../../lib/viewer";
 import { createLogger } from "../../../../../lib/logger";
 import { cancelBankIdSession } from "../../../../../lib/bankid/session";
 
@@ -25,12 +25,8 @@ export default async function handler(
   if (req.method !== "POST")
     return res.status(405).json({ message: "Method not allowed" });
 
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  const viewer = await requireParticipant(req, res);
+  if (!viewer) return;
 
   const { id } = req.query;
   if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
@@ -42,7 +38,7 @@ export default async function handler(
 
     const verification: any = await VoteVerification.findOne({
       _id: id,
-      userId: user.id,
+      userId: viewer.userId,
     });
     if (!verification) {
       return res.status(404).json({ message: "Verifieringen finns inte" });
@@ -54,7 +50,9 @@ export default async function handler(
 
     // Best-effort: GrandID may already have expired the order, and failing to
     // cancel is not something to surface to a user who has walked away.
-    await cancelBankIdSession(verification.grandIdSession);
+    await cancelBankIdSession(verification.grandIdSession, {
+      service: "sign",
+    });
 
     verification.status = "CANCELLED";
     verification.reasonCode = "userCancel";

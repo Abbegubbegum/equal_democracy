@@ -4,6 +4,7 @@ import { authOptions } from "../../auth/[...nextauth]";
 import connectDB from "../../../../lib/mongodb";
 import { MunicipalMeeting, MunicipalItemRating } from "../../../../lib/models";
 import { getRatingAggregates } from "../../../../lib/rating-helper";
+import { requireParticipant } from "@/lib/viewer";
 import { csrfProtection } from "../../../../lib/csrf";
 import { createLogger } from "@/lib/logger";
 
@@ -19,11 +20,9 @@ export default async function handler(
 ) {
   await connectDB();
 
+  // GET is public and simply reports no rating when signed out — the aggregate
+  // it sits beside is public too. POST gates itself below.
   const session = await getServerSession(req, res, authOptions);
-
-  if (!session) {
-    return res.status(401).json({ message: "You must be logged in" });
-  }
 
   if (req.method === "GET") {
     try {
@@ -32,10 +31,12 @@ export default async function handler(
         return res.status(400).json({ message: "Item ID required" });
       }
 
-      const rating = await MunicipalItemRating.findOne({
-        itemId,
-        userId: session.user.id,
-      });
+      const rating = session?.user?.id
+        ? await MunicipalItemRating.findOne({
+            itemId,
+            userId: session.user.id,
+          })
+        : null;
 
       return res.status(200).json({
         userRating: rating ? rating.rating : null,
@@ -53,6 +54,8 @@ export default async function handler(
     if (!csrfProtection(req, res)) {
       return;
     }
+    const viewer = await requireParticipant(req, res);
+    if (!viewer) return;
 
     try {
       const { meetingId, itemId, rating } = req.body;
@@ -83,7 +86,7 @@ export default async function handler(
 
       const existingRating = await MunicipalItemRating.findOne({
         itemId,
-        userId: session.user.id,
+        userId: viewer.userId,
       });
 
       if (existingRating) {
@@ -93,7 +96,7 @@ export default async function handler(
         await MunicipalItemRating.create({
           meetingId,
           itemId,
-          userId: session.user.id,
+          userId: viewer.userId,
           rating,
         });
       }
@@ -103,7 +106,7 @@ export default async function handler(
       ).get(String(itemId)) || { averageRating: 0, ratingCount: 0 };
 
       log.info("Municipal item rated", {
-        userId: session.user.id,
+        userId: viewer.userId,
         itemId,
         newRating: rating,
       });

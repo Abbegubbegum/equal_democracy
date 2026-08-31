@@ -1,8 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { Session, Proposal, ProposalRating } from "@/lib/models";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]";
 import { getRatingAggregates } from "@/lib/rating-helper";
 import { createLogger } from "@/lib/logger";
 
@@ -18,10 +16,8 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+  // Public: the archive and the active-session list are readable without an
+  // account. Nothing here is scoped to a caller.
 
   const { id } = req.query;
 

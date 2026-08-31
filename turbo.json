@@ -32,10 +32,10 @@
         "ENABLE_EXPERIMENTAL_COREPACK",
         "GRANDID_ENV",
         "GRANDID_API_KEY",
-        "GRANDID_SERVICE_KEY",
+        "GRANDID_SIGN_SERVICE_KEY",
+        "GRANDID_AUTH_SERVICE_KEY",
         "VOTE_ID_PEPPER",
-        "REVIEW_TEST_EMAIL",
-        "REVIEW_TEST_CODE"
+        "LOGIN_ID_PEPPER"
       ]
     },
     "lint": {

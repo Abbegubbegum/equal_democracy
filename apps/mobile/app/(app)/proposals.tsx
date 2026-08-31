@@ -21,11 +21,13 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { apiClient, BASE_URL, getAccessToken } from "../../lib/api";
+import { useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import CelebrationModal from "../../lib/CelebrationModal";
 import MajReviewSheet, { type MajReview } from "../../lib/MajReviewSheet";
 import { addStars } from "../../lib/stars";
 import LoadingLoop from "../../lib/LoadingLoop";
+import { useActionGate } from "../../lib/RestrictedNotice";
 
 interface CitizenProposal {
   id: string;
@@ -62,6 +64,7 @@ function ProposalBlock({
     ratingCount: number,
   ) => void;
 }) {
+  const { requireAct, gate } = useActionGate();
   const [localRating, setLocalRating] = useState(proposal.userRating);
   const [localAvg, setLocalAvg] = useState(proposal.averageRating);
   const [localCount, setLocalCount] = useState(proposal.ratingCount);
@@ -96,6 +99,7 @@ function ProposalBlock({
   }
 
   async function handleRate(stars: number) {
+    if (!requireAct()) return;
     if (busy) return;
     setBusy(true);
     const prev = localRating;
@@ -129,6 +133,7 @@ function ProposalBlock({
 
   return (
     <View style={{ width: "100%", height }}>
+      {gate}
       {/* Background */}
       {bgUri ? (
         <Image
@@ -396,7 +401,11 @@ function SubmitModal({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Något gick fel");
+        // /user/* routes answer with `error`, most others with `message` —
+        // reading only one of them turned a real refusal into "Något gick fel".
+        throw new Error(
+          body.message || body.error || `Något gick fel (${res.status})`,
+        );
       }
       onSuccess(await res.json());
     } catch (e: any) {
@@ -641,8 +650,11 @@ function SubmitModal({
 export default function ProposalsScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const router = useRouter();
   const [proposals, setProposals] = useState<CitizenProposal[]>([]);
-  const [canSubmit, setCanSubmit] = useState(true);
+  // Starts false: an optimistic `true` showed the submit button to signed-out
+  // visitors until the list resolved, and kept it if the request failed.
+  const [canSubmit, setCanSubmit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -652,7 +664,9 @@ export default function ProposalsScreen() {
 
   useEffect(() => {
     load();
-  }, []);
+    // Re-runs on sign-in and sign-out: `canSubmit` comes from this response,
+    // and without it a logged-out user kept a submit button that only fails.
+  }, [user]);
 
   function scrollToTop() {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
@@ -670,6 +684,7 @@ export default function ProposalsScreen() {
       setCanSubmit(data.canSubmit);
     } catch (e: any) {
       setError(e.message);
+      setCanSubmit(false);
     } finally {
       setLoading(false);
     }
@@ -722,14 +737,21 @@ export default function ProposalsScreen() {
             ? "Var den första att lämna ett förslag."
             : "Du har redan lämnat ditt medborgarförslag fram till valet den 13 september."}
         </Text>
-        {canSubmit && (
+        {!user ? (
+          <TouchableOpacity
+            style={styles.retryBtn}
+            onPress={() => router.push("/(auth)/login")}
+          >
+            <Text style={styles.retryText}>Logga in för att lämna förslag</Text>
+          </TouchableOpacity>
+        ) : canSubmit ? (
           <TouchableOpacity
             style={styles.retryBtn}
             onPress={() => setShowModal(true)}
           >
             <Text style={styles.retryText}>Lämna ett förslag</Text>
           </TouchableOpacity>
-        )}
+        ) : null}
         {showModal && (
           <SubmitModal
             onClose={() => setShowModal(false)}
@@ -780,8 +802,20 @@ export default function ProposalsScreen() {
         )}
       </ScrollView>
 
-      {/* Submit-proposal button — one idea per non-admin user before the election */}
-      {canSubmit && (
+      {/* One idea per non-admin user before the election. A signed-out visitor
+          keeps the button but it says what it will actually do — hiding it left
+          a hole at the bottom of the screen and no way in. `user` is checked as
+          well as `canSubmit` so a stale flag cannot outlive a sign-out. */}
+      {!user ? (
+        <TouchableOpacity
+          style={[styles.fab, { bottom: insets.bottom + 16 }]}
+          onPress={() => router.push("/(auth)/login")}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="log-in-outline" size={18} color={BLUE} />
+          <Text style={styles.fabText}>Logga in för att lämna förslag</Text>
+        </TouchableOpacity>
+      ) : canSubmit ? (
         <TouchableOpacity
           style={[styles.fab, { bottom: insets.bottom + 16 }]}
           onPress={() => setShowModal(true)}
@@ -790,7 +824,7 @@ export default function ProposalsScreen() {
           <Ionicons name="add" size={18} color={BLUE} />
           <Text style={styles.fabText}>Mitt förslag för Vallentuna framåt</Text>
         </TouchableOpacity>
-      )}
+      ) : null}
 
       {showModal && (
         <SubmitModal

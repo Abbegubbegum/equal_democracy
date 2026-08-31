@@ -5,7 +5,7 @@ import {
   QuestionComment,
   QuestionCommentRating,
 } from "../../../../../lib/models";
-import { verifyBearerToken } from "../../../../../lib/mobile-jwt";
+import { requireParticipant } from "../../../../../lib/viewer";
 import { createLogger } from "../../../../../lib/logger";
 
 const log = createLogger("MobileQuestionCommentRate");
@@ -17,12 +17,8 @@ export default async function handler(
   if (req.method !== "POST")
     return res.status(405).json({ message: "Method not allowed" });
 
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  const viewer = await requireParticipant(req, res);
+  if (!viewer) return;
 
   const { commentId, rating } = req.body;
   if (!commentId || !rating)
@@ -49,7 +45,7 @@ export default async function handler(
     }
 
     await QuestionCommentRating.findOneAndUpdate(
-      { commentId, userId: user.id },
+      { commentId, userId: viewer.userId },
       { rating },
       { upsert: true },
     );

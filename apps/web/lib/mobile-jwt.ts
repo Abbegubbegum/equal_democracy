@@ -6,7 +6,12 @@ const REFRESH_TOKEN_TTL = "30d";
 
 export interface MobileTokenPayload {
   id: string;
-  email: string;
+  /**
+   * Null for a BankID account that has not added a contact address. It is not a
+   * credential and never was — see docs/bankid-login-plan.md §1 C2 — so nothing
+   * may key off it. `id` is the identity.
+   */
+  email: string | null;
   name: string;
   isAdmin: boolean;
   isSuperAdmin: boolean;
@@ -49,4 +54,28 @@ export function verifyBearerToken(
     throw new Error("Missing or malformed Authorization header");
   }
   return verifyMobileToken(authHeader.slice(7), "access");
+}
+
+/**
+ * The same, for routes that serve signed-out visitors too — `null` instead of a
+ * throw when there is no usable token.
+ *
+ * Every read endpoint uses this now: the app is fully browsable without an
+ * account, so "no credential" is an ordinary way to call a GET rather than a
+ * failure. An *invalid* token also lands here as `null` rather than a 401,
+ * deliberately — the app refreshes expired tokens on its own, and a visitor
+ * whose session lapsed mid-scroll should see the page, not an error.
+ *
+ * Never use it to guard a write. `requireParticipant()` in lib/viewer.ts is the
+ * gate for those, and it consults the database rather than the token.
+ */
+export function optionalBearerToken(
+  authHeader: string | undefined,
+): MobileTokenPayload | null {
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  try {
+    return verifyMobileToken(authHeader.slice(7), "access");
+  } catch {
+    return null;
+  }
 }

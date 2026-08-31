@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth/[...nextauth]";
+import { requireParticipant } from "@/lib/viewer";
 import connectDB from "../../lib/mongodb";
 import { FinalVote, Session } from "../../lib/models";
 import { getActiveSession, registerActiveUser } from "../../lib/session-helper";
@@ -24,11 +25,8 @@ export default async function handler(
   }
 
   if (req.method === "POST") {
-    const session = await getServerSession(req, res, authOptions);
-
-    if (!session) {
-      return res.status(401).json({ message: "You have to be logged in" });
-    }
+    const viewer = await requireParticipant(req, res);
+    if (!viewer) return;
 
     const { proposalId, choice, sessionId } = req.body;
 
@@ -86,7 +84,7 @@ export default async function handler(
       // Check if user already voted in this session (1 vote per session)
       const existingVoteInSession = await FinalVote.findOne({
         sessionId: activeSession._id,
-        userId: session.user.id,
+        userId: viewer.userId,
       });
 
       if (existingVoteInSession) {
@@ -94,7 +92,7 @@ export default async function handler(
           // During termination countdown: allow vote change
           await FinalVote.deleteMany({
             sessionId: activeSession._id,
-            userId: session.user.id,
+            userId: viewer.userId,
           });
         } else {
           return res.status(400).json({
@@ -106,12 +104,12 @@ export default async function handler(
       await FinalVote.create({
         sessionId: activeSession._id,
         proposalId: toObjectId(proposalId),
-        userId: session.user.id,
+        userId: viewer.userId,
         choice,
       });
 
       // Register user as active in session
-      await registerActiveUser(session.user.id, activeSession._id.toString());
+      await registerActiveUser(viewer.userId, activeSession._id.toString());
 
       const yesCount = await FinalVote.countDocuments({
         sessionId: activeSession._id,

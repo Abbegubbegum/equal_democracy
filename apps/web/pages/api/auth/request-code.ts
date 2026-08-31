@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import bcrypt from "bcryptjs";
 import connectDB from "../../../lib/mongodb";
-import { LoginCode, Settings } from "../../../lib/models";
+import { User, LoginCode, Settings } from "../../../lib/models";
 import { sendLoginCode } from "../../../lib/email";
 import { createLogger } from "../../../lib/logger";
 
@@ -37,6 +37,20 @@ export default async function handler(
     email: email.toLowerCase(),
     expiresAt: { $lte: new Date() },
   });
+
+  // Nothing to send a code to any more unless the account already exists and
+  // still logs in by email. Both other cases — no account, or a BankID account
+  // whose email is now only a contact channel (C1) — would produce a code that
+  // can never be redeemed.
+  //
+  // The response is deliberately identical either way: this endpoint has never
+  // revealed whether an address is registered, and it must not start now.
+  const account: any = await User.findOne({ email: email.toLowerCase() })
+    .select("authMethod bankidSubject")
+    .lean();
+  if (!account || account.authMethod === "bankid" || account.bankidSubject) {
+    return res.status(200).json({ ok: true, alreadySent: false });
+  }
 
   // If a valid code already exists, just let the user proceed — don't resend
   const existingActive = await LoginCode.findOne({

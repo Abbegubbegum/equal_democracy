@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]";
+import { requireAccount } from "@/lib/viewer";
 import connectDB from "../../../lib/mongodb";
 import {
   Proposal,
@@ -21,16 +20,13 @@ export default async function handler(
     return res.status(405).json({ message: "Method not allowed" });
   }
 
-  const session = await getServerSession(req, res, authOptions);
-
-  if (!session) {
-    return res.status(401).json({ message: "You have to be logged in" });
-  }
+  const viewer = await requireAccount(req, res);
+  if (!viewer) return;
 
   await connectDB();
 
   try {
-    const userId = session.user.id;
+    const userId = viewer.userId;
 
     const myProposals = await Proposal.find({ authorId: userId })
       .sort({ createdAt: -1 })

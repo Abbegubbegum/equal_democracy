@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]";
+import { requireAccount } from "@/lib/viewer";
 import Pusher from "pusher";
 import { createLogger } from "../../../lib/logger";
 
@@ -20,11 +19,8 @@ export default async function handler(
   }
 
   // Get the authenticated user session
-  const session = await getServerSession(req, res, authOptions);
-
-  if (!session || !session.user) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+  const viewer = await requireAccount(req, res);
+  if (!viewer) return;
 
   // Initialize Pusher
   const pusher = new Pusher({
@@ -45,7 +41,7 @@ export default async function handler(
   // Define the user data that will be visible in the presence channel
   // Only expose anonymous user_id for privacy - no names or other PII
   const presenceData = {
-    user_id: session.user.id,
+    user_id: viewer.userId,
     user_info: {
       // Removed name for anonymity
     },

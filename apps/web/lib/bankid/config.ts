@@ -50,8 +50,39 @@ const BASE_URLS: Record<GrandIdEnv, string> = {
   production: "https://client.grandid.com",
 };
 
+/**
+ * Which of our two configured GrandID services to run.
+ *
+ * The service key — not the request — decides whether BankID signs or merely
+ * identifies (see `readOrderType` in ./session.ts, and §2a of
+ * docs/bankid-integration-plan.md). So this is not a preference, it is the whole
+ * semantics of the transaction:
+ *
+ *   `sign` → `funcId: Signing`         — a vote. The voter is agreeing to a
+ *                                        ballot text, and the signature is what
+ *                                        binds them to it.
+ *   `auth` → `funcId: Identification`  — a login. The user is agreeing to
+ *                                        nothing, so signing would be a lie
+ *                                        about what just happened.
+ *
+ * Both return the SPAR folkbokföring block in GUI mode, which is what lets
+ * eligibility be decided at login rather than at the end of a signature the user
+ * has already paid for (docs/bankid-login-plan.md §2).
+ *
+ * Getting these backwards produces transactions that succeed and mean nothing —
+ * no error surfaces anywhere — which is why every consumer asserts the order
+ * type it expected rather than trusting the key it asked for.
+ */
+export type GrandIdService = "sign" | "auth";
+
+const SERVICE_KEY_VARS: Record<GrandIdService, string> = {
+  sign: "GRANDID_SIGN_SERVICE_KEY",
+  auth: "GRANDID_AUTH_SERVICE_KEY",
+};
+
 export interface GrandIdConfig {
   env: GrandIdEnv;
+  service: GrandIdService;
   baseUrl: string;
   apiKey: string;
   serviceKey: string;
@@ -71,32 +102,37 @@ function required(name: string): string {
   const value = process.env[name];
   if (!value) {
     throw new Error(
-      `${name} is not set. GrandID needs GRANDID_ENV, GRANDID_API_KEY and ` +
-        `GRANDID_SERVICE_KEY — run \`node scripts/test-grandid-connection.mjs --probe\` ` +
-        `to work out which service key belongs to which environment.`,
+      `${name} is not set. GrandID needs GRANDID_ENV, GRANDID_API_KEY, ` +
+        `GRANDID_SIGN_SERVICE_KEY (signing, for votes) and GRANDID_AUTH_SERVICE_KEY ` +
+        `(authentication, for login) — run ` +
+        `\`node scripts/test-grandid-connection.mjs --probe\` to work out which ` +
+        `service key belongs to which environment.`,
     );
   }
   return value;
 }
 
-let cached: GrandIdConfig | null = null;
+/**
+ * Cached per service rather than globally: the two configurations differ only in
+ * the service key, but that one field is what decides whether a transaction is a
+ * signature or an identification, so they cannot share a slot.
+ */
+const cache: Record<string, GrandIdConfig> = {};
 
-export function getGrandIdConfig(): GrandIdConfig {
-  if (cached) return cached;
+export function getGrandIdConfig(service: GrandIdService): GrandIdConfig {
+  const hit = cache[service];
+  if (hit) return hit;
 
   const env = (process.env.GRANDID_ENV || "test") as GrandIdEnv;
-  cached = {
+  const config: GrandIdConfig = {
     env,
+    service,
     baseUrl: baseUrlFor(env),
     apiKey: required("GRANDID_API_KEY"),
-    serviceKey: required("GRANDID_SERVICE_KEY"),
+    serviceKey: required(SERVICE_KEY_VARS[service]),
   };
-  return cached;
-}
-
-/** True when this runtime can produce real, legally meaningful verifications. */
-export function isProduction(): boolean {
-  return getGrandIdConfig().env === "production";
+  cache[service] = config;
+  return config;
 }
 
 /**
@@ -158,7 +194,11 @@ export function allowAnyKommun(): boolean {
  * A safe-to-log identifier for a service key. We hold more than one and they
  * are indistinguishable by name, so logs need to say *which* was used without
  * ever printing the key itself.
+ *
+ * The role is included as well as the last four characters, because the whole
+ * class of bug this guards against is a key configured under the wrong name —
+ * where the role we asked for and the key we got do not agree.
  */
 export function serviceFingerprint(config: GrandIdConfig): string {
-  return `${config.env}:…${config.serviceKey.slice(-4)}`;
+  return `${config.env}:${config.service}:…${config.serviceKey.slice(-4)}`;
 }

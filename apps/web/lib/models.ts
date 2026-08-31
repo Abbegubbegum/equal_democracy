@@ -8,12 +8,70 @@ const UserSchema = new mongoose.Schema(
       required: [true, "Please provide a name"],
       maxlength: [60, "Name cannot be more than 60 characters"],
     },
+    // A **contact channel**, exactly like phoneNumber — not a credential, and
+    // deliberately unverified: the user types it, we store it, they can remove
+    // it again.
+    //
+    // Optional since BankID login: an account created by BankID has no email
+    // until the user chooses to add one. Once `authMethod` is "bankid" this
+    // address can never open a session (docs/bankid-login-plan.md §1 C2) —
+    // which is what makes an unverified address safe to hold, and what keeps
+    // offering both a BankID login and an email on one account from being
+    // ID-växling.
+    //
+    // Uniqueness is a **partial** index declared below rather than `unique:
+    // true` here: a plain unique index treats every missing email as the same
+    // null and would reject the second account without one.
     email: {
       type: String,
-      required: [true, "Please provide an email"],
-      unique: true,
       lowercase: true,
+      default: null,
       match: [/^\S+@\S+\.\S+$/, "Please provide a valid email"],
+    },
+    // Which credential may open a session for this account. "bankid" is
+    // terminal: it is set when bankidSubject lands and never goes back, because
+    // reverting it would re-enable a second way in.
+    authMethod: {
+      type: String,
+      enum: ["email", "bankid"],
+      default: "email",
+      index: true,
+    },
+    // The account's BankID identity: HMAC(LOGIN_ID_PEPPER, "login:" + pnr).
+    //
+    // Deliberately NOT the same pseudonym as QuestionVote.pnrHash, which is
+    // salted per question so two votes by one person stay unlinkable. This one
+    // has to be globally stable — it is how a returning user finds their
+    // account again — so it lives under its own pepper and domain prefix and
+    // the two can never collide. See lib/bankid/subject.ts.
+    //
+    // Uniqueness is what makes one person = one account structurally true, and
+    // it is declared as a **partial** index below for the same reason `email`
+    // is — see the note there. `sparse` is the trap: it skips documents where
+    // the field is *missing*, not where it is explicitly `null`, and `default:
+    // null` writes an explicit null onto every account without BankID. The
+    // second such account then collides with the first.
+    bankidSubject: {
+      type: String,
+      default: null,
+    },
+    bankidLinkedAt: {
+      type: Date,
+      default: null,
+    },
+    // The cached SPAR verdict from the last BankID login, and the whole reason
+    // eligibility is decided at login rather than at the end of a signature the
+    // user has already paid for. `code` is an EligibilityCode from
+    // lib/bankid/eligibility.ts — stored so the UI can say *why* someone may not
+    // act, never any of the SPAR data it was derived from.
+    //
+    // Never authoritative at vote time: settleVerification() re-checks against
+    // the SPAR block that arrives with the signature, because this can be up to
+    // a session old (docs/bankid-login-plan.md §9).
+    eligibility: {
+      eligible: { type: Boolean, default: false },
+      code: { type: String, default: null },
+      checkedAt: { type: Date, default: null },
     },
     createdAt: {
       type: Date,
@@ -101,6 +159,35 @@ const UserSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+  },
+);
+
+// Unique only among accounts that actually carry an address.
+//
+// This replaces the old `unique: true` on the field, which MongoDB applies to
+// missing values too — every emailless BankID account would collide on the same
+// null key and only the first would ever save.
+//
+// Mongoose adds indexes, it never replaces them, so declaring this does NOT
+// remove the `email_1` already in the database. `scripts/bankid-login-migration.js`
+// drops that one first; without it the old constraint keeps applying and the
+// symptom is a duplicate-key error on an account with no email at all.
+UserSchema.index(
+  { email: 1 },
+  { unique: true, partialFilterExpression: { email: { $type: "string" } } },
+);
+
+// One person, one account — among the accounts that actually have a BankID
+// identity. Partial rather than sparse for exactly the reason above: every
+// account without BankID carries an explicit `null` here, and a sparse unique
+// index treats those as one shared value. That failure does not appear until the
+// *second* emailless account is created, which is to say the second person ever
+// to sign up.
+UserSchema.index(
+  { bankidSubject: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { bankidSubject: { $type: "string" } },
   },
 );
 
@@ -1729,4 +1816,155 @@ if (mongoose.models["VoteVerification"])
 export const VoteVerification: AnyModel = mongoose.model(
   "VoteVerification",
   VoteVerificationSchema,
+);
+
+// One BankID authentication attempt: a login, a link, or a re-verification.
+//
+// The signing twin of this is VoteVerification, and the shape is deliberately
+// the same — hold the intent while an external party works, then settle exactly
+// once from an authoritative answer. What differs is what a completed
+// transaction is allowed to be: `funcId: Identification`, never `Signing`. A
+// login must not make anyone sign a document; they are agreeing to nothing.
+//
+// Transient, like VoteVerification. A personnummer never reaches this
+// collection — only User.bankidSubject, derived from it, outlives the attempt.
+const LoginVerificationSchema = new mongoose.Schema(
+  {
+    // login  — no session yet; resolves to an existing account or creates one
+    // link   — an authenticated legacy email account attaching its BankID
+    // reverify — refreshing a stale eligibility verdict (the seam for D6; no
+    //            caller today, because eligibility refreshes at login instead)
+    purpose: {
+      type: String,
+      enum: ["login", "link", "reverify"],
+      required: true,
+    },
+    // Absent for "login" — that is the whole point of it, there is no session
+    // yet. Required in spirit for the other two, enforced at the call site
+    // rather than here so a purpose can be added without a schema change.
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
+    // GrandID's sessionId. Unique so a replayed start cannot fork the flow.
+    grandIdSession: { type: String, required: true, unique: true },
+    redirectUrl: { type: String, required: true },
+    // 32 random bytes, handed to the client at start and required to poll.
+    //
+    // **The row's own `_id` is deliberately not the poll key.** A login poll
+    // that succeeds hands back a session, so its identifier is a bearer secret —
+    // and an ObjectId is not one: it is a timestamp, a machine id and a counter,
+    // so knowing one makes neighbouring ones guessable. Anyone who guessed a
+    // stranger's id mid-login would be handed their session. This is unrelated
+    // to VoteVerification, where the id is only ever used by an already
+    // authenticated caller and is scoped to them.
+    pollToken: { type: String, required: true, unique: true },
+    status: {
+      type: String,
+      enum: ["PENDING", "VERIFIED", "REJECTED", "FAILED", "CANCELLED"],
+      default: "PENDING",
+      index: true,
+    },
+    // When the session was actually issued from this row. One-way, and checked
+    // before issuing: a VERIFIED row is a credential until it is spent, and
+    // without this a replayed poll would mint a second session from one login.
+    consumedAt: { type: Date, default: null },
+    // An EligibilityCode, a BankID hintCode, or one of settle's own codes.
+    // Never a personal detail.
+    reasonCode: { type: String, default: null },
+    // Which account this resolved to — the one found, created, or merged into.
+    // Read by the poll endpoint to issue the session, so it is the only output
+    // of a successful login that the client ever sees.
+    resultUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    // True when this login created the account rather than finding one. Drives
+    // the "did you already have an email account?" prompt (§7.5) exactly once.
+    createdAccount: { type: Boolean, default: false },
+    // Which runtime created this row — not which GrandID host it used. Same
+    // reasoning as VoteVerification.runtime: the host is `production`
+    // everywhere, so it would label a laptop's attempt "production" too. Settle
+    // refuses a row whose runtime is not the current one, which is what stops a
+    // development login minting a session against the production database
+    // through `pnpm dev:web:live`.
+    runtime: {
+      type: String,
+      enum: ["development", "production"],
+      required: true,
+    },
+    // Enforces GrandID's >= 2s GetSession poll floor server-side.
+    lastPolledAt: { type: Date, default: null },
+    // sha256 of the caller's IP, for throttling only.
+    //
+    // A login start is the one BankID endpoint with no account behind it, so
+    // there is nothing else to rate-limit against — and every accepted order is
+    // billable. Hashed rather than stored: it is only ever compared, never read,
+    // and this collection is purged after 7 days.
+    ipHash: { type: String, default: null, index: true },
+  },
+  { timestamps: true },
+);
+
+// Resuming an in-flight attempt rather than paying for a second BankID order.
+LoginVerificationSchema.index({ status: 1, createdAt: -1 });
+
+// Purge settled attempts. Shorter than VoteVerification's 30 days: there is no
+// signature here to keep as evidence, and nothing downstream refers back to a
+// login once the session exists.
+LoginVerificationSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: 7 * 24 * 60 * 60 },
+);
+
+// Proof that someone controls a mailbox, issued inside an existing BankID
+// session so a legacy account can be merged into it (docs/bankid-login-plan.md
+// §7.5).
+//
+// **Deliberately not a LoginCode**, and the distinction is load-bearing rather
+// than tidiness. A LoginCode is a credential: redeeming one opens a session. A
+// MergeCode authorises a data merge and nothing else — it is scoped to the user
+// who requested it, redeemable at exactly one endpoint, and no code path
+// anywhere exchanges one for a token. That is what keeps the claim flow on the
+// right side of ID-växling.
+//
+// It is also the reason merging is verified while the plain contact-email field
+// is not: setting an address only stores a string, but absorbing an account has
+// to prove the mailbox, or anyone could take over any legacy account by typing
+// its owner's address.
+//
+// If you ever find yourself wanting to sign someone in with one of these, the
+// answer is no — build the link flow in §7.4 instead.
+const MergeCodeSchema = new mongoose.Schema(
+  {
+    // The BankID-authenticated account doing the claiming. A code is only ever
+    // valid inside the session that requested it.
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    // The address being claimed, i.e. where the code was sent.
+    email: { type: String, required: true, lowercase: true },
+    codeHash: { type: String, required: true },
+    attempts: { type: Number, default: 0 },
+    expiresAt: { type: Date, required: true, index: { expires: 0 } },
+  },
+  { timestamps: true },
+);
+
+if (mongoose.models["MergeCode"]) delete mongoose.models["MergeCode"];
+export const MergeCode: AnyModel = mongoose.model("MergeCode", MergeCodeSchema);
+
+// Force-refresh — new model, the schema will iterate while BankID login is
+// built out (docs/bankid-login-plan.md stages 3–5).
+if (mongoose.models["LoginVerification"])
+  delete mongoose.models["LoginVerification"];
+export const LoginVerification: AnyModel = mongoose.model(
+  "LoginVerification",
+  LoginVerificationSchema,
 );

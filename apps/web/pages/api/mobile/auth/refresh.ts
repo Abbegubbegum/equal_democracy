@@ -42,7 +42,9 @@ export default async function handler(
 
     const tokenPayload = {
       id: user._id.toString(),
-      email: user.email,
+      // Null for a BankID account with no contact address — see
+      // MobileTokenPayload. Nothing may key off it; `id` is the identity.
+      email: user.email ?? null,
       name: user.name,
       isAdmin: !!user.isAdmin,
       isSuperAdmin: !!user.isSuperAdmin,

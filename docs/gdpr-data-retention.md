@@ -1,5 +1,7 @@
 # GDPR — what we store, what we delete, and why
 
+_Last reviewed 2026-08-27, against the BankID-login schema._
+
 Written while building the BankID vote verification (see
 [bankid-integration-plan.md](bankid-integration-plan.md) §3a). It covers the
 whole app, not just BankID, because the questions BankID raised turned out to
@@ -71,14 +73,65 @@ them, and that is probably the wrong default for a voting platform.**
 | `VoteVerification.reasonCode`                       | No                             | Why an attempt failed (`WRONG_KOMMUN`, `userCancel`)    | 30 days (TTL)    |
 | `VoteVerification.grandIdSession`                   | Indirectly                     | Idempotency and polling                                 | 30 days (TTL)    |
 
-**Deliberately never stored:** the raw personnummer, name, address, kommun,
-birth date, or any other SPAR field. Eligibility is computed at settle time and
-only the _verdict_ survives — we keep "this vote was cast by an eligible voter",
-never "this voter lives at this address".
+### What BankID **login** added (2026-08-27)
 
-That is a real minimisation win worth stating plainly in the privacy policy: the
-app performs a full folkbokföring check on every ballot and retains none of the
-data it checked.
+| Field                               | Personal data?                 | Why we have it                                                                                                      | Retention           |
+| ----------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `User.bankidSubject`                | **Yes** — pseudonymous, stable | The account identity: how a returning user is matched to their own account, and what makes one person = one account | Life of the account |
+| `User.name`                         | **Yes** — directly identifying | Shown in the app. First name + surname, not every given name                                                        | Life of the account |
+| `User.eligibility.code`             | **Yes** — and revealing        | What someone may do, without re-running BankID on every request                                                     | Life of the account |
+| `User.authMethod`, `bankidLinkedAt` | Indirectly                     | Enforcing that a BankID account cannot be opened any other way                                                      | Life of the account |
+| `LoginVerification.ipHash`          | **Yes** — pseudonymous         | Throttling the one unauthenticated BankID endpoint; every accepted order is billable                                | 7 days (TTL)        |
+| `LoginVerification.*`               | Yes                            | Completing a login exactly once                                                                                     | 7 days (TTL)        |
+| `MergeCode`                         | By email                       | Proving a mailbox when claiming a legacy account                                                                    | 10 minutes (TTL)    |
+
+Three of these deserve more than a table row.
+
+**`bankidSubject` is a different kind of hash from `pnrHash`.** `pnrHash` is salted per question
+precisely so it cannot be joined across questions. `bankidSubject` is globally stable, because it
+has to be — it is the thing that finds your account. So it is a permanent pseudonymous identifier
+for a natural person. It cannot be reversed without the pepper, but neither can `pnrHash`, and we
+already treat that as personal data; this one is more so, not less. The two live under **separate
+peppers** so one leak does not compromise both, and neither can ever be rotated: rotating
+`VOTE_ID_PEPPER` silently resets duplicate protection, and rotating `LOGIN_ID_PEPPER` orphans every
+account on the platform.
+
+**`eligibility.code` says more than "yes" or "no".** `WRONG_KOMMUN` says where someone does not
+live; `UNDERAGE` says they are under 16; `PROTECTED_IDENTITY` says they have skyddade
+personuppgifter, which is itself a marker of vulnerability. It is one short string, but it is not
+neutral. We store it because the alternative is a billable BankID transaction on every request —
+that is the trade, and it is worth naming rather than assuming.
+
+**`ipHash` is the first IP we have stored ourselves** rather than left in Vercel's logs. It exists
+because the login start endpoint is the only unauthenticated BankID endpoint in the system, so
+there is no account to rate-limit against and a loop would spend real money. Hashed rather than
+stored, only ever compared, and purged with the row after 7 days.
+
+### What is still deliberately never stored
+
+The raw personnummer, address, kommun, birth date, or any other SPAR field. Eligibility is computed
+from the SPAR block and only the _verdict_ survives — we keep "this person is eligible", never
+"this person lives at this address".
+
+That remains a real minimisation win worth stating plainly in the privacy policy: the app performs
+a full folkbokföring check at login and again on every ballot, and retains none of the data it
+checked. What changed in 2026-08 is that it now also keeps a name and a stable account identity,
+which is a smaller claim than it was — say the smaller one.
+
+### Membership is special-category data
+
+`User.membershipStatus` records membership of a political party, which reveals political opinion
+and is therefore Art. 9 data. So is a vote, while a question is open and the vote is still linked
+to an account.
+
+Art. 6 is not enough on its own here. The natural basis is **Art. 9(2)(d)** — a not-for-profit body
+with a political aim may process such data about its own members, with safeguards, provided it is
+not disclosed outside the body without consent. That is exactly the situation, and it is what
+`/legal` now says. Two obligations follow from relying on it:
+
+- the data must not leave the association without consent, and
+- it covers **members**, so it is not a basis for anything we might later want to do with
+  non-members' political data.
 
 ### The 30-day window is the part to think about
 
@@ -296,13 +349,18 @@ Note the same reasoning applies to `FinalVote` and `BudgetVote` (§4).
 
 ## 6. What has to change before BankID goes live
 
-- [ ] **`docs/app-store-privacy-disclosure.md` §1 currently says "We do NOT
-      collect: personnummer".** That becomes false. Both Apple's App Privacy
-      answers and Google Play's Data safety form need updating, and a wrong
-      answer there is a store-review problem as well as a legal one.
-- [ ] **`/legal` §4** promises everything is deleted with one exception for
-      payments. It needs the BankID paragraph: what is checked, what is kept,
-      for how long, and the fact that no SPAR data is retained.
+- [x] **`docs/app-store-privacy-disclosure.md`** rewritten 2026-08-27 for the
+      login schema: `bankidSubject`, the stored eligibility verdict, `ipHash`,
+      `MergeCode`, and email demoted to an optional contact field. It now also
+      declares **political opinion** as sensitive data — Apple's Sensitive Info
+      category and Play's "Political or religious beliefs" — which membership
+      makes unavoidable. **Both store consoles still need the answers
+      transcribed by hand.**
+- [x] **`/legal`** updated 2026-08-27: anonymous browsing, BankID as the only
+      login, both personnummer-derived codes and how they differ, the 7-day
+      login record and its hashed IP, Art. 9(2)(d) as the basis for membership,
+      and Svensk e-identitet added to the processor list — it was missing
+      entirely, and it is the processor that actually handles the personnummer.
 - [ ] **Decide §5** (close-time anonymisation) and implement it for
       `QuestionVote`, `FinalVote` and `BudgetVote` together, along with the
       `/api/account/delete` change from §4.

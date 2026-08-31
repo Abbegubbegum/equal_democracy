@@ -26,6 +26,7 @@ import {
   Question,
   Payment,
   LoginCode,
+  LoginVerification,
 } from "../../../lib/models";
 import { del } from "@vercel/blob";
 
@@ -92,7 +93,16 @@ export default async function handler(
     BudgetCategoryRating.deleteMany({ userId }),
     MunicipalItemRating.deleteMany({ userId }),
     SessionRequest.deleteMany({ userId }),
-    LoginCode.deleteMany({ email: session.user.email }),
+    // Only reaches anything when the account still has a contact address, which
+    // a BankID account need not: there is nothing to key on then, and nothing to
+    // delete either, since no code was ever sent to it.
+    session.user.email
+      ? LoginCode.deleteMany({ email: session.user.email })
+      : Promise.resolve(),
+    // Holds the link between this person and their BankID identity. TTL'd
+    // anyway, but "deleted" has to mean deleted now.
+    LoginVerification.deleteMany({ userId }),
+    LoginVerification.deleteMany({ resultUserId: userId }),
   ]);
 
   // Presence lists are a direct personal reference and are stale the moment the

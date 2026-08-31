@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useState, useEffect, useCallback } from "react";
@@ -21,9 +22,7 @@ export default function HomePage() {
   const { t } = useTranslation();
   const { theme, config } = useConfig();
   const featureSlot = config?.featureSlot || "info";
-  const [view, setView] = useState("home"); // 'home', 'apply-admin'
   const [questions, setQuestions] = useState([]);
-  const [quota, setQuota] = useState({ used: 0, limit: 5 });
   const [questionsLoading, setQuestionsLoading] = useState(true);
   const [liveSessionId, setLiveSessionId] = useState(null);
 
@@ -33,7 +32,6 @@ export default function HomePage() {
       if (res.ok) {
         const data = await res.json();
         setQuestions(Array.isArray(data.questions) ? data.questions : []);
-        if (data.quota) setQuota(data.quota);
       }
     } catch (error) {
       console.error("Error fetching questions:", error);
@@ -42,17 +40,12 @@ export default function HomePage() {
     }
   }, []);
 
+  // No redirect to /login. The front page is readable signed out — the
+  // questions, the tallies and the activity feed are the point of it — and the
+  // API answers anonymously. Only acting needs an account.
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    }
-  }, [status, router]);
-
-  useEffect(() => {
-    if (session) {
-      fetchQuestions();
-    }
-  }, [session, fetchQuestions]);
+    fetchQuestions();
+  }, [fetchQuestions]);
 
   // When the activity slot is set to "livesession", resolve the current active
   // session so the tile can deep-link straight to it.
@@ -83,43 +76,12 @@ export default function HomePage() {
     router.push("/rosta");
   };
 
-  const handleApplyForAdmin = async (name, organization, requestedSessions) => {
-    try {
-      const { fetchWithCsrf } = await import("../lib/fetch-with-csrf");
-      const res = await fetchWithCsrf("/api/apply-admin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          organization,
-          requestedSessions: parseInt(requestedSessions),
-        }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        alert(t("admin.applicationSubmitted"));
-        setView("home");
-      } else {
-        alert(data.message || t("errors.generic"));
-      }
-    } catch (error) {
-      console.error("Error applying for admin:", error);
-      alert(t("errors.generic"));
-    }
-  };
-
   if (status === "loading") {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-xl text-gray-600">Laddar...</div>
       </div>
     );
-  }
-
-  if (!session) {
-    return null;
   }
 
   // Get theme colors
@@ -146,19 +108,6 @@ export default function HomePage() {
 
   // Hem feed: active questions the user hasn't voted on yet (already-voted hidden).
   const feedQuestions = questions.filter((q) => !q.userVote);
-
-  if (view === "apply-admin") {
-    return (
-      <ApplyAdminView
-        onSubmit={handleApplyForAdmin}
-        onBack={() => setView("home")}
-        userEmail={session.user.email}
-        userName={session.user.name}
-        t={t}
-        theme={theme}
-      />
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#f7f8fb] overflow-x-hidden">
@@ -191,7 +140,7 @@ export default function HomePage() {
               </div>
             </button>
             <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm">
-              {session.user.isSuperAdmin && (
+              {session?.user?.isSuperAdmin && (
                 <>
                   <button
                     onClick={() => router.push("/admin")}
@@ -207,7 +156,7 @@ export default function HomePage() {
                   </button>
                 </>
               )}
-              {session.user.isAdmin && !session.user.isSuperAdmin && (
+              {session?.user?.isAdmin && !session?.user?.isSuperAdmin && (
                 <>
                   <button
                     onClick={() => router.push("/manage-content")}
@@ -217,26 +166,38 @@ export default function HomePage() {
                   </button>
                 </>
               )}
-              {!session.user.isAdmin && !session.user.isSuperAdmin && (
+              {/* An anonymous visitor reaches this header too, now that the
+                  front page renders signed out — so it has to offer the way in
+                  rather than a way out of a session that does not exist. */}
+              {session ? (
                 <button
-                  onClick={() => setView("apply-admin")}
-                  className="text-white hover:text-accent-400 font-medium whitespace-nowrap"
+                  onClick={() => signOut()}
+                  className="text-white hover:text-accent-400 whitespace-nowrap"
                 >
-                  {t("nav.applyForAdmin")}
+                  {t("auth.logout")}
                 </button>
+              ) : (
+                <Link
+                  href="/login"
+                  className="text-white hover:text-accent-400 font-semibold whitespace-nowrap"
+                >
+                  Logga in
+                </Link>
               )}
-              <button
-                onClick={() => signOut()}
-                className="text-white hover:text-accent-400 whitespace-nowrap"
-              >
-                {t("auth.logout")}
-              </button>
             </div>
           </div>
           <p className="text-white/90 text-sm sm:text-base mt-4">
-            Hej{" "}
-            <span className="font-bold text-white">{session.user.name}</span> –
-            välkommen att påverka Vallentuna!
+            {session ? (
+              <>
+                Hej{" "}
+                <span className="font-bold text-white">
+                  {session.user?.name}
+                </span>{" "}
+                – välkommen att påverka Vallentuna!
+              </>
+            ) : (
+              "Välkommen att påverka Vallentuna — läs fritt, logga in med BankID för att delta."
+            )}
           </p>
         </div>
       </div>
@@ -277,12 +238,6 @@ export default function HomePage() {
           <h2 className="text-lg sm:text-xl font-black text-gray-800">
             Frågor att rösta på
           </h2>
-          <span className="text-sm text-gray-500 whitespace-nowrap">
-            Du har röstat i{" "}
-            <b className="text-primary-600">
-              {quota.used} av {quota.limit}
-            </b>
-          </span>
         </div>
 
         {questionsLoading ? (
@@ -373,129 +328,3 @@ function QuestionCard({ q, onSelect }) {
 // ============================================================================
 // APPLY ADMIN VIEW
 // ============================================================================
-
-function ApplyAdminView({ onSubmit, onBack, userEmail, userName, t, theme }) {
-  const [name, setName] = useState(userName || "");
-  const [organization, setOrganization] = useState("");
-  const [requestedSessions, setRequestedSessions] = useState("10");
-  const [submitting, setSubmitting] = useState(false);
-
-  const primaryColor = theme.colors.primary[600];
-  const primaryDark = theme.colors.primary[900];
-  const accentColor = theme.colors.accent[400];
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!name || !organization || !requestedSessions) {
-      alert(t("errors.generic"));
-      return;
-    }
-
-    const sessions = parseInt(requestedSessions);
-    if (isNaN(sessions) || sessions < 1 || sessions > 50) {
-      alert("Please enter a number between 1 and 50 for sessions");
-      return;
-    }
-
-    setSubmitting(true);
-    await onSubmit(name, organization, sessions);
-    setSubmitting(false);
-  };
-
-  return (
-    <div className="min-h-screen" style={{ backgroundColor: primaryColor }}>
-      <div className="p-4 sm:p-6" style={{ backgroundColor: primaryDark }}>
-        <div className="max-w-2xl mx-auto">
-          <button
-            onClick={onBack}
-            className="text-white hover:text-accent-400 mb-4 flex items-center gap-2"
-          >
-            ← {t("common.back")}
-          </button>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white wrap-break-word">
-            {t("admin.applyForAdmin")}
-          </h1>
-        </div>
-      </div>
-
-      <div className="max-w-2xl mx-auto p-4 sm:p-6">
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-2xl shadow-lg p-6 space-y-6"
-        >
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {t("auth.email")}
-            </label>
-            <input
-              type="email"
-              value={userEmail}
-              disabled
-              className="w-full border border-slate-300 rounded-lg px-4 py-3 bg-slate-100 text-slate-600"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {t("auth.name")} *
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder={t("auth.name")}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {t("admin.organization")} *
-            </label>
-            <input
-              type="text"
-              value={organization}
-              onChange={(e) => setOrganization(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder={t("admin.organizationPlaceholder")}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {t("admin.requestedSessions")} * (1-50)
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="50"
-              value={requestedSessions}
-              onChange={(e) => setRequestedSessions(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="10"
-              required
-            />
-            <p className="text-sm text-slate-500 mt-1">
-              {t("admin.requestedSessionsHelp")}
-            </p>
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full font-bold py-4 rounded-xl shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{
-              backgroundColor: accentColor,
-              color: primaryDark,
-            }}
-          >
-            {submitting ? t("common.submit") + "..." : t("common.submit")}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}

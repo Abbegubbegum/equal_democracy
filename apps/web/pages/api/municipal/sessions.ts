@@ -26,15 +26,17 @@ export default async function handler(
 ) {
   await connectDB();
 
+  // GET is public — a council agenda is the record this platform exists to
+  // publish. PATCH/DELETE are superadmin-only, checked per branch below.
   const session = await getServerSession(req, res, authOptions);
 
-  if (!session) {
+  if (req.method !== "GET" && !session) {
     return res.status(401).json({ message: "You must be logged in" });
   }
 
-  const user = await User.findById(session.user.id);
+  const user = session?.user?.id ? await User.findById(session.user.id) : null;
 
-  // GET - List all municipal meetings (any logged-in user)
+  // GET - List all municipal meetings (public)
   if (req.method === "GET") {
     try {
       const { status, limit, municipality } = req.query;

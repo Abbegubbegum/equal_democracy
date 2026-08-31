@@ -14,11 +14,7 @@
  */
 
 import { createLogger } from "../logger";
-import {
-  getGrandIdConfig,
-  serviceFingerprint,
-  type GrandIdConfig,
-} from "./config";
+import { serviceFingerprint, type GrandIdConfig } from "./config";
 
 const log = createLogger("GrandID");
 
@@ -64,10 +60,15 @@ export interface GrandIdRequestOptions {
   /** GetSession and FederatedLogin are POST; Logout is GET. */
   method?: "POST" | "GET";
   /**
-   * Overrides the env-derived config. Only the connection diagnostic uses this,
-   * to try a service key that is not the configured one.
+   * Which service to call as. Required, and deliberately not defaulted: we hold
+   * a signing key and an authentication key, and picking the wrong one produces
+   * a transaction that succeeds while meaning something else entirely (see
+   * `GrandIdService` in ./config.ts). A default here would be a silent choice.
+   *
+   * ./session.ts resolves it from `GrandIdService`; the connection diagnostic
+   * passes a hand-built config to try a key that is not either configured one.
    */
-  config?: GrandIdConfig;
+  config: GrandIdConfig;
   timeoutMs?: number;
 }
 
@@ -78,10 +79,10 @@ export interface GrandIdRequestOptions {
  */
 export async function grandIdRequest<T>(
   endpoint: string,
-  fields: GrandIdFields = {},
-  options: GrandIdRequestOptions = {},
+  fields: GrandIdFields,
+  options: GrandIdRequestOptions,
 ): Promise<T> {
-  const config = options.config || getGrandIdConfig();
+  const config = options.config;
   const method = options.method || "POST";
   const url = new URL(`${config.baseUrl}/json1.1/${endpoint}`);
 

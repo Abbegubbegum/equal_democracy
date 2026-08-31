@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  Keyboard,
   Linking,
   Modal,
   ScrollView,
@@ -14,16 +15,16 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { INTEREST_TO_CATEGORIES, INTEREST_AREAS } from "@repo/types";
+import { useRouter } from "expo-router";
 import { useAuth } from "./auth-context";
-import { getItem, setItem } from "./storage";
-import { apiClient, BASE_URL } from "./api";
+import { getItem, setItem, STORAGE_PHONE } from "./storage";
+import { ApiError, apiClient, BASE_URL } from "./api";
+import { EmailClaimSheet } from "./EmailClaimSheet";
 
 const BLUE = "#002d75";
-const YELLOW = "#f5a623";
 
 export const STORAGE_INTERESTS = "user_interests";
 export const STORAGE_INTERESTS_ONLY = "user_interests_only";
-export const STORAGE_PHONE = "user_phone_number";
 
 export function SettingsModal({
   visible,
@@ -36,9 +37,62 @@ export function SettingsModal({
 }) {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
+  const router = useRouter();
   const [localInterests, setLocalInterests] = useState<string[]>(["budget"]);
   const [localOnly, setLocalOnly] = useState(true);
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [email, setEmail] = useState("");
+  const [contactError, setContactError] = useState<string | null>(null);
+  const [claimEmail, setClaimEmail] = useState<string | null>(null);
+  // How much room the keyboard is taking, used as padding *inside* the sheet
+  // rather than as a translation of it. KeyboardAvoidingView slid the whole
+  // sheet upward, which exposed the Info tab behind it; padding grows the
+  // scrollable area instead, so the sheet stays anchored and the fields scroll
+  // clear of the keyboard.
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Where each contact field sits inside the scroll content, captured on
+  // layout. Scrolling to the *end* instead overshot the email field, because
+  // the phone field and everything after it are still below it.
+  const fieldOffsets = useRef<Record<string, number>>({});
+
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  /**
+   * Brings a focused field to the top of the sheet.
+   *
+   * The scroll is driven by `keyboardHeight` rather than by a timer. A fixed
+   * delay was the bug: the padding that makes the scroll possible only exists
+   * once `keyboardDidShow` has fired — which on Android can be well past 80ms —
+   * so the scroll ran against un-padded content, hit the clamp, and barely
+   * moved.
+   */
+  useEffect(() => {
+    if (!focusedField || keyboardHeight === 0) return;
+    const y = fieldOffsets.current[focusedField];
+    if (y === undefined) return;
+    // One frame after the padding lands, so the new content height is measured.
+    const t = setTimeout(
+      () =>
+        scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true }),
+      50,
+    );
+    return () => clearTimeout(t);
+  }, [focusedField, keyboardHeight]);
+
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", (e) =>
+      setKeyboardHeight(e.endCoordinates.height),
+    );
+    const hide = Keyboard.addListener("keyboardDidHide", () =>
+      setKeyboardHeight(0),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (!visible) return;
@@ -49,25 +103,38 @@ export function SettingsModal({
       if (savedOnly !== null) setLocalOnly(savedOnly === "true");
       const savedPhone = await getItem(STORAGE_PHONE);
       setPhoneNumber(savedPhone ?? "");
+      setContactError(null);
+      // Read from the account rather than from storage: a BankID account may
+      // have been created on another device, and the address belongs to the
+      // account rather than to this phone.
+      try {
+        const me = await apiClient<{ user: { email: string | null } | null }>(
+          "/api/mobile/user/me",
+        );
+        setEmail(me.user?.email ?? "");
+      } catch {
+        // Signed out or offline — leave the field blank.
+      }
     })();
   }, [visible]);
 
   function toggle(key: string) {
     if (key === "budget") return;
-    setLocalInterests((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
+    const next = localInterests.includes(key)
+      ? localInterests.filter((k) => k !== key)
+      : [...localInterests, key];
+    setLocalInterests(next);
+    saveInterests(next, localOnly);
   }
 
-  async function handleSave() {
-    await setItem(STORAGE_INTERESTS, JSON.stringify(localInterests));
-    await setItem(STORAGE_INTERESTS_ONLY, String(localOnly));
-    const trimmedPhone = phoneNumber.trim();
-    await setItem(STORAGE_PHONE, trimmedPhone);
-    // Persist to DB — deduplicate since multiple keys can map to the same category
+  /** Interests + the "only my areas" toggle. Fires on each tap. */
+  async function saveInterests(nextInterests: string[], nextOnly: boolean) {
+    await setItem(STORAGE_INTERESTS, JSON.stringify(nextInterests));
+    await setItem(STORAGE_INTERESTS_ONLY, String(nextOnly));
+    // Deduplicated: several interest keys can map to the same category.
     const dbInterests = [
       ...new Set(
-        localInterests.flatMap((key) => INTEREST_TO_CATEGORIES[key] ?? []),
+        nextInterests.flatMap((key) => INTEREST_TO_CATEGORIES[key] ?? []),
       ),
     ];
     try {
@@ -76,175 +143,292 @@ export function SettingsModal({
         body: JSON.stringify({ interests: dbInterests }),
       });
     } catch {
-      // fail silently — local preferences still saved
+      // fail silently — the local preference still applies to the feed
     }
+    onSaved?.();
+  }
+
+  /** The phone field. On blur or Done, not per keystroke. */
+  async function savePhone() {
+    const trimmedPhone = phoneNumber.trim();
+    await setItem(STORAGE_PHONE, trimmedPhone);
     try {
       await apiClient("/api/mobile/user/phone", {
         method: "POST",
         body: JSON.stringify({ phoneNumber: trimmedPhone }),
       });
-    } catch {
-      // fail silently — local value still saved
+      setContactError(null);
+    } catch (err) {
+      setContactError((err as Error).message || "Numret kunde inte sparas.");
     }
-    onClose();
-    onSaved?.();
+  }
+
+  async function saveEmail() {
+    // Not mirrored locally, so a rejection has to be shown rather than
+    // swallowed — otherwise the address the user typed is simply gone.
+    try {
+      await apiClient("/api/mobile/user/email", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim() }),
+      });
+    } catch (err) {
+      // The address belongs to an account that predates BankID — almost always
+      // this person's own. Offer the merge instead of reporting a failure; it
+      // is verified, so they still have to prove the mailbox.
+      if (err instanceof ApiError && err.body?.code === "MERGE_AVAILABLE") {
+        setClaimEmail(email.trim());
+        return;
+      }
+      setContactError(
+        (err as Error).message || "E-postadressen kunde inte sparas.",
+      );
+      return;
+    }
+    setContactError(null);
   }
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={st.backdrop}>
-          <TouchableWithoutFeedback>
-            <View style={[st.sheet, { paddingBottom: 0 }]}>
-              <View style={st.handle} />
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
-              >
-                <View style={st.introBox}>
-                  <View style={st.introRow}>
-                    <Text style={st.introTitle}>INSTÄLLNINGAR</Text>
-                    <TouchableOpacity onPress={onClose} hitSlop={12}>
-                      <Ionicons name="close" size={22} color="#666" />
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={st.introText}>
-                    Ingen är intresserad av allt. Välj ett eller flera områden
-                    och spara.
-                  </Text>
-                </View>
-
-                {INTEREST_AREAS.map((area) => {
-                  const checked = localInterests.includes(area.key);
-                  return (
-                    <View key={area.key}>
-                      {area.groupLabel ? (
-                        <View style={st.groupHeader}>
-                          <View style={st.divider} />
-                          <Text style={st.groupLabelText}>
-                            {area.groupLabel}
-                          </Text>
-                        </View>
-                      ) : null}
-                      <TouchableOpacity
-                        style={[st.row, area.alwaysOn && st.rowFixed]}
-                        onPress={() => toggle(area.key)}
-                        activeOpacity={area.alwaysOn ? 1 : 0.7}
-                      >
-                        <View style={[st.checkbox, checked && st.checkboxOn]}>
-                          {checked && (
-                            <Ionicons name="checkmark" size={14} color="#fff" />
-                          )}
-                        </View>
-                        <View style={st.rowText}>
-                          <Text
-                            style={[
-                              st.rowLabel,
-                              area.alwaysOn && st.rowLabelFixed,
-                            ]}
-                          >
-                            {area.label}
-                          </Text>
-                          {area.note ? (
-                            <Text style={st.rowNote}>{area.note}</Text>
-                          ) : null}
-                        </View>
+    <>
+      {/* A sibling of the settings sheet, not a child: nested Modals stack
+          unreliably in React Native, and on Android the inner one can end up
+          behind the outer backdrop. */}
+      <EmailClaimSheet
+        visible={!!claimEmail}
+        mode="merge"
+        initialEmail={claimEmail ?? ""}
+        onClose={() => setClaimEmail(null)}
+        onClaimed={() => {
+          setClaimEmail(null);
+          setContactError(null);
+          onClose();
+          onSaved?.();
+        }}
+      />
+      <Modal
+        visible={visible && !claimEmail}
+        animationType="slide"
+        transparent
+        onRequestClose={onClose}
+      >
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={st.backdrop}>
+            <TouchableWithoutFeedback>
+              <View style={[st.sheet, { paddingBottom: 0 }]}>
+                <View style={st.handle} />
+                <ScrollView
+                  ref={scrollRef}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={{
+                    paddingBottom: insets.bottom + 20 + keyboardHeight,
+                  }}
+                >
+                  <View style={st.introBox}>
+                    <View style={st.introRow}>
+                      <Text style={st.introTitle}>INSTÄLLNINGAR</Text>
+                      <TouchableOpacity onPress={onClose} hitSlop={12}>
+                        <Ionicons name="close" size={22} color="#666" />
                       </TouchableOpacity>
                     </View>
-                  );
-                })}
-
-                <View style={st.divider} />
-
-                <View style={st.toggleRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={st.toggleLabel}>Visa bara mina intressen</Text>
-                    <Text style={st.toggleHint}>
-                      Filtrerar notiser och flödet
+                    <Text style={st.introText}>
+                      Ingen är intresserad av allt. Välj ett eller flera områden
+                      och spara.
                     </Text>
                   </View>
-                  <Switch
-                    value={localOnly}
-                    onValueChange={setLocalOnly}
-                    trackColor={{ false: "#e5e7eb", true: BLUE }}
-                    thumbColor="#fff"
-                  />
-                </View>
 
-                <View style={st.divider} />
+                  {INTEREST_AREAS.map((area) => {
+                    const checked = localInterests.includes(area.key);
+                    return (
+                      <View key={area.key}>
+                        {area.groupLabel ? (
+                          <View style={st.groupHeader}>
+                            <View style={st.divider} />
+                            <Text style={st.groupLabelText}>
+                              {area.groupLabel}
+                            </Text>
+                          </View>
+                        ) : null}
+                        <TouchableOpacity
+                          style={[st.row, area.alwaysOn && st.rowFixed]}
+                          onPress={() => toggle(area.key)}
+                          activeOpacity={area.alwaysOn ? 1 : 0.7}
+                        >
+                          <View style={[st.checkbox, checked && st.checkboxOn]}>
+                            {checked && (
+                              <Ionicons
+                                name="checkmark"
+                                size={14}
+                                color="#fff"
+                              />
+                            )}
+                          </View>
+                          <View style={st.rowText}>
+                            <Text
+                              style={[
+                                st.rowLabel,
+                                area.alwaysOn && st.rowLabelFixed,
+                              ]}
+                            >
+                              {area.label}
+                            </Text>
+                            {area.note ? (
+                              <Text style={st.rowNote}>{area.note}</Text>
+                            ) : null}
+                          </View>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
 
-                <View style={{ marginBottom: 4 }}>
-                  <Text style={st.toggleLabel}>Mobilnummer</Text>
-                  <Text style={st.toggleHint}>
-                    Få en sms-påminnelse inför viktiga omröstningar, t.ex. valet
-                    den 13 september.
-                  </Text>
-                  <TextInput
-                    style={st.phoneInput}
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                    placeholder="07XX-XXX XX XX"
-                    placeholderTextColor="#aaa"
-                    keyboardType="phone-pad"
-                    autoComplete="tel"
-                  />
-                </View>
+                  <View style={st.divider} />
 
-                {user?.isAdmin && (
-                  <TouchableOpacity
-                    style={st.adminBtn}
-                    onPress={() =>
-                      Linking.openURL(
-                        `${BASE_URL}${user.isSuperAdmin ? "/admin" : "/manage-sessions"}`,
-                      )
-                    }
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons
-                      name="shield-checkmark-outline"
-                      size={20}
-                      color="#fff"
+                  <View style={st.toggleRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={st.toggleLabel}>
+                        Visa bara mina intressen
+                      </Text>
+                      <Text style={st.toggleHint}>
+                        Filtrerar notiser och flödet
+                      </Text>
+                    </View>
+                    <Switch
+                      value={localOnly}
+                      onValueChange={(v) => {
+                        setLocalOnly(v);
+                        saveInterests(localInterests, v);
+                      }}
+                      trackColor={{ false: "#e5e7eb", true: BLUE }}
+                      thumbColor="#fff"
                     />
-                    <Text style={st.adminBtnText}>Admin</Text>
-                  </TouchableOpacity>
-                )}
+                  </View>
 
-                <TouchableOpacity
-                  style={st.saveBtn}
-                  onPress={handleSave}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons
-                    name="checkmark-circle-outline"
-                    size={20}
-                    color={BLUE}
-                  />
-                  <Text style={st.saveBtnText}>Spara inställningar</Text>
-                </TouchableOpacity>
+                  <View style={st.divider} />
 
-                <TouchableOpacity
-                  style={st.logoutBtn}
-                  onPress={() => {
-                    onClose();
-                    logout();
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="log-out-outline" size={20} color="#dc2626" />
-                  <Text style={st.logoutBtnText}>Logga ut</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
+                  <View
+                    style={{ marginBottom: 4 }}
+                    onLayout={(e) => {
+                      fieldOffsets.current.email = e.nativeEvent.layout.y;
+                    }}
+                  >
+                    <Text style={st.toggleLabel}>E-post</Text>
+                    <Text style={st.toggleHint}>
+                      Så att vi kan nå dig. Krävs för medlemskap. Du loggar
+                      alltid in med BankID — aldrig med e-post.
+                    </Text>
+                    <TextInput
+                      style={st.phoneInput}
+                      value={email}
+                      onChangeText={(v) => {
+                        setEmail(v);
+                        setContactError(null);
+                      }}
+                      placeholder="namn@exempel.se"
+                      placeholderTextColor="#aaa"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoComplete="email"
+                      returnKeyType="done"
+                      onFocus={() => setFocusedField("email")}
+                      onSubmitEditing={saveEmail}
+                      onBlur={() => {
+                        setFocusedField(null);
+                        saveEmail();
+                      }}
+                    />
+                    {contactError ? (
+                      <Text style={st.contactError}>{contactError}</Text>
+                    ) : null}
+                  </View>
+
+                  <View style={st.divider} />
+
+                  <View
+                    style={{ marginBottom: 4 }}
+                    onLayout={(e) => {
+                      fieldOffsets.current.phone = e.nativeEvent.layout.y;
+                    }}
+                  >
+                    <Text style={st.toggleLabel}>Mobilnummer</Text>
+                    <Text style={st.toggleHint}>
+                      Få en sms-påminnelse inför viktiga omröstningar, t.ex.
+                      valet den 13 september.
+                    </Text>
+                    <TextInput
+                      style={st.phoneInput}
+                      value={phoneNumber}
+                      onChangeText={setPhoneNumber}
+                      placeholder="07XX-XXX XX XX"
+                      placeholderTextColor="#aaa"
+                      keyboardType="phone-pad"
+                      autoComplete="tel"
+                      returnKeyType="done"
+                      onFocus={() => setFocusedField("phone")}
+                      onSubmitEditing={savePhone}
+                      onBlur={() => {
+                        setFocusedField(null);
+                        savePhone();
+                      }}
+                    />
+                  </View>
+
+                  {user?.isAdmin && (
+                    <TouchableOpacity
+                      style={st.adminBtn}
+                      onPress={() =>
+                        Linking.openURL(
+                          `${BASE_URL}${user.isSuperAdmin ? "/admin" : "/manage-sessions"}`,
+                        )
+                      }
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons
+                        name="shield-checkmark-outline"
+                        size={20}
+                        color="#fff"
+                      />
+                      <Text style={st.adminBtnText}>Admin</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* An anonymous viewer reaches this sheet too — the settings
+                    themselves are local — so it must offer the way in rather
+                    than a way out of a session that does not exist. */}
+                  {user ? (
+                    <TouchableOpacity
+                      style={st.logoutBtn}
+                      onPress={() => {
+                        onClose();
+                        logout();
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons
+                        name="log-out-outline"
+                        size={20}
+                        color="#dc2626"
+                      />
+                      <Text style={st.logoutBtnText}>Logga ut</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={st.loginBtn}
+                      onPress={() => {
+                        onClose();
+                        router.push("/(auth)/login");
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="log-in-outline" size={20} color={BLUE} />
+                      <Text style={st.loginBtnText}>Logga in med BankID</Text>
+                    </TouchableOpacity>
+                  )}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    </>
   );
 }
 
@@ -338,6 +522,7 @@ const st = StyleSheet.create({
   },
   toggleLabel: { fontSize: 15, fontWeight: "600", color: "#222" },
   toggleHint: { fontSize: 12, color: "#aaa", marginTop: 2 },
+  contactError: { color: "#dc2626", fontSize: 13, marginTop: 6 },
   phoneInput: {
     borderWidth: 1.5,
     borderColor: "#e5e7eb",
@@ -348,17 +533,6 @@ const st = StyleSheet.create({
     color: "#222",
     marginTop: 10,
   },
-  saveBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: YELLOW,
-    paddingVertical: 15,
-    borderRadius: 14,
-    gap: 8,
-    marginTop: 14,
-  },
-  saveBtnText: { color: BLUE, fontSize: 16, fontWeight: "800" },
   adminBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -370,6 +544,17 @@ const st = StyleSheet.create({
     marginTop: 8,
   },
   adminBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  loginBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#f5a623",
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginTop: 10,
+  },
+  loginBtnText: { color: BLUE, fontSize: 16, fontWeight: "800" },
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",

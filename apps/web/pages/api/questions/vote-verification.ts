@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]";
+import { requireParticipant } from "@/lib/viewer";
 import connectDB from "@/lib/mongodb";
 import { Question, QuestionVote, VoteVerification } from "@/lib/models";
 import { csrfProtection } from "@/lib/csrf";
@@ -57,11 +56,10 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.id)
-    return res.status(401).json({ message: "Unauthorized" });
+  const viewer = await requireParticipant(req, res);
+  if (!viewer) return;
 
-  const userId = session.user.id;
+  const userId = viewer.userId;
 
   if (req.method === "POST") return start(req, res, userId);
   if (req.method === "GET") return resolve(req, res, userId);
@@ -150,6 +148,7 @@ async function start(
     const callbackUrl = `${getBaseUrl()}/rosta`;
 
     const started = await startBankIdSession({
+      service: "sign",
       visibleText: ballotText(question.text, choice),
       callbackUrl,
       // On a phone browser the hosted page still hands off to the BankID app,
@@ -227,7 +226,9 @@ async function resolve(
         verification.lastPolledAt = new Date();
         await verification.save();
 
-        const bankId = await getBankIdSession(verification.grandIdSession);
+        const bankId = await getBankIdSession(verification.grandIdSession, {
+          service: "sign",
+        });
 
         if (bankId.state === "complete") {
           const result = await settleVerification(verification, bankId);

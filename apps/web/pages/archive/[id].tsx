@@ -33,11 +33,7 @@ export default function ArchivedSessionPage() {
     }
   }, [sessionId]);
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    }
-  }, [status, router]);
+  // Public: an archived result is the record this platform publishes.
 
   useEffect(() => {
     if (session && sessionId) {
@@ -53,10 +49,6 @@ export default function ArchivedSessionPage() {
         </div>
       </div>
     );
-  }
-
-  if (!session) {
-    return null;
   }
 
   if (!archivedSession) {

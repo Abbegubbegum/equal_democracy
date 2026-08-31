@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]";
+import { requireParticipant } from "@/lib/viewer";
 import connectDB from "../../../lib/mongodb";
 import { Comment, CommentRating } from "../../../lib/models";
 import {
@@ -24,11 +23,8 @@ export default async function handler(
     return;
   }
 
-  const session = await getServerSession(req, res, authOptions);
-
-  if (!session) {
-    return res.status(401).json({ message: "You have to be logged in" });
-  }
+  const viewer = await requireParticipant(req, res);
+  if (!viewer) return;
 
   if (req.method === "POST") {
     const { commentId, rating, sessionId } = req.body;
@@ -64,7 +60,7 @@ export default async function handler(
       // Check if user has already rated this comment
       const existingRating = await CommentRating.findOne({
         commentId,
-        userId: session.user.id,
+        userId: viewer.userId,
       });
 
       if (existingRating) {
@@ -75,13 +71,13 @@ export default async function handler(
         // Create new rating
         await CommentRating.create({
           commentId,
-          userId: session.user.id,
+          userId: viewer.userId,
           rating,
         });
       }
 
       // Register user as active in session
-      await registerActiveUser(session.user.id, activeSession._id.toString());
+      await registerActiveUser(viewer.userId, activeSession._id.toString());
 
       // Calculate new average rating
       const ratings = await CommentRating.find({ commentId });
@@ -124,7 +120,7 @@ export default async function handler(
       // Get user's rating for this comment
       const rating = await CommentRating.findOne({
         commentId,
-        userId: session.user.id,
+        userId: viewer.userId,
       });
 
       return res.status(200).json({

@@ -1,6 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "./auth/[...nextauth]";
 import connectDB from "@/lib/mongodb";
 import {
   Session,
@@ -21,8 +19,7 @@ export default async function handler(
 ) {
   if (req.method !== "GET") return res.status(405).end();
 
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
+  // Public: the front page's activity feed. Nothing here is caller-scoped.
 
   try {
     await connectDB();

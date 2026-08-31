@@ -11,13 +11,14 @@
  */
 
 import crypto from "crypto";
-import { Question, QuestionVote } from "../models";
+import { Question, QuestionVote, User } from "../models";
 import { createLogger } from "../logger";
 import { allowAnyKommun, runtimeEnv } from "./config";
 import { checkEligibilityFromAttributes } from "./eligibility";
 import { votePseudonym } from "./pseudonym";
+import { loginSubject } from "./subject";
 import { QUOTA_MESSAGE, canVote } from "../vote-quota";
-import type { BankIdSession } from "./session";
+import { EXPECTED_ORDER_TYPE, type BankIdSession } from "./session";
 
 const log = createLogger("BankIdSettle");
 
@@ -106,15 +107,62 @@ export async function settleVerification(
 
   // Whether BankID signed or merely identified follows from the service key, not
   // from what we asked for — so it is read, never assumed. An Identification
-  // here means GRANDID_SERVICE_KEY points at the authentication service, and
-  // every vote would be unbound to its ballot while looking perfectly healthy.
-  if (session.evidence.orderType !== "Signing") {
+  // here means GRANDID_SIGN_SERVICE_KEY points at the authentication service —
+  // the one login uses — and every vote would be unbound to its ballot while
+  // looking perfectly healthy.
+  if (session.evidence.orderType !== EXPECTED_ORDER_TYPE.sign) {
     log.error("BankID did not sign — refusing to record the vote", {
       verificationId,
       orderType: session.evidence.orderType,
-      hint: "GRANDID_SERVICE_KEY is probably the authentication service, not the signing one",
+      hint: "GRANDID_SIGN_SERVICE_KEY is probably the authentication service, not the signing one",
     });
     return reject("FAILED", "NOT_SIGNED", SYSTEM_MESSAGE);
+  }
+
+  // **The person signing must be the person voting.**
+  //
+  // Nothing checked this before BankID login existed: the account was trusted,
+  // and the signature only had to be valid. So A could sign a ballot cast from
+  // B's account — with B's history, B's quota and B's name on the vote — and
+  // every check downstream would pass, because the signature really was genuine.
+  // The per-question pnrHash caught it only if A had already voted on that same
+  // question themselves.
+  //
+  // Now that an account carries its own BankID identity, this is one comparison.
+  const voter: any = await User.findById(verification.userId)
+    .select("bankidSubject")
+    .lean();
+  if (!voter) {
+    return reject("FAILED", "USER_GONE", SYSTEM_MESSAGE);
+  }
+  if (!voter.bankidSubject) {
+    // The account has no BankID identity to compare against. Unreachable
+    // through the app — requireParticipant refuses such an account long before
+    // a signature is paid for — so it means something has been bypassed.
+    log.error("A vote was signed for an account with no BankID identity", {
+      verificationId,
+      userId: verification.userId.toString(),
+    });
+    return reject("FAILED", "NO_ACCOUNT_SUBJECT", SYSTEM_MESSAGE);
+  }
+  try {
+    if (loginSubject(session.personalNumber) !== voter.bankidSubject) {
+      log.error("The signing identity does not match the voting account", {
+        verificationId,
+        userId: verification.userId.toString(),
+      });
+      return reject(
+        "REJECTED",
+        "SUBJECT_MISMATCH",
+        "Du kan bara rösta med det BankID som kontot är kopplat till.",
+      );
+    }
+  } catch (error) {
+    log.error("Could not derive the account subject at settle", {
+      verificationId,
+      error: error.message,
+    });
+    return reject("FAILED", "SUBJECT_FAILED", SYSTEM_MESSAGE);
   }
 
   // The question can close while the voter is signing. Writing the vote anyway
@@ -197,7 +245,10 @@ export async function settleVerification(
   let vote: any;
   try {
     vote = await QuestionVote.findOneAndUpdate(
-      { questionId: verification.questionId, userId: verification.userId },
+      {
+        questionId: verification.questionId,
+        userId: verification.userId,
+      },
       {
         choice: verification.choice,
         verifiedAt: new Date(),

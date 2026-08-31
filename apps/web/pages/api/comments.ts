@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth/[...nextauth]";
+import { requireParticipant } from "@/lib/viewer";
 import connectDB from "../../lib/mongodb";
 import { Comment, CommentRating } from "../../lib/models";
 import { getActiveSession, registerActiveUser } from "../../lib/session-helper";
@@ -74,11 +75,8 @@ export default async function handler(
   }
 
   if (req.method === "POST") {
-    const session = await getServerSession(req, res, authOptions);
-
-    if (!session) {
-      return res.status(401).json({ message: "You have to be logged in" });
-    }
+    const viewer = await requireParticipant(req, res);
+    if (!viewer) return;
 
     const { proposalId, text, type, sessionId } = req.body;
 
@@ -110,13 +108,13 @@ export default async function handler(
 
       const comment = await Comment.create({
         proposalId,
-        userId: session.user.id,
+        userId: viewer.userId,
         text,
         type: type || "neutral",
       });
 
       // Register user as active in session
-      await registerActiveUser(session.user.id, activeSession._id.toString());
+      await registerActiveUser(viewer.userId, activeSession._id.toString());
 
       // Broadcast new comment event (author identity removed for anonymity)
       await broadcaster.broadcast("new-comment", {

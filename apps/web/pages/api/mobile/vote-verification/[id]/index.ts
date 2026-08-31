@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import mongoose from "mongoose";
 import connectDB from "../../../../../lib/mongodb";
 import { QuestionVote, VoteVerification } from "../../../../../lib/models";
-import { verifyBearerToken } from "../../../../../lib/mobile-jwt";
+import { requireParticipant } from "../../../../../lib/viewer";
 import { createLogger } from "../../../../../lib/logger";
 import {
   MIN_POLL_INTERVAL_MS,
@@ -42,12 +42,10 @@ export default async function handler(
   if (req.method !== "GET")
     return res.status(405).json({ message: "Method not allowed" });
 
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+
+  const viewer = await requireParticipant(req, res);
+  if (!viewer) return;
 
   const { id } = req.query;
   if (typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id)) {
@@ -59,7 +57,7 @@ export default async function handler(
 
     const verification: any = await VoteVerification.findOne({
       _id: id,
-      userId: user.id,
+      userId: viewer.userId,
     });
     if (!verification) {
       return res.status(404).json({ message: "Verifieringen finns inte" });
@@ -80,7 +78,9 @@ export default async function handler(
         verification.lastPolledAt = new Date();
         await verification.save();
 
-        const session = await getBankIdSession(verification.grandIdSession);
+        const session = await getBankIdSession(verification.grandIdSession, {
+          service: "sign",
+        });
 
         if (session.state === "complete") {
           const result = await settleVerification(verification, session);

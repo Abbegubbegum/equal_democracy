@@ -146,7 +146,8 @@ export default function MedborgarforslagPage() {
                 }
                 className="inline-flex items-center gap-1.5 bg-accent-400 text-primary-800 font-extrabold text-sm px-4 py-2.5 rounded-btn hover:bg-accent-500 transition-colors"
               >
-                <Plus className="w-4 h-4" /> Nytt förslag
+                <Plus className="w-4 h-4" />{" "}
+                {session ? "Nytt förslag" : "Logga in för att skapa förslag"}
               </button>
               <select
                 value={filterCategory || ""}
@@ -205,7 +206,8 @@ export default function MedborgarforslagPage() {
                   }
                   className="inline-flex items-center gap-1.5 bg-accent-400 text-primary-800 font-extrabold text-sm px-5 py-2.5 rounded-btn hover:bg-accent-500"
                 >
-                  <Plus className="w-4 h-4" /> Nytt förslag
+                  <Plus className="w-4 h-4" />{" "}
+                  {session ? "Nytt förslag" : "Logga in för att skapa förslag"}
                 </button>
               </div>
             ) : (

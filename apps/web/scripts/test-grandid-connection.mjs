@@ -2,10 +2,17 @@
 /**
  * Diagnostic for the Svensk E-identitet (GrandID) BankID + SPAR integration.
  *
- *   node scripts/test-grandid-connection.mjs                 # sign + SPAR, the real flow
+ *   node scripts/test-grandid-connection.mjs                 # sign + SPAR — the voting flow
+ *   node scripts/test-grandid-connection.mjs --auth          # identify + SPAR — the login flow
  *   node scripts/test-grandid-connection.mjs --show-pnr --verbose
  *   node scripts/test-grandid-connection.mjs --service-key 7c8c   # a different service
  *   node scripts/test-grandid-connection.mjs --probe --csv certs/e-identitet.csv
+ *
+ * `--auth` is what qualifies GRANDID_AUTH_SERVICE_KEY for BankID login
+ * (docs/bankid-login-plan.md, stage 0). It answers the two questions no amount
+ * of reading can: does the authentication service return `funcId:
+ * Identification`, and does it return the SPAR block? Eligibility-at-login rests
+ * entirely on the second.
  *
  * Unlike scripts/test-swish-connection.mjs, this deliberately imports the real
  * lib/bankid modules instead of re-implementing the transport. Swish's risk was
@@ -34,6 +41,12 @@ const valueOf = (flag) => {
 };
 
 const PROBE = has("--probe");
+/**
+ * Which of our two services to exercise. Not cosmetic: it selects a different
+ * service key, and the service key is what decides whether BankID signs or
+ * identifies — see `GrandIdService` in lib/bankid/config.ts.
+ */
+const SERVICE = has("--auth") ? "auth" : "sign";
 const SHOW_PNR = has("--show-pnr");
 const VERBOSE = has("--verbose");
 
@@ -101,8 +114,15 @@ function describeError(error) {
   return error.message;
 }
 
-const SIGN_TEXT =
-  "Testverifiering av BankID för Vallentuna Framåt.\n\nIngen röst registreras.";
+const VISIBLE_TEXT = {
+  sign: "Testverifiering av BankID för Vallentuna Framåt.\n\nIngen röst registreras.",
+  // Displayed but not signed — an identification order agrees to nothing. Sent
+  // anyway so the BankID app names who is asking, as it will in the real flow.
+  auth: "Testinloggning till Vallentuna Framåt.",
+};
+
+/** What each service must produce for the transaction to mean what we asked for. */
+const EXPECTED_FUNC_ID = { sign: "Signing", auth: "Identification" };
 
 /**
  * The credentials file lists several service keys under the same name with no
@@ -144,12 +164,31 @@ function readCredentialsCsv(path) {
  */
 function resolveConfig() {
   const env = process.env.GRANDID_ENV || "test";
+  const keyVar =
+    SERVICE === "auth"
+      ? "GRANDID_AUTH_SERVICE_KEY"
+      : "GRANDID_SIGN_SERVICE_KEY";
   const config = {
     env,
+    service: SERVICE,
     baseUrl: baseUrlFor(env),
     apiKey: process.env.GRANDID_API_KEY,
-    serviceKey: process.env.GRANDID_SERVICE_KEY,
+    serviceKey: process.env[keyVar],
   };
+
+  if (!config.serviceKey && !valueOf("--service-key")) {
+    console.error(
+      fail(`\n  ✗ ${keyVar} is not set.`) +
+        dim(
+          SERVICE === "auth"
+            ? "\n    This is the authentication service used for BankID login. Run\n" +
+                "    `--probe --csv certs/e-identitet.csv` to find which key it is, or pass\n" +
+                "    `--service-key <fragment>` to try one without setting it.\n"
+            : "\n    This is the signing service used for votes.\n",
+        ),
+    );
+    process.exit(1);
+  }
 
   const override = valueOf("--service-key");
   if (!override) return config;
@@ -186,11 +225,11 @@ async function probe() {
     candidates = readCredentialsCsv(csvPath);
   } else {
     const apiKey = process.env.GRANDID_API_KEY;
-    const serviceKey = process.env.GRANDID_SERVICE_KEY;
+    const serviceKey = process.env.GRANDID_SIGN_SERVICE_KEY;
     if (!apiKey || !serviceKey) {
       console.error(
         fail(
-          "\n  ✗ No --csv given and GRANDID_API_KEY / GRANDID_SERVICE_KEY are not set.\n",
+          "\n  ✗ No --csv given and GRANDID_API_KEY / GRANDID_SIGN_SERVICE_KEY are not set.\n",
         ),
       );
       process.exit(1);
@@ -220,6 +259,11 @@ async function probe() {
     for (const env of ENVIRONMENTS) {
       const config = {
         env,
+        // Probing asks only whether a key is accepted at all, so it uses the
+        // signing shape (which requires userVisibleData) as the stricter test.
+        // Which capability a working key actually has is what a full --auth or
+        // default run reports, from the completed signature's funcId.
+        service: "sign",
         baseUrl: baseUrlFor(env),
         apiKey: candidate.apiKey,
         serviceKey: candidate.serviceKey,
@@ -228,11 +272,15 @@ async function probe() {
       try {
         const started = await startBankIdSession({
           config,
+          service: "sign",
           visibleText: "Anslutningstest — Vallentuna Framåt",
         });
         console.log(`    ${ok("✓")} ${env.padEnd(10)} accepted`);
         working.push({ ...candidate, env });
-        await cancelBankIdSession(started.sessionId, { config });
+        await cancelBankIdSession(started.sessionId, {
+          config,
+          service: SERVICE,
+        });
       } catch (error) {
         console.log(
           `    ${fail("✗")} ${env.padEnd(10)} ${dim(describeError(error))}`,
@@ -254,8 +302,16 @@ async function probe() {
     console.log(dim(`    # ${match.label} — ${match.env}`));
     console.log(`    GRANDID_ENV=${match.env}`);
     console.log(`    GRANDID_API_KEY=${match.apiKey}`);
-    console.log(`    GRANDID_SERVICE_KEY=${match.serviceKey}\n`);
+    console.log(`    GRANDID_SIGN_SERVICE_KEY=${match.serviceKey}\n`);
   }
+  console.log(
+    dim(
+      "  Acceptance does not say which capability a key has, and the two are not\n" +
+        "  interchangeable. Confirm each with a full run before trusting it:\n" +
+        "    GRANDID_SIGN_SERVICE_KEY       → default run, must report funcId Signing\n" +
+        "    GRANDID_AUTH_SERVICE_KEY  → --auth run, must report Identification + SPAR\n",
+    ),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -297,13 +353,20 @@ async function fullFlow() {
     `  serviceKey  : ${mask(config.serviceKey)}` +
       (valueOf("--service-key") ? dim("  (overridden)") : ""),
   );
-  console.log(`  flow        : sign via GrandID's hosted UI`);
+  console.log(
+    `  service     : ${SERVICE}  →  expecting funcId ${EXPECTED_FUNC_ID[SERVICE]}`,
+  );
+  console.log(
+    `  flow        : ${SERVICE === "auth" ? "identify" : "sign"} via GrandID's hosted UI`,
+  );
 
   const started = await startBankIdSession({
     config,
-    visibleText: SIGN_TEXT,
+    service: SERVICE,
+    visibleText: VISIBLE_TEXT[SERVICE],
     hiddenData: JSON.stringify({
       purpose: "connection-test",
+      service: SERVICE,
       at: new Date().toISOString(),
     }),
   });
@@ -317,7 +380,10 @@ async function fullFlow() {
   process.on("SIGINT", async () => {
     if (!settled) {
       console.log(dim("\n  cancelling the BankID order…"));
-      await cancelBankIdSession(started.sessionId, { config });
+      await cancelBankIdSession(started.sessionId, {
+        config,
+        service: SERVICE,
+      });
     }
     process.exit(130);
   });
@@ -327,7 +393,10 @@ async function fullFlow() {
 
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, MIN_POLL_INTERVAL_MS));
-    const session = await getBankIdSession(started.sessionId, { config });
+    const session = await getBankIdSession(started.sessionId, {
+      config,
+      service: SERVICE,
+    });
 
     // NOTLOGGEDIN is simply "not finished on the hosted page yet", and the user
     // needs time to open a browser and reach for a phone.
@@ -352,32 +421,44 @@ async function fullFlow() {
 
   settled = true;
   console.log(fail("\n  ✗ Gave up after 5 minutes.\n"));
-  await cancelBankIdSession(started.sessionId, { config });
+  await cancelBankIdSession(started.sessionId, { config, service: SERVICE });
   process.exit(1);
 }
 
 function report(session) {
-  console.log(`\n  ${ok("✓ signing complete")}\n`);
+  const expected = EXPECTED_FUNC_ID[SERVICE];
+  console.log(
+    `\n  ${ok(SERVICE === "auth" ? "✓ identification complete" : "✓ signing complete")}\n`,
+  );
   console.log(`  personalNumber : ${maskPnr(session.personalNumber)}`);
   console.log(`  name           : ${session.name || "(not returned)"}`);
 
   // What BankID actually ran, read from the signed XML. It follows from the
-  // service key, not from anything we sent: an authentication service accepts
-  // userVisibleData, shows the user "verifiering", and returns success. This is
-  // the only place that distinction is visible.
+  // service key, not from anything we sent: either service accepts
+  // userVisibleData and returns success. This is the only place that
+  // distinction is visible.
   const orderType = session.evidence.orderType;
   console.log(
     `  funcId         : ${orderType || "(unreadable)"}` +
-      (orderType === "Signing" ? ` ${ok("✓")}` : fail("  ✗ expected Signing")),
+      (orderType === expected
+        ? ` ${ok("✓")}`
+        : fail(`  ✗ expected ${expected}`)),
   );
-  if (orderType === "Identification") {
+  if (orderType && orderType !== expected) {
     console.log(
-      fail("\n  ⚠  This is an authentication service, not a signing one.") +
-        dim(
-          "\n     BankID identified the user but signed nothing, so nothing binds them\n" +
-            "     to the ballot text — and the API reported no error at all. The service\n" +
-            "     key decides this; point GRANDID_SERVICE_KEY at the signing service.",
-        ),
+      SERVICE === "sign"
+        ? fail("\n  ⚠  This is an authentication service, not a signing one.") +
+            dim(
+              "\n     BankID identified the user but signed nothing, so nothing binds them\n" +
+                "     to the ballot text — and the API reported no error at all. The service\n" +
+                "     key decides this; point GRANDID_SIGN_SERVICE_KEY at the signing service.",
+            )
+        : fail("\n  ⚠  This is a signing service, not an authentication one.") +
+            dim(
+              "\n     Logging in must not make anyone sign a document — they are agreeing\n" +
+                "     to nothing. Point GRANDID_AUTH_SERVICE_KEY at the authentication\n" +
+                "     service; the signing key belongs to GRANDID_SIGN_SERVICE_KEY.",
+            ),
     );
   }
 
@@ -412,12 +493,37 @@ function report(session) {
     );
   }
 
+  // The point of the --auth run. Eligibility-at-login (docs/bankid-login-plan.md
+  // §9) is only possible if the authentication service carries SPAR too — a
+  // successful identification without it would mean login can verify who someone
+  // is but not whether they may vote here.
+  if (SERVICE === "auth") {
+    const usable = spar && session.evidence.orderType === "Identification";
+    console.log(
+      `\n  ${bold("Verdict for BankID login")}: ` +
+        (usable
+          ? ok("this key can carry login and eligibility together")
+          : fail("not usable as GRANDID_AUTH_SERVICE_KEY")),
+    );
+    if (!spar) {
+      console.log(
+        dim(
+          "    Without SPAR, login could authenticate but not decide eligibility, and\n" +
+            "    the capability model would have nothing to set. Ask Svensk e-identitet to\n" +
+            "    attach the SPAR add-on to this service before building on it.",
+        ),
+      );
+    }
+  }
+
   // The whole response is saved, not just userAttributes — a fixture narrowed to
   // the field we already believe in cannot disprove that belief later.
   const fixturePath = join(tmpdir(), "grandid-getsession.json");
   const dump = rawSession
     ? JSON.parse(JSON.stringify(rawSession))
-    : { userAttributes: JSON.parse(JSON.stringify(session.userAttributes)) };
+    : {
+        userAttributes: JSON.parse(JSON.stringify(session.userAttributes)),
+      };
   const target = dump.userAttributes || dump;
   if (!SHOW_PNR && target.personalNumber) {
     target.personalNumber = maskPnr(String(target.personalNumber));

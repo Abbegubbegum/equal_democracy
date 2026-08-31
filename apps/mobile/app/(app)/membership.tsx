@@ -17,6 +17,7 @@ import SwishPaymentSheet from "../../lib/SwishPaymentSheet";
 import CelebrationModal from "../../lib/CelebrationModal";
 import { getMembership, type Membership } from "../../lib/swish";
 import { addStars } from "../../lib/stars";
+import { useAuth } from "../../lib/auth-context";
 
 const BLUE = "#002d75";
 const YELLOW = "#f5a623";
@@ -75,6 +76,7 @@ function paidUntilYear(paidUntil: string | null): string | null {
 export default function MembershipScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { capability, capabilityMessage } = useAuth();
   const [showQR, setShowQR] = React.useState(false);
   const [membership, setMembership] = React.useState<Membership | null>(null);
   const [showPayment, setShowPayment] = React.useState(false);
@@ -85,6 +87,10 @@ export default function MembershipScreen() {
   useFocusEffect(
     React.useCallback(() => {
       let active = true;
+      // Fetched for a signed-out visitor too — the endpoint is public and
+      // answers with the fee plus `status: "none"`, which is what keeps the
+      // price on screen and stops a previous account's membership lingering
+      // after logout.
       getMembership()
         .then((m) => active && setMembership(m))
         .catch(() => {
@@ -97,6 +103,12 @@ export default function MembershipScreen() {
   );
 
   const isMember = membership?.status === "active";
+  // Membership needs a verified identity and a way to reach the member, and the
+  // server refuses a payment without both (POST /api/mobile/payments/swish). So
+  // the button has to reflect that rather than invite a payment that will fail:
+  // anonymous gets a login prompt, and anyone else who is not a participant is
+  // told what is missing instead.
+  const canPay = capability === "participant";
   const memberUntil = paidUntilYear(membership?.paidUntil ?? null);
 
   const handlePaid = (paidUntil: string | null) => {
@@ -214,14 +226,53 @@ export default function MembershipScreen() {
             </Text>
           </View>
         ) : (
-          <TouchableOpacity
-            style={styles.payBtn}
-            activeOpacity={0.85}
-            onPress={() => setShowPayment(true)}
-          >
-            <Ionicons name="card-outline" size={20} color={BLUE} />
-            <Text style={styles.payBtnText}>Betala med Swish</Text>
-          </TouchableOpacity>
+          <>
+            {/* The button stays put whether or not you may use it: the fee and
+                what membership costs are part of what a visitor came to read,
+                and hiding the control makes the page look like it is missing
+                something rather than gated. */}
+            <TouchableOpacity
+              style={[styles.payBtn, !canPay && styles.payBtnDisabled]}
+              activeOpacity={0.85}
+              disabled={!canPay}
+              onPress={() => setShowPayment(true)}
+            >
+              <Ionicons
+                name="card-outline"
+                size={20}
+                color={canPay ? BLUE : "#9ca3af"}
+              />
+              <Text
+                style={[
+                  styles.payBtnText,
+                  !canPay && styles.payBtnTextDisabled,
+                ]}
+              >
+                Betala med Swish
+              </Text>
+            </TouchableOpacity>
+
+            {capability === "anonymous" ? (
+              <TouchableOpacity
+                style={styles.loginBtn}
+                activeOpacity={0.85}
+                onPress={() => router.push("/(auth)/login")}
+              >
+                <Ionicons name="log-in-outline" size={20} color="#fff" />
+                <Text style={styles.loginBtnText}>
+                  Logga in med BankID för att bli medlem
+                </Text>
+              </TouchableOpacity>
+            ) : !canPay ? (
+              <View style={styles.blockedNotice}>
+                <Ionicons name="information-circle" size={20} color="#92400e" />
+                <Text style={styles.blockedNoticeText}>
+                  {capabilityMessage ||
+                    "Ditt konto behöver verifieras med BankID innan du kan bli medlem."}
+                </Text>
+              </View>
+            ) : null}
+          </>
         )}
 
         <TouchableOpacity
@@ -437,6 +488,35 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   payBtnText: { color: BLUE, fontSize: 16, fontWeight: "800" },
+  payBtnDisabled: { backgroundColor: "#e5e7eb" },
+  payBtnTextDisabled: { color: "#9ca3af" },
+  loginBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: BLUE,
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginTop: 10,
+  },
+  loginBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  blockedNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#fef3c7",
+    borderColor: "#fcd34d",
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+  },
+  blockedNoticeText: {
+    flex: 1,
+    color: "#92400e",
+    fontSize: 13,
+    lineHeight: 19,
+  },
   memberBadge: {
     flexDirection: "row",
     alignItems: "center",

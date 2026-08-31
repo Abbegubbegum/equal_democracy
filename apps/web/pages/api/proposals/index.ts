@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
+import { requireParticipant } from "@/lib/viewer";
 import connectDB from "../../../lib/mongodb";
 import { Proposal, ProposalRating, Comment } from "../../../lib/models";
 import {
@@ -8,7 +9,6 @@ import {
   registerActiveUser,
 } from "../../../lib/session-helper";
 import { csrfProtection } from "../../../lib/csrf";
-import { hasAdminAccess } from "../../../lib/admin-helper";
 import { getRatingAggregates } from "../../../lib/rating-helper";
 import broadcaster from "../../../lib/pusher-broadcaster";
 import { createLogger } from "../../../lib/logger";
@@ -91,11 +91,8 @@ export default async function handler(
   }
 
   if (req.method === "POST") {
-    const session = await getServerSession(req, res, authOptions);
-
-    if (!session) {
-      return res.status(401).json({ message: "You have to be logged in" });
-    }
+    const viewer = await requireParticipant(req, res);
+    if (!viewer) return;
 
     const { title, problem, solution, sessionId } = req.body;
 
@@ -124,12 +121,12 @@ export default async function handler(
       // Admins are exempt to allow manual entry of paper proposals
       if (
         activeSession.maxOneProposalPerUser &&
-        !hasAdminAccess(session.user)
+        !(viewer.isAdmin || viewer.isSuperAdmin)
       ) {
         // Check if user already has a proposal in this session
         const userProposalCount = await Proposal.countDocuments({
           sessionId: activeSession._id,
-          authorId: session.user.id,
+          authorId: viewer.userId,
           status: { $in: ["active", "finalist"] },
         });
 
@@ -167,12 +164,12 @@ export default async function handler(
         title,
         problem,
         solution,
-        authorId: session.user.id,
+        authorId: viewer.userId,
         status: "active",
       });
 
       // Register user as active in session
-      await registerActiveUser(session.user.id, activeSession._id.toString());
+      await registerActiveUser(viewer.userId, activeSession._id.toString());
 
       // Broadcast new proposal event to all connected clients
       // Note: authorId removed for anonymity

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]";
 import connectDB from "../../../../lib/mongodb";
 import { BudgetSession, BudgetCategoryRating } from "../../../../lib/models";
+import { requireParticipant } from "@/lib/viewer";
 import { csrfProtection } from "../../../../lib/csrf";
 import { createLogger } from "@/lib/logger";
 
@@ -18,11 +19,9 @@ export default async function handler(
 ) {
   await connectDB();
 
+  // GET is public and simply reports no rating when signed out — the aggregate
+  // it sits beside is public too. POST gates itself below.
   const session = await getServerSession(req, res, authOptions);
-
-  if (!session) {
-    return res.status(401).json({ message: "You must be logged in" });
-  }
 
   if (req.method === "GET") {
     try {
@@ -33,11 +32,13 @@ export default async function handler(
           .json({ message: "sessionId and categoryId required" });
       }
 
-      const rating = await BudgetCategoryRating.findOne({
-        sessionId,
-        categoryId,
-        userId: session.user.id,
-      });
+      const rating = session?.user?.id
+        ? await BudgetCategoryRating.findOne({
+            sessionId,
+            categoryId,
+            userId: session.user.id,
+          })
+        : null;
 
       return res.status(200).json({
         userRating: rating ? rating.rating : null,
@@ -55,6 +56,8 @@ export default async function handler(
     if (!csrfProtection(req, res)) {
       return;
     }
+    const viewer = await requireParticipant(req, res);
+    if (!viewer) return;
 
     try {
       const { sessionId, categoryId, rating } = req.body;
@@ -86,7 +89,7 @@ export default async function handler(
       let existingRating = await BudgetCategoryRating.findOne({
         sessionId,
         categoryId,
-        userId: session.user.id,
+        userId: viewer.userId,
       });
 
       if (existingRating) {
@@ -96,7 +99,7 @@ export default async function handler(
         existingRating = new BudgetCategoryRating({
           sessionId,
           categoryId,
-          userId: session.user.id,
+          userId: viewer.userId,
           rating,
         });
         await existingRating.save();
@@ -117,7 +120,7 @@ export default async function handler(
       await budgetSession.save();
 
       log.info("Budget category rated", {
-        userId: session.user.id,
+        userId: viewer.userId,
         sessionId,
         categoryId,
         newRating: rating,

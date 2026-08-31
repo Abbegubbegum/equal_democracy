@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
@@ -39,10 +40,8 @@ export default function RostaPage() {
     message: string;
   } | null>(null);
 
-  useEffect(() => {
-    if (status === "loading") return;
-    if (!session) router.replace("/login");
-  }, [status, session, router]);
+  // Readable signed out: the question, the debate and the running tally are
+  // public. Voting and commenting refuse on their own, with a reason.
 
   const load = useCallback(async (preferredId?: string | null) => {
     // A ?q= param (e.g. from a municipal item's "Diskutera & Rösta" button)
@@ -82,10 +81,10 @@ export default function RostaPage() {
   }, []);
 
   useEffect(() => {
-    if (!session || !router.isReady) return;
+    if (!router.isReady) return;
     const q = typeof router.query.q === "string" ? router.query.q : null;
     load(q);
-  }, [session, router.isReady, router.query.q, load]);
+  }, [router.isReady, router.query.q, load]);
 
   /**
    * Picks up a signature GrandID has just returned the voter from.
@@ -97,7 +96,11 @@ export default function RostaPage() {
    * beat GrandID registering the signature by a second or two.
    */
   useEffect(() => {
-    if (!session || !router.isReady) return;
+    // `status`, not `session`: this genuinely does need an account — resolving
+    // your own signature is a participant-only endpoint — but NextAuth hands
+    // back a fresh session *object* on every revalidation, so depending on the
+    // object re-runs the effect for no reason. The string is stable.
+    if (status !== "authenticated" || !router.isReady) return;
     const grandidsession =
       typeof router.query.grandidsession === "string"
         ? router.query.grandidsession
@@ -156,7 +159,7 @@ export default function RostaPage() {
     // `load` is deliberately absent: this must run once per returned session,
     // not every time the question reloads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, router.isReady, router.query.grandidsession]);
+  }, [status, router.isReady, router.query.grandidsession]);
 
   const chooseAnother = () => {
     try {
@@ -167,12 +170,11 @@ export default function RostaPage() {
     router.push("/");
   };
 
-  if (status === "loading" || !session)
-    return <div className="p-8">Laddar…</div>;
+  if (status === "loading") return <div className="p-8">Laddar…</div>;
 
   const primaryColor = theme?.colors?.primary?.[600] || "#002d75";
   const primaryDark = theme?.colors?.primary?.[800] || "#001c55";
-  const isAdmin = !!(session.user?.isAdmin || session.user?.isSuperAdmin);
+  const isAdmin = !!(session?.user?.isAdmin || session?.user?.isSuperAdmin);
 
   return (
     <div className="min-h-screen bg-[#f7f8fb]">
@@ -269,7 +271,11 @@ export default function RostaPage() {
         ) : (
           <>
             <VoteCard question={question} onChooseAnother={chooseAnother} />
-            <DebateSection questionId={question.id} isAdmin={isAdmin} />
+            <DebateSection
+              questionId={question.id}
+              isAdmin={isAdmin}
+              canPost={!!session}
+            />
           </>
         )}
       </main>
@@ -314,10 +320,13 @@ function VoteCard({ question, onChooseAnother }) {
       const data = await res.json();
       if (!res.ok || !data.redirectUrl) {
         setError(data.message || "BankID kunde inte startas");
+        // Nothing is opening, so stop saying so. Leaving this set is what left
+        // "Öppnar BankID…" on screen underneath the refusal.
+        setSubmitting(false);
         return;
       }
-      // Leaves the page. Nothing after this runs, so `submitting` stays true —
-      // which is what we want while the browser is navigating away.
+      // Leaves the page. Nothing after this runs, so `submitting` stays true on
+      // the success path — which is what we want while the browser navigates.
       window.location.href = data.redirectUrl;
     } catch {
       setError("BankID kunde inte startas. Försök igen.");
@@ -458,13 +467,18 @@ function ResultBar({ label, pct, count, color, chosen }) {
   );
 }
 
-function DebateSection({ questionId, isAdmin }) {
+function DebateSection({ questionId, isAdmin, canPost }) {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
   const [type, setType] = useState("for");
   const [posting, setPosting] = useState(false);
   const [reviewing, setReviewing] = useState(false);
+  // A refusal from the server, kept apart from MAJ's moderation verdict. They
+  // are different things and used to be conflated: a 401 body has no `status`,
+  // so it fell through to the warn/flag branch and rendered "Logga in med
+  // BankID" above a "Publicera ändå" button.
+  const [blocked, setBlocked] = useState<string | null>(null);
   const [review, setReview] = useState<{
     corrected: string | null;
     concise: string | null;
@@ -528,6 +542,15 @@ function DebateSection({ questionId, isAdmin }) {
           stance: type,
         }),
       });
+      if (res.status === 401 || res.status === 403) {
+        const body = await res.json().catch(() => ({}));
+        setBlocked(
+          body.message || "Du kan inte skriva inlägg med det här kontot.",
+        );
+        return;
+      }
+      // Fail open only for a genuine service failure: MAJ's tips are a
+      // courtesy, and a Claude outage must not stop anyone posting.
       const data = res.ok
         ? await res.json()
         : { corrected: null, concise: null, duplicates: [] };
@@ -548,6 +571,13 @@ function DebateSection({ questionId, isAdmin }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: finalText.trim() }),
       });
+      if (res.status === 401 || res.status === 403) {
+        const body = await res.json().catch(() => ({}));
+        setBlocked(
+          body.message || "Du kan inte skriva inlägg med det här kontot.",
+        );
+        return;
+      }
       const result = await res.json();
       if (result.status === "ok") {
         await doPost(finalText);
@@ -580,6 +610,9 @@ function DebateSection({ questionId, isAdmin }) {
   };
 
   const rateComment = async (commentId, rating) => {
+    // Same reason the composer is hidden: the endpoint refuses, and a star that
+    // silently does nothing is worse than one that is not offered.
+    if (!canPost) return;
     try {
       const res = await fetchWithCsrf("/api/questions/comments/rate", {
         method: "POST",
@@ -611,8 +644,28 @@ function DebateSection({ questionId, isAdmin }) {
     <div className="bg-white rounded-card border border-black/5 shadow-[0_10px_30px_-22px_rgba(0,20,64,0.5)] p-5">
       <h2 className="text-lg font-extrabold text-gray-800 mb-3">Debatt</h2>
 
-      {/* Composer */}
-      <div className="mb-5">
+      {blocked ? (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm text-amber-900">{blocked}</p>
+        </div>
+      ) : null}
+
+      {/* Composer — only for someone who can actually post. */}
+      {!canPost ? (
+        <div className="mb-5 rounded-xl border border-primary-200 bg-primary-50 p-4">
+          <p className="text-sm text-primary-900">
+            Du kan läsa debatten utan konto. Logga in med BankID för att skriva
+            inlägg och betygsätta andras.
+          </p>
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-1.5 mt-3 bg-accent-400 text-primary-800 font-extrabold text-sm px-4 py-2 rounded-btn hover:bg-accent-500 transition-colors"
+          >
+            Logga in med BankID
+          </Link>
+        </div>
+      ) : null}
+      <div className={canPost ? "mb-5" : "hidden"}>
         <div className="flex gap-2 mb-2">
           {(["for", "against", "neutral"] as const).map((t) => (
             <button

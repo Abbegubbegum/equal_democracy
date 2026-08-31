@@ -1,8 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import { WinningProposal, Session } from "@/lib/models";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "./auth/[...nextauth]";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("WinningProposals");
@@ -17,10 +15,8 @@ export default async function handler(
 ) {
   await dbConnect();
 
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+  // Public: a closed session's result is the part of this platform most worth
+  // being able to link to without an account.
 
   if (req.method === "GET") {
     try {

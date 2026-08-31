@@ -53,6 +53,15 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /**
+     * The parsed response body.
+     *
+     * Some failures are structured rather than fatal — a 409 from
+     * /api/mobile/user/email carries `code: "MERGE_AVAILABLE"`, which the caller
+     * turns into an offer rather than an error message. Losing the body would
+     * mean re-requesting to find out what kind of "no" it was.
+     */
+    public body: Record<string, any> = {},
   ) {
     super(message);
     this.name = "ApiError";
@@ -87,9 +96,15 @@ export async function apiClient<T = unknown>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    // Routes are split between `message` and `error` for the human-readable
+    // string — the /user/* ones use `error`, most others use `message`. Reading
+    // only one of them threw away real Swedish copy ("Ogiltigt telefonnummer",
+    // "Den e-postadressen används redan") and showed "Request failed: 409"
+    // instead.
     throw new ApiError(
       res.status,
-      body.message ?? `Request failed: ${res.status}`,
+      body.message ?? body.error ?? `Request failed: ${res.status}`,
+      body,
     );
   }
 

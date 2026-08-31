@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { verifyBearerToken } from "@/lib/mobile-jwt";
+import { requireParticipant } from "@/lib/viewer";
 import { runMajReview } from "@/lib/maj-review";
 import { createLogger } from "@/lib/logger";
 
@@ -17,11 +17,8 @@ export default async function handler(
   if (req.method !== "POST")
     return res.status(405).json({ message: "Method not allowed" });
 
-  try {
-    verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  const viewer = await requireParticipant(req, res);
+  if (!viewer) return;
 
   const { text, kind, title, questionId, stance } = req.body;
   if (!text || typeof text !== "string" || !text.trim()) {

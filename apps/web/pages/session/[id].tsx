@@ -497,15 +497,12 @@ export default function SessionPage() {
     },
   });
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    }
-  }, [status, router]);
+  // No redirect. A live session is readable signed out — proposals, the debate
+  // and the vote counts are public — and every action inside it gates itself.
 
   // Load data when sessionId is available
   useEffect(() => {
-    if (session && sessionId) {
+    if (sessionId) {
       fetchProposals();
       fetchSessionInfo();
       checkUserVote();
@@ -661,10 +658,6 @@ export default function SessionPage() {
     );
   }
 
-  if (!session) {
-    return null;
-  }
-
   // Phase transition modal
   if (showPhaseTransition) {
     return (
@@ -798,7 +791,7 @@ export default function SessionPage() {
     return (
       <VoteView
         proposals={topProposals}
-        currentUser={session.user}
+        currentUser={session?.user ?? null}
         onVote={handleFinalVote}
         onBack={() => {
           setView("home");
@@ -865,12 +858,14 @@ export default function SessionPage() {
                   {t("appName")}
                 </h1>
                 <p className="text-primary-100 text-xs sm:text-sm wrap-break-word">
-                  {t("auth.hello")}, {session.user.name}!
+                  {session
+                    ? `${t("auth.hello")}, ${session?.user?.name}!`
+                    : "Du läser som besökare — logga in med BankID för att delta."}
                 </p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm">
-              {session.user.isSuperAdmin && (
+              {session?.user?.isSuperAdmin && (
                 <>
                   <button
                     onClick={() => router.push("/admin")}
@@ -886,7 +881,7 @@ export default function SessionPage() {
                   </button>
                 </>
               )}
-              {session.user.isAdmin && !session.user.isSuperAdmin && (
+              {session?.user?.isAdmin && !session?.user?.isSuperAdmin && (
                 <button
                   onClick={() => router.push("/manage-sessions")}
                   className="text-white hover:text-accent-400 font-medium whitespace-nowrap"

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
+import { requireParticipant } from "@/lib/viewer";
 import connectDB from "../../../lib/mongodb";
 import {
   User,
@@ -126,13 +127,12 @@ export default async function handler(
 
   // POST - Create new citizen proposal (requires auth)
   if (req.method === "POST") {
-    if (!session) {
-      return res.status(401).json({ message: "You must be logged in" });
-    }
-
     if (!csrfProtection(req, res)) {
       return;
     }
+
+    const viewer = await requireParticipant(req, res);
+    if (!viewer) return;
 
     try {
       const { title, description, categories } = req.body;
@@ -172,7 +172,7 @@ export default async function handler(
         }
       }
 
-      const user = await User.findById(session.user.id);
+      const user = await User.findById(viewer.userId);
 
       if (!user) {
         return res.status(404).json({ message: "User not found" });

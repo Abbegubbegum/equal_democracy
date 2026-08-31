@@ -108,10 +108,7 @@ export default function BudgetVotingPage() {
 
   useEffect(() => {
     if (status === "loading") return;
-    if (!session) {
-      router.replace("/login");
-      return;
-    }
+    // Public: readable without an account, like the rest of the consumer app.
     if (sessionId) {
       fetchBudgetSession();
       fetchExistingVote();

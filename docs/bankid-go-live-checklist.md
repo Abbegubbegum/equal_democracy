@@ -24,7 +24,7 @@ discovering it mid-rollout.
 
 ## 2. Environment
 
-- [ ] `GRANDID_ENV=production`, `GRANDID_API_KEY`, `GRANDID_SERVICE_KEY` set in
+- [ ] `GRANDID_ENV=production`, `GRANDID_API_KEY`, `GRANDID_SIGN_SERVICE_KEY` set in
       Vercel **Production scope only**. The service key must be the signing one
       (`…69dc`); the other is an authentication service and would silently
       produce `Identification` transactions that bind nobody to a ballot.
@@ -46,7 +46,7 @@ These are the items most likely to be forgotten, and the most damaging to miss.
 
 - [x] **`docs/app-store-privacy-disclosure.md`** updated: the false "we do NOT
       collect personnummer" line is gone, the inventory gains the three BankID
-      rows, Apple gains **Identifiers → Government ID** and Play gains
+      rows, Apple gains **Other Data** (there is no Government ID type) and Play gains
       **Personal info → Other personal info**.
 - [ ] **Transcribe those answers into the store consoles.** The document is only
       the source of truth; Apple's App Privacy and Play's Data safety forms are
@@ -108,7 +108,7 @@ Note the web needed none of this: it has no installed clients, so
 - [ ] Watch for `RUNTIME_MISMATCH`. It means a verification started by a
       development server reached the deployment — most likely someone running
       `pnpm dev:web:live` against production data.
-- [ ] Watch for `NOT_SIGNED`. It means `GRANDID_SERVICE_KEY` is pointing at the
+- [ ] Watch for `NOT_SIGNED`. It means `GRANDID_SIGN_SERVICE_KEY` is pointing at the
       authentication service.
 - [ ] Check that closing a question anonymises its votes: `userId` and `pnrHash`
       unset, `VoteVerification` rows for it gone.

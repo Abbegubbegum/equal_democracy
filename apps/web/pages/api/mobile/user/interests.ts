@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../../lib/mongodb";
 import { User } from "../../../../lib/models";
-import { verifyBearerToken } from "../../../../lib/mobile-jwt";
+import { requireAccount } from "../../../../lib/viewer";
 import { ALL_CATEGORIES } from "@repo/types";
 
 export default async function handler(
@@ -10,12 +10,8 @@ export default async function handler(
 ) {
   if (req.method !== "POST") return res.status(405).end();
 
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+  const viewer = await requireAccount(req, res);
+  if (!viewer) return;
 
   const { interests } = req.body as { interests?: unknown };
   if (!Array.isArray(interests))
@@ -28,7 +24,7 @@ export default async function handler(
   );
 
   await connectDB();
-  await User.findByIdAndUpdate(user.id, { interests: valid });
+  await User.findByIdAndUpdate(viewer.userId, { interests: valid });
 
   return res.status(200).json({ ok: true });
 }

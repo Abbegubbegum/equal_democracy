@@ -184,6 +184,9 @@ export default function HomeScreen() {
         ListHeaderComponent={
           <View style={styles.feedHeader}>
             <Text style={styles.feedTitle}>Välj en fråga att rösta på</Text>
+            {/* Only for someone who has a quota to spend. The endpoint returns
+                null for a signed-out visitor, so this does not render for them
+                — "0 av 5" read as an invitation they cannot accept. */}
             {quota && (
               <Text style={styles.quotaLine}>
                 {quota.limit - quota.used} av {quota.limit} röster kvar
@@ -232,14 +235,11 @@ const styles = StyleSheet.create({
     gap: 4,
     marginBottom: CARD_GAP,
   },
+  quotaLine: { color: "#9aa4b2", fontSize: 13, fontWeight: "600" },
   feedTitle: {
     color: "#fff",
     fontSize: 20,
     fontWeight: "800",
-  },
-  quotaLine: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 13,
   },
 
   card: {
@@ -259,15 +259,22 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 20,
     paddingTop: 44,
-    backgroundColor: "rgba(0,0,0,0.58)",
   },
+  // No dark panel behind the text anymore — legibility comes from the text
+  // shadow below instead, so the image stays visible all the way to the edge.
   cardQuestion: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "800",
     lineHeight: 25,
     marginBottom: 14,
+    textShadowColor: "rgba(0,0,0,0.75)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 8,
   },
+  // Same idea for the button: a dark drop shadow (+ a hairline dark outline
+  // for the case the image behind it is itself pale amber/yellow) instead of
+  // sitting on a dark field, so it still pops against a bright photo.
   väljBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -277,6 +284,13 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     borderRadius: 12,
     gap: 8,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.15)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 6,
   },
   väljText: { color: BLUE, fontSize: 15, fontWeight: "800" },
 

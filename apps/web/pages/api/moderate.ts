@@ -1,7 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { moderateContent } from "@/lib/ai";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "./auth/[...nextauth]";
+import { requireParticipant } from "@/lib/viewer";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("moderate");
@@ -12,8 +11,8 @@ export default async function handler(
 ) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
+  const viewer = await requireParticipant(req, res);
+  if (!viewer) return;
 
   const { text } = req.body;
   if (!text || typeof text !== "string" || !text.trim()) {

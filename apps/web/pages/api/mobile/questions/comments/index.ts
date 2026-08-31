@@ -6,7 +6,8 @@ import {
   QuestionCommentRating,
 } from "../../../../../lib/models";
 import { getRatingAggregates } from "../../../../../lib/rating-helper";
-import { verifyBearerToken } from "../../../../../lib/mobile-jwt";
+import { optionalBearerToken } from "../../../../../lib/mobile-jwt";
+import { requireParticipant } from "../../../../../lib/viewer";
 import { createLogger } from "../../../../../lib/logger";
 
 const log = createLogger("MobileQuestionComments");
@@ -19,12 +20,9 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  // The debate is readable signed out. Posting is not — see requireParticipant
+  // in the POST branch, which decides from the database rather than the token.
+  const user = optionalBearerToken(req.headers.authorization);
 
   await connectDB();
 
@@ -43,15 +41,20 @@ export default async function handler(
       // debate section.
       const [ratings, userRatings] = await Promise.all([
         getRatingAggregates(QuestionCommentRating, "commentId", commentIds),
-        QuestionCommentRating.find({
-          commentId: { $in: commentIds },
-          userId: user.id,
-        })
-          .select("commentId rating")
-          .lean(),
+        user
+          ? QuestionCommentRating.find({
+              commentId: { $in: commentIds },
+              userId: user.id,
+            })
+              .select("commentId rating")
+              .lean()
+          : [],
       ]);
       const userRatingByComment = new Map(
-        userRatings.map((r) => [r.commentId.toString(), r.rating]),
+        userRatings.map((r): [string, number] => [
+          r.commentId.toString(),
+          r.rating,
+        ]),
       );
 
       const result = comments
@@ -63,7 +66,7 @@ export default async function handler(
             type: c.type || "neutral",
             averageRating: agg?.averageRating || 0,
             createdAt: c.createdAt,
-            isOwn: c.userId.toString() === user.id,
+            isOwn: !!user && c.userId.toString() === user.id,
             userRating: userRatingByComment.get(c._id.toString()) ?? 0,
           };
         })
@@ -83,6 +86,9 @@ export default async function handler(
   }
 
   if (req.method === "POST") {
+    const viewer = await requireParticipant(req, res);
+    if (!viewer) return;
+
     const { questionId, text, type } = req.body;
     if (!questionId || !text)
       return res.status(400).json({ message: "questionId och text krävs" });
@@ -108,7 +114,7 @@ export default async function handler(
 
       const comment = await QuestionComment.create({
         questionId,
-        userId: user.id,
+        userId: viewer.userId,
         text,
         type: type || "neutral",
       });

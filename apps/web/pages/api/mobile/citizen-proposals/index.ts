@@ -8,7 +8,8 @@ import connectDB from "../../../../lib/mongodb";
 import { CitizenProposal, CitizenProposalRating } from "../../../../lib/models";
 import { getRatingAggregates } from "../../../../lib/rating-helper";
 import { rankActiveProposals } from "../../../../lib/forslag-ranking";
-import { verifyBearerToken } from "../../../../lib/mobile-jwt";
+import { optionalBearerToken } from "../../../../lib/mobile-jwt";
+import { requireParticipant } from "../../../../lib/viewer";
 import { ALL_CATEGORIES } from "@repo/types";
 import { createLogger } from "../../../../lib/logger";
 
@@ -20,21 +21,22 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  // GET is public — the Förslag stack is readable signed out. POST re-resolves
+  // the caller through requireParticipant below, which consults the database
+  // rather than the token, so a restricted or BankID-less account cannot submit.
+  const user = optionalBearerToken(req.headers.authorization);
 
   await connectDB();
 
   const CITIZEN_PROPOSAL_LIMIT = 1;
 
   if (req.method === "POST") {
-    if (!user.isAdmin) {
+    const viewer = await requireParticipant(req, res);
+    if (!viewer) return;
+
+    if (!viewer.isAdmin) {
       const existing = await CitizenProposal.countDocuments({
-        authorId: user.id,
+        authorId: viewer.userId,
       });
       if (existing >= CITIZEN_PROPOSAL_LIMIT) {
         return res.status(403).json({
@@ -110,7 +112,7 @@ export default async function handler(
         title: title.trim(),
         description: description.trim(),
         categories,
-        authorId: user.id,
+        authorId: viewer.userId,
         status: "active",
         ...(imageUrl && { imageUrl }),
       });
@@ -145,16 +147,22 @@ export default async function handler(
     const proposalIds = proposals.map((p) => p._id);
     const [ratings, userRatings, ownCount] = await Promise.all([
       getRatingAggregates(CitizenProposalRating, "proposalId", proposalIds),
-      CitizenProposalRating.find({
-        proposalId: { $in: proposalIds },
-        userId: user.id,
-      }).lean(),
-      CitizenProposal.countDocuments({ authorId: user.id }),
+      user
+        ? CitizenProposalRating.find({
+            proposalId: { $in: proposalIds },
+            userId: user.id,
+          }).lean()
+        : [],
+      user ? CitizenProposal.countDocuments({ authorId: user.id }) : 0,
     ]);
     const userRatingMap = Object.fromEntries(
       userRatings.map((r) => [r.proposalId.toString(), r.rating]),
     );
-    const canSubmit = user.isAdmin || ownCount < CITIZEN_PROPOSAL_LIMIT;
+    // Advisory: it hides the submit button rather than granting anything. The
+    // POST path re-checks against the database, so a stale `true` here costs a
+    // rejected request, never a proposal that should not exist.
+    const canSubmit =
+      !!user && (user.isAdmin || ownCount < CITIZEN_PROPOSAL_LIMIT);
 
     const sortedProposals = rankActiveProposals(
       proposals as any[],

@@ -62,14 +62,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   age, protected identity and samordningsnummer still reject — and three code-level guards keep it
   off every deployment.
 
+- **BankID login, and the end of email accounts.** BankID is now the only way to create or open
+  an account. The login screen offers nothing else on either surface: an email button could not
+  lead anywhere different — someone without BankID loses account access either way, and someone
+  with it authenticates with BankID regardless — so it only added a second door onto the same room.
+  Login runs the _authentication_ service (`funcId: Identification`), never the signing one:
+  logging in is not agreeing to anything, and the service key rather than the request decides which
+  of the two BankID actually ran.
+- **The whole app is readable without an account.** Questions, tallies, debates, proposals, budgets
+  and council agendas are public on both surfaces; only acting needs an account. Store reviewers
+  can therefore see everything without a Swedish BankID.
+- **A capability model replaces "is there a session?".** A signed-in user can now be exactly as
+  unable to act as an anonymous one, so every consumer route resolves one of four states —
+  `anonymous`, `needs_bankid`, `restricted`, `participant` — and only the last may vote, comment,
+  rate or propose. Capability is always read from the database, never from the token: access tokens
+  live seven days, so a cached one would leave someone who just linked BankID blocked for a week.
+  `isAdmin` is orthogonal — an admin who is not folkbokförd in Vallentuna can still manage
+  questions and still cannot vote in them.
+- **Eligibility is decided at login** and cached on the account, so an ineligible person is told
+  why on the login screen instead of discovering it after paying for a signature. It is never
+  authoritative at vote time — `settleVerification` re-checks against the SPAR block that arrives
+  with the signature, because a cached verdict goes stale in exactly the way that matters: someone
+  moves out of Vallentuna and keeps voting for the rest of their session.
+- **The signing identity must match the voting account.** Nothing checked this before: the account
+  was trusted and the signature only had to be valid, so A could sign a ballot cast from B's
+  account and every check downstream passed. Now that an account carries a BankID identity, it is
+  one comparison.
+- **A link gate for accounts that predate BankID.** A legacy email account keeps its session and is
+  blocked at startup with two ways out: link BankID, or log out to anonymous browsing. It blocks
+  the account, never the app.
+- **Claiming an old account by email.** Asked once right after BankID creates an account, and
+  available from the settings sheet whenever a typed address turns out to belong to a legacy
+  account. A six-digit code proves the mailbox, then the old account's votes, proposals and
+  membership move across. Only a legacy, email-only account can be claimed — an address on another
+  BankID account, or already on this one, is refused before a code is sent.
+- **Email is now a contact field, not a credential** — optional, unverified and removable, exactly
+  like the phone number. That is what keeps offering both a BankID login and an email address on
+  one account clear of BankID's ID-växling rule, which forbids using a BankID identification to
+  issue or use any other electronic identity. Merging is verified while the plain field is not,
+  because absorbing an account has to prove the mailbox and storing a contact address does not.
+- Membership requires a verified identity and a way to reach the member: BankID, an email address
+  and a phone number, enforced server-side as well as in the UI.
+- `scripts/bankid-login-migration.js` — index surgery and the `authMethod` backfill, dry-run by
+  default. It also reports how many accounts are reachable only by email, which is the number that
+  decides when email login can be switched off.
+
 ### Changed
 
 - `/legal` now describes what BankID signing does: what is signed, what SPAR is asked, that no SPAR
   data is retained, what the per-question code can and cannot do, and that votes are anonymised
   when a question closes.
-- The store privacy disclosure no longer claims we do not collect personnummer. Apple gains
-  Identifiers → Government ID, Google Play gains Personal info → Other personal info. **Both store
-  consoles still need the answers transcribed by hand.**
+- The store privacy disclosure no longer claims we do not collect personnummer, and was checked
+  against Apple's real data-type list: there is no "Government ID" type, so the personnummer is
+  declared under **Other Data**, and the two hashes derived from it under **Identifiers → User ID**.
+  Membership makes **Sensitive Info → political opinion** unavoidable on Apple and **Personal info →
+  Political or religious beliefs** on Play. Financial Info is "No" throughout — Swish is entered
+  outside the app, so the fee record is **Purchases** and the paying number is Contact Info.
+  **Both store consoles still need the answers transcribed by hand.**
+- The email OTP flow no longer creates accounts, and refuses any account that has BankID. It
+  survives only so a legacy account can be signed into once, from an app build old enough to still
+  offer the form, and reach the link gate. `/api/auth/request-code` silently declines to send to an
+  unknown address or a BankID account — the response is unchanged either way, so it still reveals
+  nothing about who is registered.
+- A display name from BankID is the first name and surname, not every registered given name.
+  Structured attributes are preferred where GrandID sends them; the fallback keeps nobiliary
+  particles attached, so "Anna Maria von Sydow" becomes "Anna von Sydow" rather than "Anna Sydow".
+- Settings save on change rather than behind a "Spara" button, and the sheet lifts its own content
+  above the keyboard instead of sliding the whole modal up off the screen behind it.
+- The **Hem** feed is a windowed `FlatList` rather than a `ScrollView`, so card images load as
+  they come into view instead of starting one download per active question at once.
+- React Compiler lint rules `react-hooks/immutability` and `react-hooks/refs` are enforced as
+  errors again after the code they flagged was fixed.
 
 ### Fixed
 
@@ -83,26 +146,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   question the **Hem** tab just handed it. Both screens share an in-memory cache and revalidate
   behind the rendered screen instead of behind a full-screen loading state.
 - Account deletion gaps closed, and what the app stores is now documented; added `robots.txt`.
+- **`User.email` and `User.bankidSubject` are partial indexes, not sparse ones.** A sparse unique
+  index skips documents where the field is _missing_, not where it is explicitly `null` — and both
+  fields default to `null`. Either would have accepted the first account without an email or a
+  BankID and rejected the second, i.e. failed at the second signup rather than the first. The
+  migration drops the old indexes first, because Mongoose only ever adds indexes and never replaces
+  them.
+- Polled endpoints send `Cache-Control: no-store`. Next.js puts an ETag on API responses by
+  default, so a client polling a BankID order got 304s — either a body-less response or, worse, the
+  platform HTTP cache transparently replaying the previous answer — and never saw the order settle.
+- A BankID order is no longer cancelled when the component that started it unmounts. Opening the
+  hosted page backgrounds the app, and any remount in that window killed an order the user was
+  still signing. Cancelling is now a button.
+- Duplicate requests on `/rosta`. NextAuth hands back a fresh session _object_ on every
+  revalidation, so `session` in an effect's dependency array re-ran the whole load for an identity
+  change. Effects that need auth depend on the `status` string instead.
+- Merging into an account no longer reverts it. The surviving account was read before the merge and
+  written back after, silently undoing the membership, admin flags and contact details the merge
+  had just moved across.
 - Long citizen proposals are readable again. On mobile the text card is height-capped and scrolls
   internally (with a white custom indicator — the native one is dark and uncolourable on Android),
   instead of a long title being clipped and an expanded description spilling off both ends of the
   screen. On the web listing, the card body clears the rank badge it used to collide with, and the
   two-line description now has a "Läs mer" toggle that appears only when text is actually hidden.
 
-### Changed
-
-- The **Hem** feed is a windowed `FlatList` rather than a `ScrollView`, so card images load as
-  they come into view instead of starting one download per active question at once.
-- React Compiler lint rules `react-hooks/immutability` and `react-hooks/refs` are enforced as
-  errors again after the code they flagged was fixed.
-
 ### Removed
 
 - `output: "standalone"` from the Next config (a self-hosted setting Vercel ignores) and the
   unused `pdf-parse` dependency.
+- `/api/debug-user`, an unreferenced endpoint whose POST granted superadmin to two hardcoded email
+  addresses. Harmless-ish while email was a credential nobody could change; a privilege-escalation
+  path the moment email became a user-editable contact field.
+- "Bli admin" and the vote-quota line from the web home page.
+
+### Infrastructure
+
+- Two new environment variables, both **production-scope and required**:
+  `GRANDID_AUTH_SERVICE_KEY` (the authentication service — login; the signing key was renamed to
+  `GRANDID_SIGN_SERVICE_KEY`) and `LOGIN_ID_PEPPER`, which salts the BankID account identity.
+  Like `VOTE_ID_PEPPER`, `LOGIN_ID_PEPPER` can **never be rotated** — rotating it orphans every
+  account on the platform. Both are declared in `turbo.json`'s `env[]`, without which a changed
+  value can serve a stale cached build.
+- `scripts/bankid-login-migration.js` must run against production before the deploy, and it is not
+  optional: the old unique index on `email` rejects the second account created without one.
 
 ### Docs
 
+- [docs/bankid-login-plan.md](docs/bankid-login-plan.md) — the ID-växling rule that shapes the whole
+  design, the capability model, the two merge paths and why one is verified and the other is not,
+  and the release sequencing against app builds already on phones.
 - `PRODUCTION_READINESS.md` rewritten as [SCALING.md](SCALING.md) — where the app stops working
   as it grows, with headroom measured against the production database rather than estimated.
 - Line endings pinned to LF via `.gitattributes`, so `pnpm format` no longer rewrites every file

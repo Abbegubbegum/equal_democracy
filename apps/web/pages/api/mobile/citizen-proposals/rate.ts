@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "../../../../lib/mongodb";
 import { CitizenProposalRating } from "../../../../lib/models";
-import { verifyBearerToken } from "../../../../lib/mobile-jwt";
+import { requireParticipant } from "../../../../lib/viewer";
 import { createLogger } from "../../../../lib/logger";
 
 const log = createLogger("MobileCitizenRate");
@@ -13,12 +13,8 @@ export default async function handler(
   if (req.method !== "POST")
     return res.status(405).json({ message: "Method not allowed" });
 
-  let user;
-  try {
-    user = verifyBearerToken(req.headers.authorization);
-  } catch {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  const viewer = await requireParticipant(req, res);
+  if (!viewer) return;
 
   const { proposalId, rating } = req.body;
   if (!proposalId)
@@ -31,7 +27,7 @@ export default async function handler(
 
     const existing = await CitizenProposalRating.findOne({
       proposalId,
-      userId: user.id,
+      userId: viewer.userId,
     });
     if (existing) {
       existing.rating = rating;
@@ -39,7 +35,7 @@ export default async function handler(
     } else {
       await CitizenProposalRating.create({
         proposalId,
-        userId: user.id,
+        userId: viewer.userId,
         rating,
       });
     }
