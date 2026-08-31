@@ -43,8 +43,21 @@ export default async function handler(
         .json({ error: "Subject and message are required" });
     }
 
-    // Get all users
-    const users = await User.find({});
+    // Everyone who has an address and has not opted out.
+    //
+    // Two filters, both load-bearing. `emailOptOut` was previously ignored here
+    // — the query was `User.find({})` — so a broadcast reached people who had
+    // explicitly unsubscribed, which is what /api/unsubscribe promises it stops.
+    // `lib/municipal/notifications.ts` has always honoured the flag; this route
+    // is the free-text one an admin composes, so it is the one that most needed
+    // to.
+    //
+    // The `email` filter is newer: a BankID account need not have an address at
+    // all, and sending to `undefined` fails once per user, per broadcast.
+    const users = await User.find({
+      emailOptOut: { $ne: true },
+      email: { $nin: [null, ""] },
+    });
 
     // Send email to each user
     let successCount = 0;

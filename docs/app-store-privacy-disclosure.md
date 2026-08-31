@@ -81,23 +81,55 @@ Checked against Apple's actual data-type list (App Store Connect, 2026-08-27). *
 this document previously named do not exist** — there is no "Government ID" under Identifiers and
 no "Purchase History" under Financial Info. The mapping below uses only real types.
 
-Choose "Data Linked to You" for everything except Usage Data and Diagnostics.
+Apple asks four things per data type: **is it collected**, **is it linked to the user's
+identity**, **is it used for tracking**, and **what purposes**. Every row below is Collected: Yes
+and **Tracking: No** — do not enable "Used to Track You" anywhere. The other two are per row.
 
-| Apple category | Type                | Collected | What it is here                                                             |
-| -------------- | ------------------- | --------- | --------------------------------------------------------------------------- |
-| Contact Info   | Name                | **Yes**   | `User.name`, first name + surname from BankID                               |
-| Contact Info   | Email Address       | **Yes**   | `User.email` — optional contact, not a credential                           |
-| Contact Info   | Phone Number        | **Yes**   | `User.phoneNumber`, and `Payment.payerAlias` (the paying number)            |
-| Sensitive Info | —                   | **Yes**   | **Political opinion**: party membership, and votes while a question is open |
-| User Content   | Photos or Videos    | **Yes**   | Images attached to citizen proposals                                        |
-| User Content   | Other User Content  | **Yes**   | Votes, proposals, comments, ratings                                         |
-| Identifiers    | User ID             | **Yes**   | `User._id`, and `User.bankidSubject` — an account-level ID                  |
-| Identifiers    | Device ID           | **Yes**   | `User.expoPushToken` is a device-level identifier                           |
-| Purchases      | —                   | **Yes**   | Membership fee: amount, date, reference                                     |
-| Usage Data     | Product Interaction | **Yes**   | Analytics — **Not Linked to You**                                           |
-| Diagnostics    | Crash Data          | **Yes**   | **Not Linked to You**                                                       |
-| Diagnostics    | Performance Data    | **Yes**   | **Not Linked to You**                                                       |
-| **Other Data** | —                   | **Yes**   | **The personnummer** — see below                                            |
+Purposes come from Apple's fixed list: Third-Party Advertising · Developer's Advertising or
+Marketing · Analytics · Product Personalization · App Functionality · Other Purposes.
+**Third-Party Advertising and Other Purposes are never selected, for any type.**
+
+| Apple category | Type                | Linked to user | Purposes                                        | What it is here                                             |
+| -------------- | ------------------- | -------------- | ----------------------------------------------- | ----------------------------------------------------------- |
+| Contact Info   | Name                | **Linked**     | App Functionality                               | `User.name`, first name + surname from BankID               |
+| Contact Info   | Email Address       | **Linked**     | App Functionality · **Developer's Marketing**   | `User.email` — optional contact, not a credential           |
+| Contact Info   | Phone Number        | **Linked**     | App Functionality                               | `User.phoneNumber`, and `Payment.payerAlias`                |
+| Sensitive Info | (political opinion) | **Linked**     | App Functionality                               | Party membership; votes while a question is open            |
+| User Content   | Photos or Videos    | **Linked**     | App Functionality                               | Images attached to citizen proposals                        |
+| User Content   | Other User Content  | **Linked**     | App Functionality · **Product Personalization** | Votes, proposals, comments, ratings — and `User.interests`  |
+| Identifiers    | User ID             | **Linked**     | App Functionality                               | `User._id`, and `User.bankidSubject`                        |
+| Identifiers    | Device ID           | **Linked**     | App Functionality · **Product Personalization** | `User.expoPushToken`; interests decide which pushes you get |
+| Purchases      | —                   | **Linked**     | App Functionality                               | Membership fee: amount, date, reference                     |
+| Other Data     | —                   | **Linked**     | App Functionality                               | **The personnummer** — see below                            |
+| Usage Data     | Product Interaction | **Not Linked** | Analytics                                       | Expo Insights, Vercel Analytics                             |
+| Diagnostics    | Crash Data          | **Not Linked** | App Functionality                               | Crash reporting                                             |
+| Diagnostics    | Performance Data    | **Not Linked** | App Functionality                               | Launch time, hang rate                                      |
+
+### Why those three purpose selections, and not others
+
+Most rows are App Functionality alone — Apple's definition of it covers authentication, enabling
+features, fraud prevention, security, uptime, crash minimisation and performance, which is nearly
+everything this app does with data. The three exceptions are worth recording, because each is a
+judgement that could be re-litigated:
+
+- **Email gets Developer's Advertising or Marketing.** Not because of the notification emails —
+  results and agenda notices are functional — but because of `POST /api/admin/send-broadcast-email`,
+  where an admin composes free-text subject and body and it goes to the whole user base. A political
+  party doing that is "sending marketing communications directly to your users" by Apple's
+  definition. That those emails carry an unsubscribe link, and that `emailOptOut` is honoured,
+  reinforces the classification rather than avoiding it — transactional mail does not need an
+  opt-out. **If that endpoint is ever removed, this drops to App Functionality alone.**
+- **Phone does _not_ get it.** Twilio is used only by `lib/municipal/notifications.ts`, for
+  interest-targeted agenda notices and the election reminder. The broadcast endpoint is email-only.
+  Add Marketing here the day a promotional SMS is sent.
+- **Product Personalization follows `User.interests`.** Interests filter the feed and decide which
+  municipal items generate a notification (`notifications.ts` matches `interests: {$in: [...]}`),
+  which is "customizing what the user sees". Interests have no Apple type of their own, so the
+  purpose attaches to the two types that carry them: Other User Content and Device ID.
+
+**Diagnostics is App Functionality, not Analytics.** Apple's App Functionality text names
+"minimize app crashes, improve scalability and performance" outright. Only Product Interaction is
+genuinely Analytics.
 
 Everything else is **No**: Physical Address, Other User Contact Info, Health, Fitness, Payment
 Info, Credit Info, Other Financial Info, Precise Location, Coarse Location, Contacts, Emails or
@@ -248,8 +280,9 @@ Collecting an email _address_ is Personlig info → E-postadress, which is a dif
 ### If you are asked whether data is "linked to the user"
 
 Play's per-type questions do not include it, but Apple's do, and some of Play's newer flows echo the
-wording. The answer for this app is: **everything is linked to the user except Appinteraktioner,
-Kraschloggar and Diagnostik**, which are aggregate and not tied to an account.
+wording. The per-type answers are the "Linked to user" column in §2, and they map across directly:
+**everything is linked except Appinteraktioner, Kraschloggar and Diagnostik**, which are aggregate
+and not tied to an account.
 
 ### Also declare at app level
 

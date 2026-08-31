@@ -53,9 +53,14 @@ export default async function handler(
     // Get all participants from the session's activeUsers array
     const participantIds = targetSession.activeUsers || [];
 
-    // Get user emails
+    // Participants who have an address and have not opted out. Session results
+    // are a notification about something the recipient took part in, but
+    // `emailOptOut` is the app's single "no non-essential email" switch — so it
+    // is honoured here too rather than second-guessed per message type.
     const participants = await User.find({
       _id: { $in: participantIds },
+      emailOptOut: { $ne: true },
+      email: { $nin: [null, ""] },
     });
 
     // Send email to each participant
