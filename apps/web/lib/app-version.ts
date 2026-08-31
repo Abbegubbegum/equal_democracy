@@ -30,7 +30,7 @@ export const APP_STORE_URL = "https://apps.apple.com/app/id6781031191";
  * build is submitted. Apple review sits between the two, and pointing users at
  * a version the store does not have yet means a nag they cannot act on.
  */
-const LATEST_MOBILE_VERSION = "1.2.3";
+const LATEST_MOBILE_VERSION = "1.3.0";
 
 /**
  * The oldest build still allowed to run. Users below this are hard-blocked with
@@ -42,7 +42,7 @@ const LATEST_MOBILE_VERSION = "1.2.3";
  * the only thing this lever is for. Never raise it to a version the stores have
  * not finished rolling out, or you lock people out of an app they cannot fix.
  */
-const MIN_SUPPORTED_MOBILE_VERSION = "1.2.0";
+const MIN_SUPPORTED_MOBILE_VERSION = "1.3.0";
 
 const SEMVER = /^\d+\.\d+\.\d+$/;
 
