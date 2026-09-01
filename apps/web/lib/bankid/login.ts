@@ -27,6 +27,7 @@ import crypto from "crypto";
 import { LoginVerification, User } from "../models";
 import { createLogger } from "../logger";
 import { mergeAccounts } from "../account-merge";
+import { appRedirectFor, type ClientPlatform } from "./client-hint";
 import { allowAnyKommun, runtimeEnv } from "./config";
 import { checkEligibilityFromAttributes } from "./eligibility";
 import { loginSubject } from "./subject";
@@ -80,8 +81,12 @@ export interface StartLoginParams {
   userId?: string | null;
   /** Already validated against an allowlist by the caller. Blank is fine. */
   returnUrl?: string;
-  /** Log label only — nothing branches on it. See ./client-hint.ts. */
-  clientPlatform?: string;
+  /**
+   * Who is asking. A log label everywhere except one place that matters: it
+   * decides whether the BankID app is told to return straight to us. See
+   * `appRedirectFor` in ./client-hint.ts.
+   */
+  clientPlatform?: ClientPlatform;
 }
 
 export interface StartedLogin {
@@ -136,28 +141,23 @@ export async function startLogin(
     }
   }
 
-  // Both halves of the return trip are logged because they are two different
-  // journeys and only one of them can be wrong at a time: `callbackUrl` is where
-  // GrandID sends the *browser* once its hosted page finishes, `appRedirect` is
-  // where the *BankID app* sends the user the moment it is done. If the browser
-  // is skipped, GrandID's page never finishes and the order never settles — so
-  // when an order hangs, the first question is which of these was set.
+  // Two different journeys home, and only one of them is right per platform —
+  // see appRedirectFor. Both are logged because when an order hangs, which of
+  // them was set is the first thing worth knowing.
+  const appRedirect = appRedirectFor(clientPlatform, returnUrl);
   log.info("Starting BankID login order", {
     purpose,
     clientPlatform,
     hasUser: !!userId,
     callbackUrl: returnUrl || "(none)",
-    appRedirect: returnUrl || "(none)",
+    appRedirect: appRedirect || "(none)",
   });
 
   const started = await startBankIdSession({
     service: "auth",
     visibleText: VISIBLE_TEXT[purpose],
     callbackUrl: returnUrl,
-    // Same destination, different journey — see the parameter's own comment.
-    // On iOS the BankID app returns to Safari rather than the browser instance
-    // that started the flow, and only this gets the user home.
-    appRedirect: returnUrl || undefined,
+    appRedirect,
   });
 
   const verification = await LoginVerification.create({

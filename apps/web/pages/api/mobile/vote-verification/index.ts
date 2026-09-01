@@ -11,6 +11,7 @@ import { runtimeEnv } from "../../../../lib/bankid/config";
 import { startBankIdSession } from "../../../../lib/bankid/session";
 import { QUOTA_MESSAGE, canVote } from "../../../../lib/vote-quota";
 import { checkStartThrottle } from "../../../../lib/bankid/rate-limit";
+import { appRedirectFor, clientHint } from "../../../../lib/bankid/client-hint";
 
 const log = createLogger("MobileVoteVerification");
 
@@ -169,14 +170,16 @@ export default async function handler(
       });
     }
 
+    // Same destination, different journey: callbackUrl is where the browser
+    // goes, appRedirect is where the BankID app goes. Which one gets the voter
+    // home depends on the platform, and sending both strands Android — see
+    // appRedirectFor, where that is measured rather than assumed.
+    const platform = clientHint(req).platform;
     const started = await startBankIdSession({
       service: "sign",
       visibleText: ballotText(question.text, choice),
       callbackUrl,
-      // Same destination, different journey: callbackUrl is where the browser
-      // goes, appRedirect is where the BankID app goes. On iOS only the second
-      // one actually gets the voter home — see the comment on the parameter.
-      appRedirect: callbackUrl || undefined,
+      appRedirect: appRedirectFor(platform, callbackUrl),
     });
 
     // Created after the BankID call, unlike the Swish flow: GrandID hands us the

@@ -136,6 +136,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **BankID never completed on Android — the app was told to skip the browser.** Every BankID order
+  set both `callbackUrl` (where GrandID sends the _browser_ once its hosted page finishes) and
+  `appRedirect` (where the _BankID app_ sends the user the moment it is done) to the same deep link.
+  On iOS the second one is required: `ASWebAuthenticationSession` is its own browser instance, so
+  without it BankID returns to a Safari tab with none of the flow's state. On Android it is fatal —
+  the Chrome Custom Tab is what drives GrandID's hosted page to completion, and that page is what
+  finalises the session, so short-circuiting BankID straight back to the app left the tab parked
+  mid-flow and the order stuck at `NOTLOGGEDIN` permanently, even though the signature itself had
+  succeeded. Measured before the fix: thirty polls over 82 seconds after a successful signing, with
+  no state change at all. The choice now lives in one place, `appRedirectFor()`, and applies to
+  login and to both vote-signing endpoints — the same defect was present in all three.
+- **BankID auth endpoints are now traceable.** An order that hangs used to be invisible: the poll
+  loop logged nothing at all, so "the user is taking their time" and "GrandID never saw the browser
+  come back" looked identical. Polls now log on state _change_ plus a warning heartbeat every ~20 s
+  carrying what GrandID actually answered, how many polls it has cost and how long it has run;
+  starts log both halves of the return trip; the GrandID transport line carries the `errorCode` that
+  an HTTP 200 hides. Every line is tagged with the platform, inferred from the User-Agent rather
+  than sent by the client, so a bug that only reproduces on one of them is readable. The app traces
+  the half the server cannot see — what the browser did — under `[BankIdLogin]`.
+
 - **Mobile API latency.** Serverless functions had no `regions` pin, so Vercel ran them in `iad1`
   (Washington DC) while the MongoDB Atlas cluster sits in Europe — every database round trip
   crossed the Atlantic twice and `/api/mobile/*` sat at ~1.3s. Pinned to `arn1` (Stockholm).
