@@ -46,6 +46,24 @@ export type LoginPurpose = "login" | "link" | "reverify";
 /** A BankID order lives about 3 minutes; inside that, resume rather than restart. */
 export const IN_FLIGHT_WINDOW_MS = 3 * 60 * 1000;
 
+/** Host of a URL, for logging — the path and query carry the session handle. */
+function safeHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "(unparseable)";
+  }
+}
+
+/**
+ * How often to log an order that is doing nothing but waiting.
+ *
+ * At GrandID's 2 s poll floor this is roughly every 20 seconds, which is enough
+ * to see an order hang without writing ninety identical lines per attempt. A
+ * *change* of state is always logged regardless of this.
+ */
+const POLL_HEARTBEAT_EVERY = 10;
+
 const SYSTEM_MESSAGE =
   "Något gick fel med inloggningen. Försök igen om en stund.";
 
@@ -62,6 +80,8 @@ export interface StartLoginParams {
   userId?: string | null;
   /** Already validated against an allowlist by the caller. Blank is fine. */
   returnUrl?: string;
+  /** Log label only — nothing branches on it. See ./client-hint.ts. */
+  clientPlatform?: string;
 }
 
 export interface StartedLogin {
@@ -79,7 +99,7 @@ export interface StartedLogin {
 export async function startLogin(
   params: StartLoginParams,
 ): Promise<StartedLogin> {
-  const { purpose, userId = null, returnUrl = "" } = params;
+  const { purpose, userId = null, returnUrl = "", clientPlatform } = params;
 
   if (purpose !== "login" && !userId) {
     throw new Error(`A "${purpose}" verification needs a userId.`);
@@ -103,6 +123,10 @@ export async function startLogin(
       log.info("Reusing in-flight login verification", {
         verificationId: inFlight._id.toString(),
         purpose,
+        clientPlatform,
+        ageMs: Date.now() - new Date(inFlight.createdAt).getTime(),
+        pollCount: inFlight.pollCount ?? 0,
+        lastObservedState: inFlight.lastObservedState ?? null,
       });
       return {
         pollToken: inFlight.pollToken,
@@ -111,6 +135,20 @@ export async function startLogin(
       };
     }
   }
+
+  // Both halves of the return trip are logged because they are two different
+  // journeys and only one of them can be wrong at a time: `callbackUrl` is where
+  // GrandID sends the *browser* once its hosted page finishes, `appRedirect` is
+  // where the *BankID app* sends the user the moment it is done. If the browser
+  // is skipped, GrandID's page never finishes and the order never settles — so
+  // when an order hangs, the first question is which of these was set.
+  log.info("Starting BankID login order", {
+    purpose,
+    clientPlatform,
+    hasUser: !!userId,
+    callbackUrl: returnUrl || "(none)",
+    appRedirect: returnUrl || "(none)",
+  });
 
   const started = await startBankIdSession({
     service: "auth",
@@ -130,12 +168,21 @@ export async function startLogin(
     pollToken: crypto.randomBytes(32).toString("hex"),
     status: "PENDING",
     runtime: runtimeEnv(),
+    clientPlatform: clientPlatform || null,
   });
 
   log.info("Login verification started", {
     verificationId: verification._id.toString(),
     purpose,
     runtime: runtimeEnv(),
+    clientPlatform,
+    // GrandID's own id for the order. This is the join key between our logs and
+    // anything Svensk e-identitet can tell us about the same transaction, so it
+    // is worth one line — it is an opaque session handle, not a personal detail.
+    grandIdSession: started.sessionId,
+    // Host only. The full URL carries the session handle as a query parameter
+    // and would duplicate it into every log sink for no extra information.
+    redirectHost: safeHost(started.redirectUrl),
   });
 
   return {
@@ -508,9 +555,16 @@ export interface PollResult {
  * between them is only what they do with a VERIFIED result — the web hands it
  * to NextAuth, the app mints its own tokens — and neither happens here.
  */
-export async function pollLogin(pollToken: string): Promise<PollResult> {
+export async function pollLogin(
+  pollToken: string,
+  options: { clientPlatform?: string } = {},
+): Promise<PollResult> {
   const verification: any = await LoginVerification.findOne({ pollToken });
   if (!verification) {
+    // Worth a line: the client is polling something that does not exist, which
+    // is either an expired order (the 7-day TTL, or a purge) or a token that was
+    // never issued. The token itself is a bearer secret and is never logged.
+    log.warn("Poll for an unknown login verification");
     return {
       found: false,
       status: "UNKNOWN",
@@ -520,6 +574,13 @@ export async function pollLogin(pollToken: string): Promise<PollResult> {
       createdAccount: false,
     };
   }
+
+  const verificationId = verification._id.toString();
+  const ageMs = Date.now() - new Date(verification.createdAt).getTime();
+  // The platform is captured at start, but a poll may arrive from somewhere
+  // else entirely - that is itself the symptom on Android, where the app comes
+  // back to the foreground while the browser holding the order is still open.
+  const platform = options.clientPlatform || verification.clientPlatform;
 
   let message = "";
 
@@ -532,11 +593,42 @@ export async function pollLogin(pollToken: string): Promise<PollResult> {
 
     if (stale) {
       verification.lastPolledAt = new Date();
-      await verification.save();
+      verification.pollCount = (verification.pollCount ?? 0) + 1;
 
       const session = await getBankIdSession(verification.grandIdSession, {
         service: "auth",
       });
+
+      // One string for every shape GetSession can return, so a stuck order reads
+      // as a flat line in the log rather than as four different message types.
+      const observed =
+        session.state === "complete"
+          ? "complete"
+          : session.state === "unknown"
+            ? "unknown:" + session.code
+            : session.state + ":" + session.hintCode;
+
+      // Log on change, or on a heartbeat. An order that is progressing produces
+      // a handful of lines; one that is stuck produces a steady drip saying
+      // exactly what it is stuck on - which is the difference between "the user
+      // is taking their time" and "GrandID never saw the browser come back".
+      const changed = observed !== verification.lastObservedState;
+      if (changed || verification.pollCount % POLL_HEARTBEAT_EVERY === 0) {
+        log[changed ? "info" : "warn"](
+          changed ? "BankID login state changed" : "BankID login still waiting",
+          {
+            verificationId,
+            purpose: verification.purpose,
+            clientPlatform: platform,
+            observed,
+            previous: verification.lastObservedState ?? "(first poll)",
+            pollCount: verification.pollCount,
+            ageSeconds: Math.round(ageMs / 1000),
+          },
+        );
+      }
+      verification.lastObservedState = observed;
+      await verification.save();
 
       if (session.state === "complete") {
         const result = await settleLogin(verification, session);
@@ -551,8 +643,21 @@ export async function pollLogin(pollToken: string): Promise<PollResult> {
       }
       // "pending" and "unknown" both mean keep waiting: while the user is on
       // GrandID's hosted page, GetSession answers NOTLOGGEDIN, which is the
-      // normal state of an order nobody has finished yet.
+      // normal state of an order nobody has finished yet. It is also exactly
+      // what a *stranded* order looks like, forever - which is why the heartbeat
+      // above escalates to warn. A single poll cannot tell the two apart; only
+      // how long it goes on can.
     }
+  } else if (verification.consumedAt) {
+    // The row is spent and the client is still asking. Normal once - the app
+    // polls again when it returns to the foreground - so this is only
+    // interesting when it repeats.
+    log.info("Poll for an already-consumed login", {
+      verificationId,
+      clientPlatform: platform,
+      status: verification.status,
+      ageSeconds: Math.round(ageMs / 1000),
+    });
   }
 
   return {
@@ -576,11 +681,34 @@ export async function cancelLogin(pollToken: string): Promise<boolean> {
     pollToken,
     status: "PENDING",
   });
-  if (!verification) return false;
+  if (!verification) {
+    // Either already settled, or never existed. Logged because a cancel
+    // arriving for an order that is still being signed is how an over-eager
+    // client teardown shows up, and that has broken this flow before - see the
+    // unmount note in the app's login screen.
+    log.info("Cancel for a login that was not pending");
+    return false;
+  }
 
-  await cancelBankIdSession(verification.grandIdSession, { service: "auth" });
+  const accepted = await cancelBankIdSession(verification.grandIdSession, {
+    service: "auth",
+  });
   verification.status = "CANCELLED";
   verification.reasonCode = "userCancel";
   await verification.save();
+
+  log.info("Login verification cancelled", {
+    verificationId: verification._id.toString(),
+    purpose: verification.purpose,
+    clientPlatform: verification.clientPlatform,
+    // False means GrandID kept the order alive. It expires on its own in about
+    // three minutes, and the next start pays for a new one.
+    grandIdAccepted: accepted,
+    pollCount: verification.pollCount ?? 0,
+    lastObservedState: verification.lastObservedState ?? null,
+    ageSeconds: Math.round(
+      (Date.now() - new Date(verification.createdAt).getTime()) / 1000,
+    ),
+  });
   return true;
 }

@@ -4,6 +4,7 @@ import { User } from "@/lib/models";
 import { createLogger } from "@/lib/logger";
 import { cancelLogin, pollLogin } from "@/lib/bankid/login";
 import { capabilityOf } from "@/lib/viewer";
+import { clientHint } from "@/lib/bankid/client-hint";
 
 const log = createLogger("WebBankIdLoginPoll");
 
@@ -36,10 +37,15 @@ export default async function handler(
     return res.status(400).json({ message: "Ogiltig token" });
   }
 
+  const hint = clientHint(req);
+
   try {
     await connectDB();
 
     if (req.method === "DELETE") {
+      log.info("Web BankID login cancel requested", {
+        platform: hint.platform,
+      });
       const cancelled = await cancelLogin(token);
       return res.status(200).json({ cancelled });
     }
@@ -48,12 +54,15 @@ export default async function handler(
       return res.status(405).json({ message: "Method not allowed" });
     }
 
-    const result = await pollLogin(token);
+    const result = await pollLogin(token, { clientPlatform: hint.platform });
 
     // An unknown token is a 404 rather than an error: it is what a reload after
     // the row's TTL looks like, and there is nothing the user can do but start
     // again.
     if (!result.found) {
+      log.warn("Web poll for a login that no longer exists", {
+        platform: hint.platform,
+      });
       return res
         .status(404)
         .json({ message: "Inloggningen finns inte längre" });
@@ -71,6 +80,20 @@ export default async function handler(
       const verdict = capabilityOf(user);
       capability = verdict.capability;
       capabilityMessage = verdict.message;
+      log.info("Web BankID login verified", {
+        userId: result.userId,
+        platform: hint.platform,
+        capability,
+        createdAccount: result.createdAccount,
+      });
+    } else if (result.status !== "PENDING") {
+      // Terminal only. PENDING is nearly every poll, and pollLogin already logs
+      // it with the one thing that makes it meaningful: how long it has lasted.
+      log.info("Web BankID login did not verify", {
+        platform: hint.platform,
+        status: result.status,
+        reasonCode: result.reasonCode,
+      });
     }
 
     return res.status(200).json({
@@ -82,7 +105,11 @@ export default async function handler(
       capabilityMessage,
     });
   } catch (error) {
-    log.error("BankID login poll failed", { error: (error as Error).message });
+    log.error("BankID login poll failed", {
+      platform: hint.platform,
+      method: req.method,
+      error: (error as Error).message,
+    });
     return res.status(502).json({
       message: "Kunde inte kontrollera inloggningen. Försök igen om en stund.",
     });
