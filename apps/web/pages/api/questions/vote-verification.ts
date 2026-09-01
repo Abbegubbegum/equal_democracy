@@ -14,6 +14,7 @@ import { settleVerification } from "@/lib/bankid/settle";
 import { getBaseUrl } from "@/lib/email";
 import { QUOTA_MESSAGE, canVote } from "@/lib/vote-quota";
 import { checkStartThrottle } from "@/lib/bankid/rate-limit";
+import { appRedirectFor, clientHint } from "@/lib/bankid/client-hint";
 
 const log = createLogger("WebVoteVerification");
 
@@ -147,14 +148,16 @@ async function start(
     // free of a query string of its own.
     const callbackUrl = `${getBaseUrl()}/rosta`;
 
+    // On a phone browser the hosted page still hands off to the BankID app, so
+    // the same platform split applies as in the app: iOS needs the appRedirect
+    // or BankID returns to the wrong Safari tab, Android must not have it or the
+    // Custom Tab never finishes GrandID's page. See appRedirectFor.
+    const platform = clientHint(req).platform;
     const started = await startBankIdSession({
       service: "sign",
       visibleText: ballotText(question.text, choice),
       callbackUrl,
-      // On a phone browser the hosted page still hands off to the BankID app,
-      // and the same iOS problem applies: without this, BankID returns to a
-      // Safari tab that is not the one the voter came from.
-      appRedirect: callbackUrl,
+      appRedirect: appRedirectFor(platform, callbackUrl),
     });
 
     const verification = await VoteVerification.create({
