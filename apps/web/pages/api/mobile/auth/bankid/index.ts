@@ -6,6 +6,7 @@ import { createLogger } from "../../../../../lib/logger";
 import { startLogin, type LoginPurpose } from "../../../../../lib/bankid/login";
 import { checkLoginThrottle } from "../../../../../lib/bankid/rate-limit";
 import { optionalBearerToken } from "../../../../../lib/mobile-jwt";
+import { clientHint } from "../../../../../lib/bankid/client-hint";
 
 const log = createLogger("MobileBankIdLogin");
 
@@ -99,10 +100,28 @@ export default async function handler(
     if (req.body?.returnUrl && !returnUrl) {
       log.warn("Ignoring a returnUrl that is not an allowed deep link", {
         purpose,
+        // The rejected value, not just the fact of it: the difference between a
+        // scheme we do not allow and the `scheme:///path` form GrandID refuses
+        // is one character, and invisible without seeing the string.
+        rejected: String(req.body.returnUrl).slice(0, 120),
       });
     }
 
-    const started = await startLogin({ purpose, userId, returnUrl });
+    const hint = clientHint(req);
+    log.info("Mobile BankID login requested", {
+      purpose,
+      platform: hint.platform,
+      userAgent: hint.userAgent,
+      hasUser: !!userId,
+      returnUrl: returnUrl || "(none)",
+    });
+
+    const started = await startLogin({
+      purpose,
+      userId,
+      returnUrl,
+      clientPlatform: hint.platform,
+    });
 
     if (ipHash && !started.resumed) {
       await LoginVerification.updateOne(
@@ -110,6 +129,12 @@ export default async function handler(
         { $set: { ipHash } },
       );
     }
+
+    log.info("Mobile BankID login order ready", {
+      purpose,
+      platform: hint.platform,
+      resumed: started.resumed,
+    });
 
     return res.status(201).json({
       pollToken: started.pollToken,
@@ -119,6 +144,7 @@ export default async function handler(
   } catch (error) {
     log.error("Failed to start mobile BankID login", {
       purpose,
+      platform: clientHint(req).platform,
       error: (error as Error).message,
     });
     return res.status(502).json({

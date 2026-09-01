@@ -1,7 +1,24 @@
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
-import { AppState, AppStateStatus } from "react-native";
+import { AppState, AppStateStatus, Platform } from "react-native";
 import { BASE_URL, getAccessToken } from "./api";
+
+/**
+ * Client-side trace for the one part of this flow the server cannot see: what
+ * the *browser* did.
+ *
+ * The server knows only that GrandID keeps answering NOTLOGGEDIN. It cannot
+ * tell whether the hosted page was closed, backgrounded, or returned to — and
+ * on Android that distinction is the whole question, because the browser tab is
+ * what drives GrandID's page to completion. Tagged so it can be picked out of
+ * logcat with `adb logcat | grep BankIdLogin`.
+ */
+function trace(event: string, detail: Record<string, unknown> = {}) {
+  console.log(`[BankIdLogin] ${event}`, {
+    platform: Platform.OS,
+    ...detail,
+  });
+}
 
 /**
  * BankID **login** — the identification twin of ./bankid.ts.
@@ -98,11 +115,15 @@ async function post(path: string, body: unknown, withToken: boolean) {
 export async function startBankIdLogin(
   purpose: "login" | "link" = "login",
 ): Promise<StartedLogin> {
-  return post(
+  const returnUrl = loginReturnUrl();
+  trace("start", { purpose, returnUrl });
+  const started = await post(
     "/api/mobile/auth/bankid",
-    { purpose, returnUrl: loginReturnUrl() },
+    { purpose, returnUrl },
     purpose === "link",
   );
+  trace("started", { purpose, resumed: started.resumed });
+  return started;
 }
 
 /** Best effort — the order expires on its own, so a failure here is not shown. */
@@ -124,14 +145,31 @@ export async function cancelBankIdLogin(pollToken: string): Promise<void> {
  * decides.
  */
 export async function openHostedLogin(redirectUrl: string): Promise<void> {
+  trace("browser opening");
   try {
-    await WebBrowser.openAuthSessionAsync(redirectUrl, loginReturnUrl(), {
-      toolbarColor: "#002d75",
-      controlsColor: "#f5a623",
-      enableBarCollapsing: true,
-      showTitle: false,
-    });
-  } catch {
+    const result = await WebBrowser.openAuthSessionAsync(
+      redirectUrl,
+      loginReturnUrl(),
+      {
+        toolbarColor: "#002d75",
+        controlsColor: "#f5a623",
+        enableBarCollapsing: true,
+        showTitle: false,
+      },
+    );
+    // The three answers mean very different things, and only this line
+    // distinguishes them:
+    //
+    //   "success" — the callbackUrl fired: GrandID's page ran to completion and
+    //               redirected. This is the healthy path.
+    //   "dismiss" — the tab was closed without the redirect. On Android that is
+    //               what an `appRedirect` short-circuit looks like: BankID sent
+    //               the user straight back to the app, the tab was left behind
+    //               mid-flow, and GrandID never finished the session.
+    //   "cancel"  — the user backed out themselves.
+    trace("browser closed", { type: result?.type });
+  } catch (error) {
+    trace("browser threw", { error: String(error) });
     /* the poll is what decides the outcome */
   }
 }
@@ -169,6 +207,7 @@ export function watchBankIdLogin(
 ): () => void {
   let cancelled = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let polls = 0;
   const startedAt = Date.now();
 
   const clear = () => {
@@ -180,6 +219,7 @@ export function watchBankIdLogin(
     if (cancelled) return;
 
     if (Date.now() - startedAt > WATCH_TIMEOUT_MS) {
+      trace("watch timed out", { polls });
       cancelled = true;
       clear();
       handlers.onTimeout();
@@ -195,6 +235,7 @@ export function watchBankIdLogin(
 
       // 404 means the order is gone — expired, or purged. Nothing to wait for.
       if (res.status === 404) {
+        trace("order gone (404)");
         cancelled = true;
         clear();
         handlers.onState({
@@ -204,6 +245,19 @@ export function watchBankIdLogin(
         return;
       }
 
+      // Every poll but the boring ones. PENDING at two-second intervals would
+      // drown the log it is meant to make readable, so it is reported once a
+      // minute purely to show the watcher is still alive.
+      polls += 1;
+      if (state.status !== "PENDING" || polls % 30 === 0) {
+        trace("poll", {
+          status: state.status,
+          reasonCode: state.reasonCode,
+          polls,
+          elapsedSeconds: Math.round((Date.now() - startedAt) / 1000),
+        });
+      }
+
       handlers.onState(state);
 
       if (state.status !== "PENDING") {
@@ -211,8 +265,9 @@ export function watchBankIdLogin(
         clear();
         return;
       }
-    } catch {
+    } catch (error) {
       // Transient — keep waiting.
+      trace("poll failed", { error: String(error) });
     }
 
     if (!cancelled) {
@@ -228,6 +283,9 @@ export function watchBankIdLogin(
   };
 
   const onAppStateChange = (state: AppStateStatus) => {
+    // The return from BankID or the browser lands here. Which of the two, and
+    // whether a deep link accompanied it, is the Android question.
+    trace("app state", { state });
     if (state === "active") pollNow();
   };
 
@@ -235,7 +293,13 @@ export function watchBankIdLogin(
   // The strongest signal available: BankID (appRedirect) or GrandID
   // (callbackUrl) only sends it once identification has finished, and on iOS the
   // app can come back reporting `inactive` rather than `active`.
-  const deepLink = Linking.addEventListener("url", pollNow);
+  const deepLink = Linking.addEventListener("url", (event) => {
+    // Its absence is the finding. If the app comes back to the foreground with
+    // no url event, nothing redirected — the user switched back by hand, and
+    // whatever was supposed to carry them home did not fire.
+    trace("deep link", { url: event.url });
+    pollNow();
+  });
 
   poll();
 

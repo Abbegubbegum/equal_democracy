@@ -158,12 +158,20 @@ export async function grandIdRequest<T>(
 
   // Logged at warn rather than thrown: GrandID's own error shape is what the
   // caller needs to read, and it may well be carried on a non-2xx response.
+  //
+  // `errorCode` is the load-bearing half. An HTTP 200 says nothing here — a
+  // rejected login, an unknown session and an order the user has not finished
+  // yet all arrive as a healthy-looking 200, distinguished only by this code.
+  // NOTLOGGEDIN in particular is both "still waiting" and "stranded forever",
+  // so seeing it in the transport log is what makes the timeline readable.
+  const errorCode = (parsed as GrandIdErrorEnvelope)?.errorObject?.code;
   const level = response.ok ? "info" : "warn";
   log[level]("GrandID request", {
     endpoint,
     service: serviceFingerprint(config),
     status: response.status,
     ms,
+    errorCode: errorCode || null,
   });
 
   return parsed;

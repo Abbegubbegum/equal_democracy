@@ -12,6 +12,7 @@ import {
   signRefreshToken,
 } from "../../../../../lib/mobile-jwt";
 import { capabilityOf } from "../../../../../lib/viewer";
+import { clientHint } from "../../../../../lib/bankid/client-hint";
 
 const log = createLogger("MobileBankIdLoginPoll");
 
@@ -43,10 +44,15 @@ export default async function handler(
     return res.status(400).json({ message: "Ogiltig token" });
   }
 
+  const hint = clientHint(req);
+
   try {
     await connectDB();
 
     if (req.method === "DELETE") {
+      log.info("Mobile BankID login cancel requested", {
+        platform: hint.platform,
+      });
       const cancelled = await cancelLogin(token);
       return res.status(200).json({ cancelled });
     }
@@ -55,14 +61,28 @@ export default async function handler(
       return res.status(405).json({ message: "Method not allowed" });
     }
 
-    const result = await pollLogin(token);
+    const result = await pollLogin(token, { clientPlatform: hint.platform });
     if (!result.found) {
+      log.warn("Mobile poll for a login that no longer exists", {
+        platform: hint.platform,
+      });
       return res
         .status(404)
         .json({ message: "Inloggningen finns inte längre" });
     }
 
     if (result.status !== "VERIFIED") {
+      // Only the terminal ones. PENDING is the overwhelming majority of polls
+      // and is already covered by the change/heartbeat logging in pollLogin,
+      // which knows how long it has been going on; repeating it here would bury
+      // that under one line every two seconds.
+      if (result.status !== "PENDING") {
+        log.info("Mobile BankID login did not verify", {
+          platform: hint.platform,
+          status: result.status,
+          reasonCode: result.reasonCode,
+        });
+      }
       return res.status(200).json({
         status: result.status,
         reasonCode: result.reasonCode,
@@ -75,6 +95,9 @@ export default async function handler(
     // mint a second session.
     const spent = await consumeVerification(token);
     if (!spent) {
+      log.info("Mobile BankID login already consumed", {
+        platform: hint.platform,
+      });
       // Already consumed. The app has its tokens from the first successful poll;
       // saying so lets it stop rather than treating this as a failure.
       return res.status(409).json({
@@ -107,6 +130,7 @@ export default async function handler(
 
     log.info("Mobile BankID session issued", {
       userId: payload.id,
+      platform: hint.platform,
       capability: verdict.capability,
       createdAccount: result.createdAccount,
     });
@@ -128,6 +152,8 @@ export default async function handler(
     });
   } catch (error) {
     log.error("Mobile BankID login poll failed", {
+      platform: hint.platform,
+      method: req.method,
       error: (error as Error).message,
     });
     return res.status(502).json({

@@ -6,6 +6,7 @@ import { getBaseUrl } from "@/lib/email";
 import { startLogin, type LoginPurpose } from "@/lib/bankid/login";
 import { checkLoginThrottle } from "@/lib/bankid/rate-limit";
 import { getViewer } from "@/lib/viewer";
+import { clientHint } from "@/lib/bankid/client-hint";
 
 const log = createLogger("WebBankIdLogin");
 
@@ -75,10 +76,20 @@ export default async function handler(
     // to whatever it is given, so this must stay free of a query string of its
     // own. The page does not read that parameter — it polls with the token it
     // kept — but the redirect is still what carries the browser home.
+    const hint = clientHint(req);
+    const returnUrl = `${getBaseUrl()}/login`;
+    log.info("Web BankID login requested", {
+      purpose,
+      platform: hint.platform,
+      hasUser: !!userId,
+      returnUrl,
+    });
+
     const started = await startLogin({
       purpose,
       userId,
-      returnUrl: `${getBaseUrl()}/login`,
+      returnUrl,
+      clientPlatform: hint.platform,
     });
 
     // Stamp the throttling key onto the row the start just created. Done after
@@ -92,6 +103,12 @@ export default async function handler(
       );
     }
 
+    log.info("Web BankID login order ready", {
+      purpose,
+      platform: hint.platform,
+      resumed: started.resumed,
+    });
+
     return res.status(201).json({
       pollToken: started.pollToken,
       redirectUrl: started.redirectUrl,
@@ -100,6 +117,7 @@ export default async function handler(
   } catch (error) {
     log.error("Failed to start BankID login", {
       purpose,
+      platform: clientHint(req).platform,
       error: (error as Error).message,
     });
     return res.status(502).json({

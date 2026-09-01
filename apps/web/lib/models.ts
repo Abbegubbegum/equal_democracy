@@ -1898,6 +1898,27 @@ const LoginVerificationSchema = new mongoose.Schema(
     },
     // Enforces GrandID's >= 2s GetSession poll floor server-side.
     lastPolledAt: { type: Date, default: null },
+    // --- Diagnostics. None of these decide anything. ---
+    //
+    // They exist because the failure mode worth catching here is an order that
+    // never finishes: the client polls, GrandID keeps answering "not logged in",
+    // and nothing distinguishes that from an order the user simply has not got
+    // to yet. A verdict is one log line; an order stuck for two minutes is only
+    // visible as a shape over time, so the shape is recorded.
+    //
+    // How many GetSession calls this order has cost, so a stuck order can be
+    // told apart from an abandoned one.
+    pollCount: { type: Number, default: 0 },
+    // The last answer GrandID gave, as "state:hintCode" — e.g.
+    // "unknown:NOTLOGGEDIN" while the user is still on the hosted page. Stored
+    // so a poll can log only when the answer *changes*, instead of once every
+    // two seconds for three minutes.
+    lastObservedState: { type: String, default: null },
+    // "android" | "ios" | "web" | "unknown", inferred from the User-Agent at
+    // start. The BankID return trip is not the same journey on iOS and Android
+    // (see appRedirect in lib/bankid/session.ts), so a report that only
+    // reproduces on one of them is unreadable without this.
+    clientPlatform: { type: String, default: null },
     // sha256 of the caller's IP, for throttling only.
     //
     // A login start is the one BankID endpoint with no account behind it, so
