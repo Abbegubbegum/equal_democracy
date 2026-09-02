@@ -130,12 +130,9 @@ export default async function handler(
       );
     }
 
-    log.info("Mobile BankID login order ready", {
-      purpose,
-      platform: hint.platform,
-      resumed: started.resumed,
-    });
-
+    // No "order ready" line here — startLogin() already logged either
+    // "Login verification started" or "Reusing in-flight login verification",
+    // and a second line would only repeat purpose/platform/resumed.
     return res.status(201).json({
       pollToken: started.pollToken,
       redirectUrl: started.redirectUrl,

@@ -1,6 +1,6 @@
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
-import { AppState, AppStateStatus } from "react-native";
+import { AppState, AppStateStatus, Platform } from "react-native";
 import { apiClient } from "./api";
 
 /**
@@ -17,11 +17,17 @@ import { apiClient } from "./api";
  * navigation itself; the system browser lets the OS handle the scheme, which is
  * the same reason OAuth flows use it.
  *
- * `openAuthSessionAsync` rather than `openBrowserAsync`, because the browser has
- * to hand control back. GrandID redirects to our `callbackUrl` once the
- * signature is done, and the auth session watches for it: iOS closes the sheet
- * itself, and on Android — where there is no native AuthSession — the deep link
- * brings the app to the front over the Custom Tab.
+ * The two platforms get there differently, and that difference is load-bearing
+ * (see `openHostedLogin` below for the full story). **iOS** uses
+ * `openAuthSessionAsync` — an `ASWebAuthenticationSession` that lives inside the
+ * app and hands control back on `callbackUrl`. **Android** uses
+ * `Linking.openURL`, launching the OS's real default browser as its own task,
+ * rather than `openAuthSessionAsync`'s Android implementation (a Chrome Custom
+ * Tab scoped to *our* task, which BankID's same-device return does not reliably
+ * bring back to the foreground — the tab is left alive but stranded behind our
+ * app, and GrandID's page never finishes). Android's own back-stack returns
+ * control to whichever app launched the browser intent once the signature
+ * flow's `callbackUrl` redirect fires, the same as any BankID-on-the-web login.
  *
  * That return trip is not a nicety. `WebBrowser.dismissBrowser()` is iOS-only,
  * so without a callbackUrl an Android user would sign, land back on GrandID's
@@ -31,6 +37,34 @@ import { apiClient } from "./api";
  * the vote; the app learns about it by polling us. Closing the browser early
  * therefore proves nothing — see `watchVerification`.
  */
+
+/**
+ * What the browser did, which is the half of this flow the server cannot see.
+ *
+ * The twin of the same function in ./bankid-login.ts — read its comment for the
+ * reasoning. Votes matter more than logins here, because a voter hits this
+ * repeatedly and an unexplained hang on election day is not recoverable by
+ * asking them to try again tomorrow.
+ */
+let currentVerificationId: string | null = null;
+
+function trace(event: string, detail: Record<string, unknown> = {}) {
+  console.log(`[BankIdVote] ${event}`, {
+    platform: Platform.OS,
+    ...detail,
+  });
+
+  const verificationId = currentVerificationId;
+  if (!verificationId) return;
+  // Through apiClient: unlike login, a vote always has a session, and the
+  // server scopes the trace to the caller's own order.
+  apiClient("/api/mobile/bankid-trace", {
+    method: "POST",
+    body: JSON.stringify({ verificationId, event, detail }),
+  }).catch(() => {
+    /* diagnostics must never break the flow */
+  });
+}
 
 export type VerificationStatus =
   "PENDING" | "VERIFIED" | "REJECTED" | "FAILED" | "CANCELLED";
@@ -63,6 +97,14 @@ const WATCH_TIMEOUT_MS = 4 * 60 * 1000;
 const POLL_INTERVAL_MS = 2000;
 
 /**
+ * How long a still-PENDING signature waits before the UI offers a way out.
+ *
+ * See the twin constant in ./bankid-login.ts. Only an offer — the watch keeps
+ * polling, so a slow signer is never cut off.
+ */
+const STALL_AFTER_MS = 35 * 1000;
+
+/**
  * Where GrandID sends the browser once the signature is done.
  *
  * The same string goes to the server as `callbackUrl` and to
@@ -85,14 +127,22 @@ export async function startVoteVerification(
   questionId: string,
   choice: "ja" | "nej",
 ): Promise<StartedVerification> {
-  return apiClient<StartedVerification>("/api/mobile/vote-verification", {
-    method: "POST",
-    body: JSON.stringify({
-      questionId,
-      choice,
-      returnUrl: voteReturnUrl(),
-    }),
-  });
+  currentVerificationId = null;
+  trace("start", { choice });
+  const started = await apiClient<StartedVerification>(
+    "/api/mobile/vote-verification",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        questionId,
+        choice,
+        returnUrl: voteReturnUrl(),
+      }),
+    },
+  );
+  currentVerificationId = started.verificationId;
+  trace("started", { resumed: started.resumed });
+  return started;
 }
 
 export async function cancelVoteVerification(
@@ -115,19 +165,60 @@ export async function cancelVoteVerification(
  * The resolved result describes the *browser*, not the signature — `cancel`
  * only means the tab closed, which a user may do straight after signing
  * successfully. It is never treated as failure; the poll decides.
+ *
+ * **Android does not use `openAuthSessionAsync` at all** — that call's Android
+ * implementation is a Chrome Custom Tab living inside *our own app's task* (see
+ * `_openBrowserAndWaitAndroidAsync` in expo-web-browser's WebBrowser.ts: there
+ * is no native auth session on this platform, only a JS polyfill racing a deep
+ * link against `AppState` going `active`). When BankID hands control back,
+ * Android brings our app's task forward, not the Custom Tab specifically, so
+ * the tab is left alive but stranded behind our app mid-flow — GrandID's page
+ * never gets the chance to finish and fire its own redirect, and `GetSession`
+ * answers NOTLOGGEDIN until the order expires. The signature succeeds; nothing
+ * is left running to notice.
+ *
+ * `Linking.openURL` launches the OS's real default browser instead, as its
+ * **own separate task** — the same thing that happens when a URL is typed into
+ * Chrome directly, which is the ordinary, working case every BankID-on-the-web
+ * integration relies on. Android's own back-stack already returns control to
+ * whichever app launched an intent, so no `appRedirect` is needed here (see
+ * `appRedirectFor` in the server's `lib/bankid/client-hint.ts`). Verified
+ * 2026-09-02: opening the same hosted URL by hand in Chrome — bypassing the app
+ * and any Custom Tab entirely — completed and redirected correctly with no
+ * `appRedirect` set at all.
  */
 export async function openHostedLogin(redirectUrl: string): Promise<boolean> {
+  trace("browser opening");
+  if (Platform.OS === "android") {
+    try {
+      await Linking.openURL(redirectUrl);
+      return true;
+    } catch (error) {
+      trace("browser threw", { error: String(error) });
+      return false;
+    }
+  }
   try {
-    await WebBrowser.openAuthSessionAsync(redirectUrl, voteReturnUrl(), {
-      // Matches the app's own chrome so the hand-off feels continuous. Ignored
-      // on iOS, which uses the native auth session.
-      toolbarColor: "#002d75",
-      controlsColor: "#f5a623",
-      enableBarCollapsing: true,
-      showTitle: false,
-    });
+    const result = await WebBrowser.openAuthSessionAsync(
+      redirectUrl,
+      voteReturnUrl(),
+      {
+        // Ignored on Android now that it never reaches this branch — kept for
+        // iOS, where the native auth session still renders this chrome.
+        toolbarColor: "#002d75",
+        controlsColor: "#f5a623",
+        enableBarCollapsing: true,
+        showTitle: false,
+      },
+    );
+    // "success" means the callbackUrl fired and GrandID's page ran to
+    // completion; "dismiss" the tab was closed without it; "cancel" is the
+    // user backing out. None of these are treated as failure — the poll
+    // decides.
+    trace("browser closed", { type: result?.type });
     return true;
-  } catch {
+  } catch (error) {
+    trace("browser threw", { error: String(error) });
     return false;
   }
 }
@@ -168,6 +259,8 @@ export function watchVerification(
 ): () => void {
   let cancelled = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let polls = 0;
+  let stalled = false;
   const startedAt = Date.now();
 
   const clear = () => {
@@ -179,6 +272,7 @@ export function watchVerification(
     if (cancelled) return;
 
     if (Date.now() - startedAt > WATCH_TIMEOUT_MS) {
+      trace("watch timed out", { polls });
       cancelled = true;
       clear();
       handlers.onTimeout();
@@ -191,6 +285,16 @@ export function watchVerification(
       );
       if (cancelled) return;
 
+      polls += 1;
+      if (state.status !== "PENDING" || polls % 30 === 0) {
+        trace("poll", {
+          status: state.status,
+          reasonCode: state.reasonCode,
+          polls,
+          elapsedSeconds: Math.round((Date.now() - startedAt) / 1000),
+        });
+      }
+
       handlers.onState(state);
 
       if (state.status !== "PENDING") {
@@ -198,8 +302,16 @@ export function watchVerification(
         clear();
         return;
       }
-    } catch {
+
+      // No UI hangs off this — it's a server-visible timing signal only, for
+      // spotting a slow same-device hand-off in the logs.
+      if (!stalled && Date.now() - startedAt > STALL_AFTER_MS) {
+        stalled = true;
+        trace("stalled", { polls });
+      }
+    } catch (error) {
       // Transient — keep waiting.
+      trace("poll failed", { error: String(error) });
     }
 
     if (!cancelled) {
@@ -218,6 +330,7 @@ export function watchVerification(
     // Coming back from BankID or the browser is the most likely moment for the
     // signature to have completed, so check straight away rather than waiting
     // out the interval.
+    trace("app state", { state });
     if (state === "active") pollNow();
   };
 
@@ -228,7 +341,12 @@ export function watchVerification(
   // also the more reliable of the two on iOS, where the app can come back with
   // the auth-session sheet still on top and report `inactive` rather than
   // `active`.
-  const deepLink = Linking.addEventListener("url", pollNow);
+  const deepLink = Linking.addEventListener("url", (event) => {
+    // Its absence is the finding: an app that returns to the foreground with no
+    // url event was not redirected, it was switched back to by hand.
+    trace("deep link", { url: event.url });
+    pollNow();
+  });
 
   poll();
 

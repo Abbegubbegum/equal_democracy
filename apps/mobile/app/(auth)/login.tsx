@@ -60,6 +60,9 @@ export default function LoginScreen() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // State rather than a ref: it is read during render, and a ref read there
+  // would not re-render when it changes. BankIdVoteSheet holds it the same way.
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
   const stopRef = useRef<(() => void) | null>(null);
   const tokenRef = useRef<string | null>(null);
 
@@ -88,6 +91,7 @@ export default function LoginScreen() {
     try {
       const started = await startBankIdLogin("login");
       tokenRef.current = started.pollToken;
+      setRedirectUrl(started.redirectUrl);
       setPhase("awaiting");
 
       stopRef.current = watchBankIdLogin(started.pollToken, {
@@ -168,6 +172,23 @@ export default function LoginScreen() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {notice && !error ? (
             <Text style={styles.notice}>{notice}</Text>
+          ) : null}
+
+          {/*
+            No stall timer — the browser open is asynchronous and can fail or
+            get lost (a dismissed tab, a slow Android intent chooser) without
+            any signal we'd otherwise see, so the way back is offered the
+            instant there is a redirectUrl to retry rather than after a wait.
+          */}
+          {busy && redirectUrl ? (
+            <TouchableOpacity
+              onPress={() => openHostedLogin(redirectUrl)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.retryLink}>
+                Inte omdirigerad till BankID?
+              </Text>
+            </TouchableOpacity>
           ) : null}
 
           <TouchableOpacity
@@ -266,6 +287,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     fontSize: 13,
+  },
+  retryLink: {
+    color: AMBER,
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+    textDecorationLine: "underline",
   },
   notice: {
     color: "#fde68a",

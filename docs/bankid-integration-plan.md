@@ -457,6 +457,39 @@ accepted by `client.grandid.com`. Consequences, in order of how much they hurt:
 **Worth asking Svensk E-identitet for test credentials anyway.** Not a blocker,
 but without them every CI-style rerun costs a transaction and a signature.
 
+**Addendum (2026-09-02): the `auth` service now works against the test host.**
+During the Android same-device debugging session, `apps/web/.env.local` had
+`GRANDID_ENV=test` and BankID logins completed normally — `FederatedLogin` and
+`GetSession` both answered `200` from `client-test.grandid.com` with no
+`errorCode`, and the hosted page ran on `login.test.grandid.com` against a real
+test BankID (the "Android test phone with test bankid" the debugging session
+started from). This directly contradicts the `APIKEYNOTVALID01` measurement
+above, taken 2026-08-24 — either test credentials were provisioned for this
+account sometime after that date, or the original measurement used a stale key.
+**Only confirmed for the `auth` service** (`GRANDID_AUTH_SERVICE_KEY`) — nothing
+in that session exercised `sign`, and this account's `.env.local` currently has
+`GRANDID_SIGN_SERVICE_KEY` set to the _same value_ as the auth key, which is
+almost certainly a placeholder rather than a real provisioned signing key for
+test (a `sign` order without a genuine signing service key would most likely
+come back `Identification` per §2a, or be rejected outright). Don't assume
+`sign` works against the test host without checking — and checking costs a real
+order (`pnpm grandid --probe`), so don't run that speculatively. Point 1 above
+("every test is a real, billed transaction") still stands for `sign` until
+proven otherwise; it no longer stands for `auth`.
+
+**Whose credentials were actually in `.env.local` during this session** was
+briefly unclear — its comment claimed the stored values were production,
+rejected by the test host, while `GRANDID_ENV=test` was set with those same
+values and a real login succeeded. Resolved by re-keying `.env.local`: the bare
+names now hold the pair matching §2a's measured `…69dc` (signing) / `…7c8c`
+(auth) services, confirmed production; the value that was in the bare slots
+during this session moved to the `GRANDID_*_TEST` trio.
+
+`apps/web/.env.local` now splits credentials into the bare names (production —
+same as Vercel) and a `GRANDID_*_TEST` trio (test). `GRANDID_ENV` alone switches
+both the host and which trio `lib/bankid/config.ts` reads — flip it in
+`.env.local` and restart `pnpm dev`/`dev:web`; there's no separate script.
+
 No mTLS and no public HTTPS callback are needed, so `pnpm dev:web` reaches
 GrandID from localhost with no tunnel — polling, not callbacks, is what makes
 that true.
@@ -666,14 +699,20 @@ The fix is **`appRedirect`**, which is a different journey from `callbackUrl`:
 | `callbackUrl` | the **browser**, after GrandID's page finishes |
 | `appRedirect` | the **BankID app**, after signing              |
 
-Both are now set to the app's deep link, so BankID skips the browser on the way
-back. This is the documented remedy, not a workaround — the same page describes
-`appRedirect` as the parameter "you can use to show the application to the user"
-when the OS prevents the normal return. (Its one exclusion, that BankID needs the
-launch URI built by hand instead, applies to the no-GUI flow where the app owns
-the `autoStartToken`; we are in GUI mode.) Note GrandID **does not validate `appRedirect`** — every form tried was
-accepted, including nonsense — so a wrong value fails silently at the worst
-moment rather than at request time.
+On iOS, `appRedirect` is set to the app's deep link, so BankID skips the browser
+on the way back. This is the documented remedy, not a workaround — the same page
+describes `appRedirect` as the parameter "you can use to show the application to
+the user" when the OS prevents the normal return. (Its one exclusion, that
+BankID needs the launch URI built by hand instead, applies to the no-GUI flow
+where the app owns the `autoStartToken`; we are in GUI mode.) Note GrandID
+**does not validate `appRedirect`** — every form tried was accepted, including
+nonsense — so a wrong value fails silently at the worst moment rather than at
+request time.
+
+**This does not carry over to Android**, and setting `appRedirect` to the app's
+deep link there was tried and made things worse, not better — see the Android
+addendum right after Stage 5 below. Android's fix is not a redirect parameter at
+all; it's opening a real standalone browser instead of a Custom Tab.
 
 The app also polls on the deep link itself, not only on `AppState`: on iOS it can
 come back with the auth-session sheet still on top and report `inactive` rather
@@ -683,6 +722,59 @@ than `active`, which would otherwise delay the result by a poll interval.
 Expo Go; what needs a phone is the browser hand-off, the `bankid://` launch from
 GrandID's page, and the return. Expect the first attempt to cost a real
 signature — there is no sandbox (§8).
+
+#### Android addendum (2026-09-02): the same-device hang, and why it isn't `appRedirect`
+
+Found on a real Android phone: the same-device BankID signing flow (BankID app
+installed on the same phone as the test client, not the QR/other-device path,
+which always worked) never completed. The app backgrounded, BankID signed
+successfully, the app came back to the foreground — and then nothing. `GetSession`
+answered `NOTLOGGEDIN` on every poll until the order expired, with no deep link
+ever received. This reproduced identically whether `appRedirect` was unset or set
+to the app's own deep link (`vallentunaframat://login`) — ruling out the iOS-shaped
+fix above before it was even tried on purpose.
+
+**The root cause is not the redirect target — it's the kind of browser tab BankID
+returns to.** `openAuthSessionAsync`'s Android implementation is not a native auth
+session; expo-web-browser has none on this platform (see
+`_openBrowserAndWaitAndroidAsync` in its `WebBrowser.ts`). It opens a Chrome
+Custom Tab and polyfills the "wait for return" behaviour in JS, racing a deep
+link against `AppState` going `active`. A Custom Tab lives inside the _host app's
+own task_, and when BankID hands control back, Android brings that task forward
+as a whole rather than specifically resuming the Custom Tab — so the tab is left
+alive but stranded behind the app, mid-flow, and GrandID's hosted page (which is
+what actually finalises the order — see the top of Stage 4) never gets the chance
+to run to completion and fire its own `callbackUrl` redirect.
+
+This was confirmed two ways on 2026-09-02. First, leaving an order stalled and
+switching to the backgrounded Chrome tab **by hand** immediately let it complete
+— GrandID's page showed success and offered to redirect back to the app, and
+doing so worked. Second, running `pnpm grandid --auth` and opening the printed
+URL directly in Chrome (never touching the app or a Custom Tab at all) signed and
+redirected correctly on the first try, with no `appRedirect` involved anywhere.
+Both point at the same thing: a _standalone_ browser tab, as opposed to a Custom
+Tab scoped into the app's task, is all that's needed — BankID's return already
+works through Android's ordinary back-stack, the same way it works for any
+website's mobile BankID login.
+
+**The fix**: on Android, `openHostedLogin` (`apps/mobile/lib/bankid.ts` and
+`lib/bankid-login.ts`) calls `Linking.openURL(redirectUrl)` instead of
+`WebBrowser.openAuthSessionAsync`. This launches the OS's actual default browser
+as its own task rather than a Custom Tab bound to the app, and needs no
+`appRedirect` — `appRedirectFor` (`apps/web/lib/bankid/client-hint.ts`) sends one
+on iOS only, exactly as before this addendum. The cost is that `Linking.openURL`
+gives no "browser closed" signal to wait on, unlike `openAuthSessionAsync`; the
+app was already relying on `watchVerification`/`watchBankIdLogin`'s
+`AppState`/deep-link listeners to decide the outcome rather than the browser
+call's own resolution, so nothing else needed to change.
+
+An `appRedirect` aimed at a page of ours (rather than the app) that then
+redirected back into the same Custom Tab's hosted page was drafted and discarded
+before this fix — it required a signed resume token (a verification id is a
+guessable ObjectId, and its hosted page is a live signing page) and never got
+past dev's lack of a real https origin to test against. The standalone-browser
+fix needs none of that machinery and is confirmed to work on-device, so it
+superseded the resume-token approach entirely rather than sitting alongside it.
 
 ### Stage 6 — Quota transition and the web voting path ✅ complete
 

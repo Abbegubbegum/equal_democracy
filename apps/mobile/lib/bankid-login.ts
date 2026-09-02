@@ -10,13 +10,33 @@ import { BASE_URL, getAccessToken } from "./api";
  * The server knows only that GrandID keeps answering NOTLOGGEDIN. It cannot
  * tell whether the hosted page was closed, backgrounded, or returned to — and
  * on Android that distinction is the whole question, because the browser tab is
- * what drives GrandID's page to completion. Tagged so it can be picked out of
- * logcat with `adb logcat | grep BankIdLogin`.
+ * what drives GrandID's page to completion.
+ *
+ * It goes two places. The console is for a device in your hand
+ * (`adb logcat | grep BankIdLogin`). The server copy is for every other device:
+ * a tester across town cannot send you their console, and "it just hangs" is
+ * not a diagnosis. Posting it interleaves the browser's story with the server's
+ * own view of the same order, in one log stream.
+ *
+ * The POST is fire-and-forget and failure is swallowed whole. Diagnostics that
+ * can break the flow they diagnose are worse than no diagnostics.
  */
+let currentPollToken: string | null = null;
+
 function trace(event: string, detail: Record<string, unknown> = {}) {
   console.log(`[BankIdLogin] ${event}`, {
     platform: Platform.OS,
     ...detail,
+  });
+
+  const pollToken = currentPollToken;
+  if (!pollToken) return;
+  fetch(`${BASE_URL}/api/mobile/bankid-trace`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pollToken, event, detail }),
+  }).catch(() => {
+    /* diagnostics must never break the flow */
   });
 }
 
@@ -76,6 +96,16 @@ const WATCH_TIMEOUT_MS = 4 * 60 * 1000;
 const POLL_INTERVAL_MS = 2000;
 
 /**
+ * How long a still-PENDING order waits before the UI offers a way out.
+ *
+ * A same-device BankID normally completes in ten to twenty seconds. Thirty-five
+ * is comfortably past that without nagging someone who is merely slow at typing
+ * their security code — and crucially this only *offers* an alternative. The
+ * watch keeps polling, so a late signature still lands.
+ */
+const STALL_AFTER_MS = 35 * 1000;
+
+/**
  * Where GrandID sends the browser once identification is done.
  *
  * `/login` must stay a real route — an unmatched deep link has no navigator to
@@ -116,12 +146,16 @@ export async function startBankIdLogin(
   purpose: "login" | "link" = "login",
 ): Promise<StartedLogin> {
   const returnUrl = loginReturnUrl();
+  currentPollToken = null;
   trace("start", { purpose, returnUrl });
   const started = await post(
     "/api/mobile/auth/bankid",
     { purpose, returnUrl },
     purpose === "link",
   );
+  // Only now can a trace be attributed to an order, which is why "start" above
+  // is console-only and every later event reaches the server.
+  currentPollToken = started.pollToken;
   trace("started", { purpose, resumed: started.resumed });
   return started;
 }
@@ -143,9 +177,43 @@ export async function cancelBankIdLogin(pollToken: string): Promise<void> {
  * The result describes the *browser*, not the identification — a closed tab
  * proves nothing, and a user may close it straight after succeeding. The poll
  * decides.
+ *
+ * **Android does not use `openAuthSessionAsync` at all.** That API's Android
+ * implementation is a Chrome Custom Tab living inside *our own app's task* —
+ * see `_openBrowserAndWaitAndroidAsync` in expo-web-browser's WebBrowser.ts,
+ * which is a JS polyfill racing a deep link against `AppState` going `active`,
+ * because there is no native auth session on this platform at all. When BankID
+ * hands control back, Android brings our app's task forward, not the Custom
+ * Tab specifically — so the tab is left alive but stranded behind our app,
+ * mid-flow, and GrandID's page never gets the chance to finish and fire its own
+ * redirect. `GetSession` then answers NOTLOGGEDIN until the order expires: the
+ * signature succeeded, but nothing was left running to notice.
+ *
+ * `Linking.openURL` instead launches the OS's actual default browser as its
+ * **own separate task** — exactly what happens when a user types a BankID
+ * login URL into Chrome directly, which is the ordinary, working case every
+ * website relies on. Android's own back-stack already knows how to return
+ * control to whichever app launched an intent, so no `appRedirect` is needed
+ * (see `appRedirectFor` in the server's `lib/bankid/client-hint.ts`). Verified
+ * 2026-09-02: opening the same hosted URL by hand in Chrome — bypassing the app
+ * and any Custom Tab entirely — completed and redirected correctly with no
+ * `appRedirect` set at all.
+ *
+ * This can't `await` a result the way the iOS branch does — there is nothing
+ * to wait on, `Linking.openURL` resolves once the browser is launched, not once
+ * it returns. `watchBankIdLogin`'s `AppState`/deep-link listeners are what
+ * notice completion either way.
  */
 export async function openHostedLogin(redirectUrl: string): Promise<void> {
   trace("browser opening");
+  if (Platform.OS === "android") {
+    try {
+      await Linking.openURL(redirectUrl);
+    } catch (error) {
+      trace("browser threw", { error: String(error) });
+    }
+    return;
+  }
   try {
     const result = await WebBrowser.openAuthSessionAsync(
       redirectUrl,
@@ -157,16 +225,10 @@ export async function openHostedLogin(redirectUrl: string): Promise<void> {
         showTitle: false,
       },
     );
-    // The three answers mean very different things, and only this line
-    // distinguishes them:
-    //
-    //   "success" — the callbackUrl fired: GrandID's page ran to completion and
-    //               redirected. This is the healthy path.
-    //   "dismiss" — the tab was closed without the redirect. On Android that is
-    //               what an `appRedirect` short-circuit looks like: BankID sent
-    //               the user straight back to the app, the tab was left behind
-    //               mid-flow, and GrandID never finished the session.
-    //   "cancel"  — the user backed out themselves.
+    // "success" — the callbackUrl fired: GrandID's page ran to completion and
+    //             redirected. This is the healthy path.
+    // "dismiss" — the tab was closed without the redirect.
+    // "cancel"  — the user backed out themselves.
     trace("browser closed", { type: result?.type });
   } catch (error) {
     trace("browser threw", { error: String(error) });
@@ -208,6 +270,7 @@ export function watchBankIdLogin(
   let cancelled = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let polls = 0;
+  let stalled = false;
   const startedAt = Date.now();
 
   const clear = () => {
@@ -264,6 +327,13 @@ export function watchBankIdLogin(
         cancelled = true;
         clear();
         return;
+      }
+
+      // No UI hangs off this — it's a server-visible timing signal only, for
+      // spotting a slow same-device hand-off in the logs.
+      if (!stalled && Date.now() - startedAt > STALL_AFTER_MS) {
+        stalled = true;
+        trace("stalled", { polls });
       }
     } catch (error) {
       // Transient — keep waiting.

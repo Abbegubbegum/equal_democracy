@@ -26,6 +26,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-09-02
+
+### Fixed
+
+- **BankID never completed via the same-device hand-off on Android.** The app opened GrandID's
+  hosted page in a Chrome Custom Tab (`expo-web-browser`'s `openAuthSessionAsync`), which lives
+  inside the app's own task. When BankID handed control back, Android brought the app forward
+  instead of resuming the tab, leaving it stranded mid-flow with GrandID's page never able to finish
+  and fire its own redirect — `GetSession` then answered `NOTLOGGEDIN` forever, even after a
+  successful signature (measured: 30 polls over 82 s with no state change). Fixed by opening the
+  hosted page in the OS's real default browser instead (`Linking.openURL`), as its own separate
+  task — the same thing every BankID-on-the-web login already relies on, where Android's own
+  back-stack returns control correctly with no `appRedirect` needed. `appRedirectFor()` still governs
+  the platform split for the unrelated, real iOS requirement (`ASWebAuthenticationSession` is its own
+  browser instance, so without an `appRedirect` there BankID returns to a blank Safari tab instead).
+  Applies to login and to both vote-signing endpoints — the same Custom Tab was used by all three.
+- **BankID auth flows are now traceable end to end.** Login and vote-signing polls log on state
+  change plus a heartbeat every ~20 s (what GrandID answered, how many polls, how long); starts log
+  both `callbackUrl` and `appRedirect`; the GrandID transport line carries the `errorCode` an HTTP
+  200 hides. The app posts what the _browser_ did — opened, closed, whether a deep link fired — to
+  `POST /api/mobile/bankid-trace`, so a hang on a device the server alone couldn't diagnose shows up
+  in one interleaved log stream. Every line is tagged with the platform, inferred from the
+  User-Agent rather than sent by the client.
+
 ## [1.3.0] - 2026-08-26
 
 ### Added
@@ -135,26 +159,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   errors again after the code they flagged was fixed.
 
 ### Fixed
-
-- **BankID never completed on Android — the app was told to skip the browser.** Every BankID order
-  set both `callbackUrl` (where GrandID sends the _browser_ once its hosted page finishes) and
-  `appRedirect` (where the _BankID app_ sends the user the moment it is done) to the same deep link.
-  On iOS the second one is required: `ASWebAuthenticationSession` is its own browser instance, so
-  without it BankID returns to a Safari tab with none of the flow's state. On Android it is fatal —
-  the Chrome Custom Tab is what drives GrandID's hosted page to completion, and that page is what
-  finalises the session, so short-circuiting BankID straight back to the app left the tab parked
-  mid-flow and the order stuck at `NOTLOGGEDIN` permanently, even though the signature itself had
-  succeeded. Measured before the fix: thirty polls over 82 seconds after a successful signing, with
-  no state change at all. The choice now lives in one place, `appRedirectFor()`, and applies to
-  login and to both vote-signing endpoints — the same defect was present in all three.
-- **BankID auth endpoints are now traceable.** An order that hangs used to be invisible: the poll
-  loop logged nothing at all, so "the user is taking their time" and "GrandID never saw the browser
-  come back" looked identical. Polls now log on state _change_ plus a warning heartbeat every ~20 s
-  carrying what GrandID actually answered, how many polls it has cost and how long it has run;
-  starts log both halves of the return trip; the GrandID transport line carries the `errorCode` that
-  an HTTP 200 hides. Every line is tagged with the platform, inferred from the User-Agent rather
-  than sent by the client, so a bug that only reproduces on one of them is readable. The app traces
-  the half the server cannot see — what the browser did — under `[BankIdLogin]`.
 
 - **Mobile API latency.** Serverless functions had no `regions` pin, so Vercel ran them in `iad1`
   (Washington DC) while the MongoDB Atlas cluster sits in Europe — every database round trip
@@ -362,7 +366,8 @@ Initial release — the platform as deployed for Vallentuna kommun.
 - Serverless-ready on Vercel: image uploads on Vercel Blob, a daily session-timeout cron, and a
   documented production deploy checklist (since rewritten as [SCALING.md](SCALING.md)).
 
-[Unreleased]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.3...v1.3.0
 [1.2.3]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.1...v1.2.2

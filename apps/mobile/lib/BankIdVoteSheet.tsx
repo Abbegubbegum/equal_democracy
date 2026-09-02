@@ -165,6 +165,13 @@ export default function BankIdVoteSheet({
                 din röst. Du kommer tillbaka hit automatiskt.
               </Text>
 
+              {/*
+                No stall timer — the browser open is asynchronous and can fail
+                or get lost (a dismissed tab, a slow Android intent chooser)
+                without any signal we'd otherwise see, so the way back is
+                offered the instant there is a redirectUrl to retry rather
+                than after a wait.
+              */}
               {redirectUrl && (
                 <TouchableOpacity
                   style={styles.secondaryBtn}
@@ -172,7 +179,9 @@ export default function BankIdVoteSheet({
                   activeOpacity={0.85}
                 >
                   <Ionicons name="open-outline" size={18} color="#fff" />
-                  <Text style={styles.secondaryBtnText}>Öppna BankID igen</Text>
+                  <Text style={styles.secondaryBtnText}>
+                    Inte omdirigerad till BankID?
+                  </Text>
                 </TouchableOpacity>
               )}
 
