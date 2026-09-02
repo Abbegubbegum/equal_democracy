@@ -75,11 +75,18 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  // Next warns if a handler returns a value, so every exit sends and returns
+  // undefined rather than returning what `res` hands back.
+  const done = (status = 204, body?: unknown) => {
+    if (body) res.status(status).json(body);
+    else res.status(status).end();
+  };
+
   if (req.method !== "POST")
-    return res.status(405).json({ message: "Method not allowed" });
+    return done(405, { message: "Method not allowed" });
 
   const event = String(req.body?.event || "");
-  if (!EVENTS.has(event)) return res.status(204).end();
+  if (!EVENTS.has(event)) return done();
 
   const pollToken = req.body?.pollToken;
   const verificationId = req.body?.verificationId;
@@ -96,7 +103,7 @@ export default async function handler(
         .lean();
       // Silence rather than an error: an expired order is the ordinary reason,
       // and there is nothing the app could usefully do about it either way.
-      if (!row) return res.status(204).end();
+      if (!row) return done();
 
       log.info("Login client trace", {
         verificationId: row._id.toString(),
@@ -109,14 +116,14 @@ export default async function handler(
           (Date.now() - new Date(row.createdAt).getTime()) / 1000,
         ),
       });
-      return res.status(204).end();
+      return done();
     }
 
     if (typeof verificationId === "string" && verificationId) {
       // An ObjectId is guessable, so this half needs the session the vote flow
       // already has, and only ever speaks about the caller's own order.
       const caller = optionalBearerToken(req.headers.authorization);
-      if (!caller) return res.status(204).end();
+      if (!caller) return done();
 
       const row: any = await VoteVerification.findOne({
         _id: verificationId,
@@ -125,7 +132,7 @@ export default async function handler(
         .select("_id status createdAt")
         .lean()
         .catch(() => null);
-      if (!row) return res.status(204).end();
+      if (!row) return done();
 
       log.info("Vote client trace", {
         verificationId: row._id.toString(),
@@ -137,10 +144,10 @@ export default async function handler(
           (Date.now() - new Date(row.createdAt).getTime()) / 1000,
         ),
       });
-      return res.status(204).end();
+      return done();
     }
 
-    return res.status(204).end();
+    return done();
   } catch (error) {
     // Never surfaced to the user, and never allowed to fail a flow: this is
     // diagnostics, and diagnostics that can break the thing they diagnose are
@@ -149,6 +156,6 @@ export default async function handler(
       event,
       error: (error as Error).message,
     });
-    return res.status(204).end();
+    return done();
   }
 }

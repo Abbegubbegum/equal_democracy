@@ -31,29 +31,38 @@ export interface ClientHint {
  * Whether to tell the BankID app to return straight to us, given who is asking.
  *
  * **Android must not get an `appRedirect`, and iOS cannot work without one.**
- * The two platforms take different journeys home from BankID, and sending both
- * down the same one strands whichever is on the wrong path:
+ * Not because of which app the BankID app returns to as such — the real fault
+ * line is what kind of browser is holding the flow, and that comment applied
+ * back when the app opened GrandID's hosted page in a Chrome Custom Tab (via
+ * `expo-web-browser`'s Android "auth session" polyfill). A Custom Tab lives
+ * inside the *host app's own task* — ours — and Android does not reliably
+ * return it to the foreground once BankID hands back control; our app comes
+ * forward instead, and the Custom Tab is left alive but stranded behind it,
+ * mid-flow, with GrandID's page never getting the chance to finish and fire its
+ * own callback. `GetSession` then reports `NOTLOGGEDIN` until the order
+ * expires — the transaction succeeded, but nothing was ever there to notice.
  *
- *   iOS      `ASWebAuthenticationSession` is its own browser instance. Left to
- *            itself, BankID returns to Safari proper — a tab with none of the
- *            flow's state — and the callbackUrl redirect never fires. The
- *            appRedirect skips the browser entirely and lands in the app.
+ * Fixed by not using a Custom Tab on Android at all: the app now hands the
+ * GrandID URL to `Linking.openURL`, which launches the OS's actual default
+ * browser as its **own separate task**, exactly as if the user had typed the
+ * URL in themselves. That is the ordinary way every website's mobile BankID
+ * login works, and Android's own back-stack already knows how to return
+ * control to whichever app launched an intent — no `appRedirect` required.
+ * Verified 2026-09-02 two ways: navigating to the same hosted URL manually in
+ * Chrome (bypassing the app and any Custom Tab entirely) completed and
+ * redirected correctly with no `appRedirect` set, and the client fix
+ * (`Linking.openURL` in `apps/mobile/lib/bankid.ts` / `bankid-login.ts`)
+ * reproduces exactly that path from inside the app.
  *
- *   Android  The Chrome Custom Tab is what drives GrandID's hosted page to
- *            completion, and that page is what finalises the session. An
- *            appRedirect short-circuits BankID straight back to the app, the
- *            tab is left parked mid-flow, and GrandID never learns the order
- *            finished — so GetSession answers NOTLOGGEDIN forever.
+ * iOS is unrelated to any of this. `ASWebAuthenticationSession` is its own
+ * browser instance, separate from Safari proper — left alone, BankID returns
+ * to a blank Safari tab with none of the session's state, and the callbackUrl
+ * redirect never fires. The `appRedirect` skips the browser entirely there and
+ * lands straight in the app.
  *
- * That second half is measured, not theorised: on 2026-09-01 an Android login
- * was polled thirty times over 82 seconds, after a *successful* signature, and
- * every single GetSession came back `unknown:NOTLOGGEDIN` with no state change
- * at all. Removing the appRedirect is what lets the browser finish.
- *
- * Anything that is not Android keeps it. `web` covers a phone browser, where
- * the iOS problem applies just the same, and `unknown` is the conservative
- * default — a missing appRedirect breaks iOS outright, while a spurious one
- * costs nothing anywhere the browser was going to be skipped regardless.
+ * GrandID does **not** validate `appRedirect` (any value is accepted, even on
+ * Android, where one is simply never sent) — a wrong one fails silently after
+ * signing.
  */
 export function appRedirectFor(
   platform: ClientPlatform,

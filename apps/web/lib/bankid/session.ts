@@ -159,20 +159,7 @@ export interface StartBankIdSessionParams {
    * **Whether to set this at all is a per-platform decision, and both answers
    * are wrong on the other platform.** Do not pass a value here directly — use
    * `appRedirectFor(platform, url)` from ./client-hint.ts, which owns the rule
-   * and the evidence for it. In short:
-   *
-   *   iOS      needs it. BankID returns to Safari — a different browser
-   *            instance from the in-app auth session that started the flow — so
-   *            the user lands on a blank `login.grandid.com` with none of the
-   *            session's state and no redirect ever fires.
-   *
-   *   Android  must not have it. The Custom Tab is what drives GrandID's hosted
-   *            page to completion, and that page is what finalises the session.
-   *            Skipping it leaves the order stuck at NOTLOGGEDIN permanently,
-   *            even though the signature itself succeeded.
-   *
-   * Both halves were shipped as bugs, one after the other, by assuming the two
-   * platforms take the same journey home. They do not.
+   * and the full reasoning (iOS needs it, Android must not have it — and why).
    *
    * Unlike `callbackUrl`, GrandID does not validate this: every form tried was
    * accepted, so a wrong value fails silently at the worst possible moment.

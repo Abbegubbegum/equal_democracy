@@ -17,11 +17,17 @@ import { apiClient } from "./api";
  * navigation itself; the system browser lets the OS handle the scheme, which is
  * the same reason OAuth flows use it.
  *
- * `openAuthSessionAsync` rather than `openBrowserAsync`, because the browser has
- * to hand control back. GrandID redirects to our `callbackUrl` once the
- * signature is done, and the auth session watches for it: iOS closes the sheet
- * itself, and on Android — where there is no native AuthSession — the deep link
- * brings the app to the front over the Custom Tab.
+ * The two platforms get there differently, and that difference is load-bearing
+ * (see `openHostedLogin` below for the full story). **iOS** uses
+ * `openAuthSessionAsync` — an `ASWebAuthenticationSession` that lives inside the
+ * app and hands control back on `callbackUrl`. **Android** uses
+ * `Linking.openURL`, launching the OS's real default browser as its own task,
+ * rather than `openAuthSessionAsync`'s Android implementation (a Chrome Custom
+ * Tab scoped to *our* task, which BankID's same-device return does not reliably
+ * bring back to the foreground — the tab is left alive but stranded behind our
+ * app, and GrandID's page never finishes). Android's own back-stack returns
+ * control to whichever app launched the browser intent once the signature
+ * flow's `callbackUrl` redirect fires, the same as any BankID-on-the-web login.
  *
  * That return trip is not a nicety. `WebBrowser.dismissBrowser()` is iOS-only,
  * so without a callbackUrl an Android user would sign, land back on GrandID's
@@ -159,16 +165,46 @@ export async function cancelVoteVerification(
  * The resolved result describes the *browser*, not the signature — `cancel`
  * only means the tab closed, which a user may do straight after signing
  * successfully. It is never treated as failure; the poll decides.
+ *
+ * **Android does not use `openAuthSessionAsync` at all** — that call's Android
+ * implementation is a Chrome Custom Tab living inside *our own app's task* (see
+ * `_openBrowserAndWaitAndroidAsync` in expo-web-browser's WebBrowser.ts: there
+ * is no native auth session on this platform, only a JS polyfill racing a deep
+ * link against `AppState` going `active`). When BankID hands control back,
+ * Android brings our app's task forward, not the Custom Tab specifically, so
+ * the tab is left alive but stranded behind our app mid-flow — GrandID's page
+ * never gets the chance to finish and fire its own redirect, and `GetSession`
+ * answers NOTLOGGEDIN until the order expires. The signature succeeds; nothing
+ * is left running to notice.
+ *
+ * `Linking.openURL` launches the OS's real default browser instead, as its
+ * **own separate task** — the same thing that happens when a URL is typed into
+ * Chrome directly, which is the ordinary, working case every BankID-on-the-web
+ * integration relies on. Android's own back-stack already returns control to
+ * whichever app launched an intent, so no `appRedirect` is needed here (see
+ * `appRedirectFor` in the server's `lib/bankid/client-hint.ts`). Verified
+ * 2026-09-02: opening the same hosted URL by hand in Chrome — bypassing the app
+ * and any Custom Tab entirely — completed and redirected correctly with no
+ * `appRedirect` set at all.
  */
 export async function openHostedLogin(redirectUrl: string): Promise<boolean> {
   trace("browser opening");
+  if (Platform.OS === "android") {
+    try {
+      await Linking.openURL(redirectUrl);
+      return true;
+    } catch (error) {
+      trace("browser threw", { error: String(error) });
+      return false;
+    }
+  }
   try {
     const result = await WebBrowser.openAuthSessionAsync(
       redirectUrl,
       voteReturnUrl(),
       {
-        // Matches the app's own chrome so the hand-off feels continuous.
-        // Ignored on iOS, which uses the native auth session.
+        // Ignored on Android now that it never reaches this branch — kept for
+        // iOS, where the native auth session still renders this chrome.
         toolbarColor: "#002d75",
         controlsColor: "#f5a623",
         enableBarCollapsing: true,
@@ -176,8 +212,9 @@ export async function openHostedLogin(redirectUrl: string): Promise<boolean> {
       },
     );
     // "success" means the callbackUrl fired and GrandID's page ran to
-    // completion; "dismiss" means the tab went away without it, which is what a
-    // torn-down Custom Tab looks like; "cancel" is the user backing out.
+    // completion; "dismiss" the tab was closed without it; "cancel" is the
+    // user backing out. None of these are treated as failure — the poll
+    // decides.
     trace("browser closed", { type: result?.type });
     return true;
   } catch (error) {
@@ -203,14 +240,6 @@ export interface WatchHandlers {
   onState: (state: VerificationState) => void;
   /** Called once, when we give up waiting. */
   onTimeout: () => void;
-  /**
-   * Fired once, when the signature has been PENDING long enough to look stuck.
-   *
-   * Neither a failure nor terminal — polling continues. It lets the sheet stop
-   * being a dead end when the same-device hand-off hangs, which on Android it
-   * can do indefinitely.
-   */
-  onStalled?: () => void;
 }
 
 /**
@@ -274,10 +303,11 @@ export function watchVerification(
         return;
       }
 
+      // No UI hangs off this — it's a server-visible timing signal only, for
+      // spotting a slow same-device hand-off in the logs.
       if (!stalled && Date.now() - startedAt > STALL_AFTER_MS) {
         stalled = true;
         trace("stalled", { polls });
-        handlers.onStalled?.();
       }
     } catch (error) {
       // Transient — keep waiting.

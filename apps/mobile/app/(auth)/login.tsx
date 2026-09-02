@@ -60,9 +60,6 @@ export default function LoginScreen() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  // Set when the order has been pending long enough to look stuck. Additive
-  // only — the watch keeps polling and the current attempt is untouched.
-  const [stalled, setStalled] = useState(false);
   // State rather than a ref: it is read during render, and a ref read there
   // would not re-render when it changes. BankIdVoteSheet holds it the same way.
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
@@ -89,7 +86,6 @@ export default function LoginScreen() {
   async function start() {
     setError(null);
     setNotice(null);
-    setStalled(false);
     setPhase("starting");
 
     try {
@@ -99,7 +95,6 @@ export default function LoginScreen() {
       setPhase("awaiting");
 
       stopRef.current = watchBankIdLogin(started.pollToken, {
-        onStalled: () => setStalled(true),
         onState: async (state) => {
           if (state.status === "VERIFIED" && state.accessToken) {
             tokenRef.current = null;
@@ -180,32 +175,20 @@ export default function LoginScreen() {
           ) : null}
 
           {/*
-            The way out of a hang. The hand-off to the BankID app on the same
-            phone does not complete on every device, and without this the
-            screen is a dead end. Signing from a second device is the proven
-            path, so say so rather than leaving the user with a spinner.
+            No stall timer — the browser open is asynchronous and can fail or
+            get lost (a dismissed tab, a slow Android intent chooser) without
+            any signal we'd otherwise see, so the way back is offered the
+            instant there is a redirectUrl to retry rather than after a wait.
           */}
-          {stalled && busy ? (
-            <View style={styles.hint}>
-              <Text style={styles.hintTitle}>Händer det inget?</Text>
-              <Text style={styles.hintText}>
-                Öppna BankID-sidan igen och välj{" "}
-                <Text style={styles.hintStrong}>BankID på annan enhet</Text>.
-                Skanna sedan QR-koden med BankID på en annan telefon, surfplatta
-                eller dator.
+          {busy && redirectUrl ? (
+            <TouchableOpacity
+              onPress={() => openHostedLogin(redirectUrl)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.retryLink}>
+                Inte omdirigerad till BankID?
               </Text>
-              {redirectUrl ? (
-                <TouchableOpacity
-                  style={styles.hintButton}
-                  onPress={() => openHostedLogin(redirectUrl)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.hintButtonText}>
-                    Öppna BankID-sidan igen
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
+            </TouchableOpacity>
           ) : null}
 
           <TouchableOpacity
@@ -305,30 +288,13 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 13,
   },
-  hint: {
-    backgroundColor: "rgba(245,166,35,0.12)",
-    borderColor: "rgba(245,166,35,0.35)",
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    gap: 8,
-  },
-  hintTitle: { color: AMBER, fontSize: 14, fontWeight: "800" },
-  hintText: {
-    color: "rgba(255,255,255,0.8)",
+  retryLink: {
+    color: AMBER,
     fontSize: 13,
-    lineHeight: 19,
+    fontWeight: "700",
+    textAlign: "center",
+    textDecorationLine: "underline",
   },
-  hintStrong: { fontWeight: "800", color: "#fff" },
-  hintButton: {
-    borderColor: "rgba(255,255,255,0.35)",
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
-    marginTop: 2,
-  },
-  hintButtonText: { color: "#fff", fontSize: 13, fontWeight: "700" },
   notice: {
     color: "#fde68a",
     backgroundColor: "rgba(245,166,35,0.15)",

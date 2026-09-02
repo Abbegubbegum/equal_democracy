@@ -26,6 +26,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **BankID never completed via the same-device hand-off on Android.** The app opened GrandID's
+  hosted page in a Chrome Custom Tab (`expo-web-browser`'s `openAuthSessionAsync`), which lives
+  inside the app's own task. When BankID handed control back, Android brought the app forward
+  instead of resuming the tab, leaving it stranded mid-flow with GrandID's page never able to finish
+  and fire its own redirect — `GetSession` then answered `NOTLOGGEDIN` forever, even after a
+  successful signature (measured: 30 polls over 82 s with no state change). Fixed by opening the
+  hosted page in the OS's real default browser instead (`Linking.openURL`), as its own separate
+  task — the same thing every BankID-on-the-web login already relies on, where Android's own
+  back-stack returns control correctly with no `appRedirect` needed. `appRedirectFor()` still governs
+  the platform split for the unrelated, real iOS requirement (`ASWebAuthenticationSession` is its own
+  browser instance, so without an `appRedirect` there BankID returns to a blank Safari tab instead).
+  Applies to login and to both vote-signing endpoints — the same Custom Tab was used by all three.
+- **BankID auth flows are now traceable end to end.** Login and vote-signing polls log on state
+  change plus a heartbeat every ~20 s (what GrandID answered, how many polls, how long); starts log
+  both `callbackUrl` and `appRedirect`; the GrandID transport line carries the `errorCode` an HTTP
+  200 hides. The app posts what the _browser_ did — opened, closed, whether a deep link fired — to
+  `POST /api/mobile/bankid-trace`, so a hang on a device the server alone couldn't diagnose shows up
+  in one interleaved log stream. Every line is tagged with the platform, inferred from the
+  User-Agent rather than sent by the client.
+
 ## [1.3.0] - 2026-08-26
 
 ### Added
@@ -135,39 +157,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   errors again after the code they flagged was fixed.
 
 ### Fixed
-
-- **A stuck BankID signature is no longer a dead end.** The same-device hand-off to the BankID app
-  does not complete on every Android device — the order sits at `NOTLOGGEDIN` indefinitely while the
-  app shows a spinner and nothing else. Signing from a second device works reliably, so after 35
-  seconds without progress both the vote sheet and the login screen now say so and offer to reopen
-  the page: "Öppna BankID-sidan igen och välj **BankID på annan enhet**." Deliberately additive —
-  polling continues underneath, so a slow signer is never cut off and a late signature still lands.
-- **The browser half of a BankID flow is now visible in the server logs.** The app posts its trace to
-  `POST /api/mobile/bankid-trace`, so what the browser did — opened, closed with which result,
-  whether a deep link ever fired — interleaves with the server's own view of the same order. A
-  developer with the device in their hand could always read this from the console; the point is
-  every other device, where "it just hangs" was the entire available diagnosis. Authorised by
-  knowing the order's own id rather than by a session, since the login flow has no token yet.
-
-- **BankID never completed on Android — the app was told to skip the browser.** Every BankID order
-  set both `callbackUrl` (where GrandID sends the _browser_ once its hosted page finishes) and
-  `appRedirect` (where the _BankID app_ sends the user the moment it is done) to the same deep link.
-  On iOS the second one is required: `ASWebAuthenticationSession` is its own browser instance, so
-  without it BankID returns to a Safari tab with none of the flow's state. On Android it is fatal —
-  the Chrome Custom Tab is what drives GrandID's hosted page to completion, and that page is what
-  finalises the session, so short-circuiting BankID straight back to the app left the tab parked
-  mid-flow and the order stuck at `NOTLOGGEDIN` permanently, even though the signature itself had
-  succeeded. Measured before the fix: thirty polls over 82 seconds after a successful signing, with
-  no state change at all. The choice now lives in one place, `appRedirectFor()`, and applies to
-  login and to both vote-signing endpoints — the same defect was present in all three.
-- **BankID auth endpoints are now traceable.** An order that hangs used to be invisible: the poll
-  loop logged nothing at all, so "the user is taking their time" and "GrandID never saw the browser
-  come back" looked identical. Polls now log on state _change_ plus a warning heartbeat every ~20 s
-  carrying what GrandID actually answered, how many polls it has cost and how long it has run;
-  starts log both halves of the return trip; the GrandID transport line carries the `errorCode` that
-  an HTTP 200 hides. Every line is tagged with the platform, inferred from the User-Agent rather
-  than sent by the client, so a bug that only reproduces on one of them is readable. The app traces
-  the half the server cannot see — what the browser did — under `[BankIdLogin]`.
 
 - **Mobile API latency.** Serverless functions had no `regions` pin, so Vercel ran them in `iad1`
   (Washington DC) while the MongoDB Atlas cluster sits in Europe — every database round trip

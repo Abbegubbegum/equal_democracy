@@ -149,9 +149,11 @@ async function start(
     const callbackUrl = `${getBaseUrl()}/rosta`;
 
     // On a phone browser the hosted page still hands off to the BankID app, so
-    // the same platform split applies as in the app: iOS needs the appRedirect
-    // or BankID returns to the wrong Safari tab, Android must not have it or the
-    // Custom Tab never finishes GrandID's page. See appRedirectFor.
+    // the iOS half of the platform split applies here too: without appRedirect,
+    // BankID returns to a blank Safari tab rather than the one the voter came
+    // from. See appRedirectFor — the Android half of its reasoning is about the
+    // app's Custom Tab, which a real browser visit here never goes through, so
+    // Android simply gets no appRedirect, unconditionally correct either way.
     const platform = clientHint(req).platform;
     const started = await startBankIdSession({
       service: "sign",

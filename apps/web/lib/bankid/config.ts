@@ -13,9 +13,24 @@
  */
 
 /**
- * Which GrandID host to call. Not the same thing as which runtime is calling —
- * see `runtimeEnv()`. In practice this is `production` everywhere: the test host
- * rejects our credentials (§8 of the integration plan), so there is no sandbox.
+ * Which GrandID host to call, and which credential set to send it. Not the
+ * same thing as which runtime is calling — see `runtimeEnv()`. This is
+ * `production` in every deployed environment.
+ *
+ * `test` and `production` are separate GrandID installations with separate
+ * customer provisioning (see the deployment table below), so this one flag has
+ * to switch two things together: the host (`baseUrlFor`) and the credentials
+ * (`required` below picks a `_TEST`-suffixed var when this is `"test"`, the
+ * bare var otherwise). Switching `GRANDID_ENV` alone without also switching the
+ * keys would send one environment's credentials at the other's host.
+ *
+ * Locally this means the two are edited together in `.env.local`: flip
+ * `GRANDID_ENV`, and the matching `GRANDID_API_KEY_TEST` /
+ * `GRANDID_SIGN_SERVICE_KEY_TEST` / `GRANDID_AUTH_SERVICE_KEY_TEST` trio (or
+ * the bare production names) is what gets read — restart the dev server
+ * after, since these are read once at process start and cached (see `cache`
+ * below). See the 2026-09-02 addendum to §8 of the integration plan for what's
+ * confirmed working on the test host so far (`auth` only, not `sign`).
  */
 export type GrandIdEnv = "test" | "production";
 
@@ -37,7 +52,12 @@ export type GrandIdEnv = "test" | "production";
  *   client.e-identitet.se       ✗ APIKEYNOTVALID01
  *   client.test.e-identitet.se  ✗ APIKEYNOTVALID01
  *
- * So our account lives on EU production only. Switching to the SE hosts would
+ * `client-test.grandid.com` no longer belongs on this list unconditionally —
+ * see the type doc above and the §8 addendum for what changed between then and
+ * 2026-09-02, and for which service that's confirmed on.
+ *
+ * So our account lives on EU production, plus (as of the addendum) test for
+ * `auth`. Switching to the SE hosts would
  * need Svensk E-identitet to provision us there, and buys no data residency
  * anyway: client.grandid.com resolves into AWS eu-north-1 (Stockholm), the same
  * region as this app's `arn1` functions and the Atlas cluster.
@@ -98,13 +118,21 @@ export function baseUrlFor(env: GrandIdEnv): string {
   return url;
 }
 
-function required(name: string): string {
+/**
+ * Reads a credential var for the given env: `${baseName}_TEST` when `env` is
+ * `"test"`, the bare `baseName` (the production value, same as Vercel)
+ * otherwise. This — not `baseUrlFor` alone — is what makes `GRANDID_ENV` a
+ * complete environment switch rather than just a host change.
+ */
+function required(baseName: string, env: GrandIdEnv): string {
+  const name = env === "test" ? `${baseName}_TEST` : baseName;
   const value = process.env[name];
   if (!value) {
     throw new Error(
-      `${name} is not set. GrandID needs GRANDID_ENV, GRANDID_API_KEY, ` +
-        `GRANDID_SIGN_SERVICE_KEY (signing, for votes) and GRANDID_AUTH_SERVICE_KEY ` +
-        `(authentication, for login) — run ` +
+      `${name} is not set. GrandID needs GRANDID_ENV plus, for whichever ` +
+        `env that is, GRANDID_API_KEY, GRANDID_SIGN_SERVICE_KEY (signing, ` +
+        `for votes) and GRANDID_AUTH_SERVICE_KEY (authentication, for login) ` +
+        `— bare names for production, a "_TEST" suffix on each for test. Run ` +
         `\`node scripts/test-grandid-connection.mjs --probe\` to work out which ` +
         `service key belongs to which environment.`,
     );
@@ -113,25 +141,27 @@ function required(name: string): string {
 }
 
 /**
- * Cached per service rather than globally: the two configurations differ only in
- * the service key, but that one field is what decides whether a transaction is a
- * signature or an identification, so they cannot share a slot.
+ * Cached per service *and* env: the two environments differ in every field but
+ * `service`, and env is read fresh from `process.env` here, so a stale cache
+ * entry from the wrong env would otherwise survive a value that only changes
+ * between process restarts in practice but has no reason to be assumed to.
  */
 const cache: Record<string, GrandIdConfig> = {};
 
 export function getGrandIdConfig(service: GrandIdService): GrandIdConfig {
-  const hit = cache[service];
+  const env = (process.env.GRANDID_ENV || "test") as GrandIdEnv;
+  const cacheKey = `${service}:${env}`;
+  const hit = cache[cacheKey];
   if (hit) return hit;
 
-  const env = (process.env.GRANDID_ENV || "test") as GrandIdEnv;
   const config: GrandIdConfig = {
     env,
     service,
     baseUrl: baseUrlFor(env),
-    apiKey: required("GRANDID_API_KEY"),
-    serviceKey: required(SERVICE_KEY_VARS[service]),
+    apiKey: required("GRANDID_API_KEY", env),
+    serviceKey: required(SERVICE_KEY_VARS[service], env),
   };
-  cache[service] = config;
+  cache[cacheKey] = config;
   return config;
 }
 
