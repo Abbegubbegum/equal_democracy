@@ -1,6 +1,6 @@
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
-import { AppState, AppStateStatus } from "react-native";
+import { AppState, AppStateStatus, Platform } from "react-native";
 import { apiClient } from "./api";
 
 /**
@@ -31,6 +31,34 @@ import { apiClient } from "./api";
  * the vote; the app learns about it by polling us. Closing the browser early
  * therefore proves nothing — see `watchVerification`.
  */
+
+/**
+ * What the browser did, which is the half of this flow the server cannot see.
+ *
+ * The twin of the same function in ./bankid-login.ts — read its comment for the
+ * reasoning. Votes matter more than logins here, because a voter hits this
+ * repeatedly and an unexplained hang on election day is not recoverable by
+ * asking them to try again tomorrow.
+ */
+let currentVerificationId: string | null = null;
+
+function trace(event: string, detail: Record<string, unknown> = {}) {
+  console.log(`[BankIdVote] ${event}`, {
+    platform: Platform.OS,
+    ...detail,
+  });
+
+  const verificationId = currentVerificationId;
+  if (!verificationId) return;
+  // Through apiClient: unlike login, a vote always has a session, and the
+  // server scopes the trace to the caller's own order.
+  apiClient("/api/mobile/bankid-trace", {
+    method: "POST",
+    body: JSON.stringify({ verificationId, event, detail }),
+  }).catch(() => {
+    /* diagnostics must never break the flow */
+  });
+}
 
 export type VerificationStatus =
   "PENDING" | "VERIFIED" | "REJECTED" | "FAILED" | "CANCELLED";
@@ -63,6 +91,14 @@ const WATCH_TIMEOUT_MS = 4 * 60 * 1000;
 const POLL_INTERVAL_MS = 2000;
 
 /**
+ * How long a still-PENDING signature waits before the UI offers a way out.
+ *
+ * See the twin constant in ./bankid-login.ts. Only an offer — the watch keeps
+ * polling, so a slow signer is never cut off.
+ */
+const STALL_AFTER_MS = 35 * 1000;
+
+/**
  * Where GrandID sends the browser once the signature is done.
  *
  * The same string goes to the server as `callbackUrl` and to
@@ -85,14 +121,22 @@ export async function startVoteVerification(
   questionId: string,
   choice: "ja" | "nej",
 ): Promise<StartedVerification> {
-  return apiClient<StartedVerification>("/api/mobile/vote-verification", {
-    method: "POST",
-    body: JSON.stringify({
-      questionId,
-      choice,
-      returnUrl: voteReturnUrl(),
-    }),
-  });
+  currentVerificationId = null;
+  trace("start", { choice });
+  const started = await apiClient<StartedVerification>(
+    "/api/mobile/vote-verification",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        questionId,
+        choice,
+        returnUrl: voteReturnUrl(),
+      }),
+    },
+  );
+  currentVerificationId = started.verificationId;
+  trace("started", { resumed: started.resumed });
+  return started;
 }
 
 export async function cancelVoteVerification(
@@ -117,17 +161,27 @@ export async function cancelVoteVerification(
  * successfully. It is never treated as failure; the poll decides.
  */
 export async function openHostedLogin(redirectUrl: string): Promise<boolean> {
+  trace("browser opening");
   try {
-    await WebBrowser.openAuthSessionAsync(redirectUrl, voteReturnUrl(), {
-      // Matches the app's own chrome so the hand-off feels continuous. Ignored
-      // on iOS, which uses the native auth session.
-      toolbarColor: "#002d75",
-      controlsColor: "#f5a623",
-      enableBarCollapsing: true,
-      showTitle: false,
-    });
+    const result = await WebBrowser.openAuthSessionAsync(
+      redirectUrl,
+      voteReturnUrl(),
+      {
+        // Matches the app's own chrome so the hand-off feels continuous.
+        // Ignored on iOS, which uses the native auth session.
+        toolbarColor: "#002d75",
+        controlsColor: "#f5a623",
+        enableBarCollapsing: true,
+        showTitle: false,
+      },
+    );
+    // "success" means the callbackUrl fired and GrandID's page ran to
+    // completion; "dismiss" means the tab went away without it, which is what a
+    // torn-down Custom Tab looks like; "cancel" is the user backing out.
+    trace("browser closed", { type: result?.type });
     return true;
-  } catch {
+  } catch (error) {
+    trace("browser threw", { error: String(error) });
     return false;
   }
 }
@@ -149,6 +203,14 @@ export interface WatchHandlers {
   onState: (state: VerificationState) => void;
   /** Called once, when we give up waiting. */
   onTimeout: () => void;
+  /**
+   * Fired once, when the signature has been PENDING long enough to look stuck.
+   *
+   * Neither a failure nor terminal — polling continues. It lets the sheet stop
+   * being a dead end when the same-device hand-off hangs, which on Android it
+   * can do indefinitely.
+   */
+  onStalled?: () => void;
 }
 
 /**
@@ -168,6 +230,8 @@ export function watchVerification(
 ): () => void {
   let cancelled = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let polls = 0;
+  let stalled = false;
   const startedAt = Date.now();
 
   const clear = () => {
@@ -179,6 +243,7 @@ export function watchVerification(
     if (cancelled) return;
 
     if (Date.now() - startedAt > WATCH_TIMEOUT_MS) {
+      trace("watch timed out", { polls });
       cancelled = true;
       clear();
       handlers.onTimeout();
@@ -191,6 +256,16 @@ export function watchVerification(
       );
       if (cancelled) return;
 
+      polls += 1;
+      if (state.status !== "PENDING" || polls % 30 === 0) {
+        trace("poll", {
+          status: state.status,
+          reasonCode: state.reasonCode,
+          polls,
+          elapsedSeconds: Math.round((Date.now() - startedAt) / 1000),
+        });
+      }
+
       handlers.onState(state);
 
       if (state.status !== "PENDING") {
@@ -198,8 +273,15 @@ export function watchVerification(
         clear();
         return;
       }
-    } catch {
+
+      if (!stalled && Date.now() - startedAt > STALL_AFTER_MS) {
+        stalled = true;
+        trace("stalled", { polls });
+        handlers.onStalled?.();
+      }
+    } catch (error) {
       // Transient — keep waiting.
+      trace("poll failed", { error: String(error) });
     }
 
     if (!cancelled) {
@@ -218,6 +300,7 @@ export function watchVerification(
     // Coming back from BankID or the browser is the most likely moment for the
     // signature to have completed, so check straight away rather than waiting
     // out the interval.
+    trace("app state", { state });
     if (state === "active") pollNow();
   };
 
@@ -228,7 +311,12 @@ export function watchVerification(
   // also the more reliable of the two on iOS, where the app can come back with
   // the auth-session sheet still on top and report `inactive` rather than
   // `active`.
-  const deepLink = Linking.addEventListener("url", pollNow);
+  const deepLink = Linking.addEventListener("url", (event) => {
+    // Its absence is the finding: an app that returns to the foreground with no
+    // url event was not redirected, it was switched back to by hand.
+    trace("deep link", { url: event.url });
+    pollNow();
+  });
 
   poll();
 

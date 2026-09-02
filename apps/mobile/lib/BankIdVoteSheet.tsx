@@ -47,6 +47,9 @@ export default function BankIdVoteSheet({
   const [phase, setPhase] = useState<Phase>("starting");
   const [error, setError] = useState<string | null>(null);
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+  // Set when the signature has been pending long enough to look stuck. Not an
+  // error state — it adds a way out without taking the current attempt away.
+  const [stalled, setStalled] = useState(false);
   const verificationId = useRef<string | null>(null);
   const stopWatch = useRef<(() => void) | null>(null);
 
@@ -78,6 +81,7 @@ export default function BankIdVoteSheet({
   const start = useCallback(async () => {
     setPhase("starting");
     setError(null);
+    setStalled(false);
     cleanup();
 
     try {
@@ -90,6 +94,7 @@ export default function BankIdVoteSheet({
       // ready by the time we come back, and the AppState listener must be live.
       stopWatch.current = watchVerification(started.verificationId, {
         onState: handleState,
+        onStalled: () => setStalled(true),
         onTimeout: () => {
           setError(
             "Vi fick inget svar från BankID. Kontrollera om signeringen gick igenom innan du försöker igen.",
@@ -165,6 +170,32 @@ export default function BankIdVoteSheet({
                 din röst. Du kommer tillbaka hit automatiskt.
               </Text>
 
+              {/*
+                The way out of a hang. Some devices never complete the
+                hand-off to the BankID app on the same phone, and without this
+                the sheet is a dead end — a spinner with no hint that signing
+                from another device works. Polling continues underneath, so a
+                late signature still lands and nothing here throws the current
+                attempt away.
+              */}
+              {stalled && (
+                <View style={styles.hint}>
+                  <Ionicons
+                    name="qr-code-outline"
+                    size={20}
+                    color={BLUE}
+                    style={{ marginBottom: 6 }}
+                  />
+                  <Text style={styles.hintTitle}>Händer det inget?</Text>
+                  <Text style={styles.hintText}>
+                    Öppna BankID-sidan igen och välj{" "}
+                    <Text style={styles.hintStrong}>BankID på annan enhet</Text>
+                    . Skanna sedan QR-koden med BankID på en annan telefon,
+                    surfplatta eller dator.
+                  </Text>
+                </View>
+              )}
+
               {redirectUrl && (
                 <TouchableOpacity
                   style={styles.secondaryBtn}
@@ -172,7 +203,9 @@ export default function BankIdVoteSheet({
                   activeOpacity={0.85}
                 >
                   <Ionicons name="open-outline" size={18} color="#fff" />
-                  <Text style={styles.secondaryBtnText}>Öppna BankID igen</Text>
+                  <Text style={styles.secondaryBtnText}>
+                    {stalled ? "Öppna BankID-sidan igen" : "Öppna BankID igen"}
+                  </Text>
                 </TouchableOpacity>
               )}
 
@@ -284,4 +317,26 @@ const styles = StyleSheet.create({
   },
   secondaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   cancel: { color: "#6b7280", fontSize: 14, marginTop: 16, padding: 6 },
+  hint: {
+    backgroundColor: "#eff6ff",
+    borderColor: "#bfdbfe",
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 18,
+    alignItems: "center",
+  },
+  hintTitle: {
+    color: BLUE,
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  hintText: {
+    color: "#1e3a5f",
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: "center",
+  },
+  hintStrong: { fontWeight: "800" },
 });

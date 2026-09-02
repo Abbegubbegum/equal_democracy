@@ -136,6 +136,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A stuck BankID signature is no longer a dead end.** The same-device hand-off to the BankID app
+  does not complete on every Android device — the order sits at `NOTLOGGEDIN` indefinitely while the
+  app shows a spinner and nothing else. Signing from a second device works reliably, so after 35
+  seconds without progress both the vote sheet and the login screen now say so and offer to reopen
+  the page: "Öppna BankID-sidan igen och välj **BankID på annan enhet**." Deliberately additive —
+  polling continues underneath, so a slow signer is never cut off and a late signature still lands.
+- **The browser half of a BankID flow is now visible in the server logs.** The app posts its trace to
+  `POST /api/mobile/bankid-trace`, so what the browser did — opened, closed with which result,
+  whether a deep link ever fired — interleaves with the server's own view of the same order. A
+  developer with the device in their hand could always read this from the console; the point is
+  every other device, where "it just hangs" was the entire available diagnosis. Authorised by
+  knowing the order's own id rather than by a session, since the login flow has no token yet.
+
 - **BankID never completed on Android — the app was told to skip the browser.** Every BankID order
   set both `callbackUrl` (where GrandID sends the _browser_ once its hosted page finishes) and
   `appRedirect` (where the _BankID app_ sends the user the moment it is done) to the same deep link.

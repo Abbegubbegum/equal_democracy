@@ -10,13 +10,33 @@ import { BASE_URL, getAccessToken } from "./api";
  * The server knows only that GrandID keeps answering NOTLOGGEDIN. It cannot
  * tell whether the hosted page was closed, backgrounded, or returned to — and
  * on Android that distinction is the whole question, because the browser tab is
- * what drives GrandID's page to completion. Tagged so it can be picked out of
- * logcat with `adb logcat | grep BankIdLogin`.
+ * what drives GrandID's page to completion.
+ *
+ * It goes two places. The console is for a device in your hand
+ * (`adb logcat | grep BankIdLogin`). The server copy is for every other device:
+ * a tester across town cannot send you their console, and "it just hangs" is
+ * not a diagnosis. Posting it interleaves the browser's story with the server's
+ * own view of the same order, in one log stream.
+ *
+ * The POST is fire-and-forget and failure is swallowed whole. Diagnostics that
+ * can break the flow they diagnose are worse than no diagnostics.
  */
+let currentPollToken: string | null = null;
+
 function trace(event: string, detail: Record<string, unknown> = {}) {
   console.log(`[BankIdLogin] ${event}`, {
     platform: Platform.OS,
     ...detail,
+  });
+
+  const pollToken = currentPollToken;
+  if (!pollToken) return;
+  fetch(`${BASE_URL}/api/mobile/bankid-trace`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pollToken, event, detail }),
+  }).catch(() => {
+    /* diagnostics must never break the flow */
   });
 }
 
@@ -76,6 +96,16 @@ const WATCH_TIMEOUT_MS = 4 * 60 * 1000;
 const POLL_INTERVAL_MS = 2000;
 
 /**
+ * How long a still-PENDING order waits before the UI offers a way out.
+ *
+ * A same-device BankID normally completes in ten to twenty seconds. Thirty-five
+ * is comfortably past that without nagging someone who is merely slow at typing
+ * their security code — and crucially this only *offers* an alternative. The
+ * watch keeps polling, so a late signature still lands.
+ */
+const STALL_AFTER_MS = 35 * 1000;
+
+/**
  * Where GrandID sends the browser once identification is done.
  *
  * `/login` must stay a real route — an unmatched deep link has no navigator to
@@ -116,12 +146,16 @@ export async function startBankIdLogin(
   purpose: "login" | "link" = "login",
 ): Promise<StartedLogin> {
   const returnUrl = loginReturnUrl();
+  currentPollToken = null;
   trace("start", { purpose, returnUrl });
   const started = await post(
     "/api/mobile/auth/bankid",
     { purpose, returnUrl },
     purpose === "link",
   );
+  // Only now can a trace be attributed to an order, which is why "start" above
+  // is console-only and every later event reaches the server.
+  currentPollToken = started.pollToken;
   trace("started", { purpose, resumed: started.resumed });
   return started;
 }
@@ -185,6 +219,15 @@ export function dismissHostedLogin(): void {
 export interface WatchLoginHandlers {
   onState: (state: LoginState) => void;
   onTimeout: () => void;
+  /**
+   * Fired once, when the order has been PENDING long enough to look stuck.
+   *
+   * Not a failure and not terminal — polling continues. It exists so the UI can
+   * stop being a dead end: on Android the same-device hand-off can hang
+   * indefinitely, and without this the user is left staring at a spinner with
+   * no hint that scanning a QR from another device would work.
+   */
+  onStalled?: () => void;
 }
 
 /**
@@ -208,6 +251,7 @@ export function watchBankIdLogin(
   let cancelled = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let polls = 0;
+  let stalled = false;
   const startedAt = Date.now();
 
   const clear = () => {
@@ -264,6 +308,12 @@ export function watchBankIdLogin(
         cancelled = true;
         clear();
         return;
+      }
+
+      if (!stalled && Date.now() - startedAt > STALL_AFTER_MS) {
+        stalled = true;
+        trace("stalled", { polls });
+        handlers.onStalled?.();
       }
     } catch (error) {
       // Transient — keep waiting.
