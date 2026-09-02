@@ -12,32 +12,32 @@ discovering it mid-rollout.
 
 ## 1. Before anything ships
 
-- [ ] **Confirm signature pricing with Svensk E-identitet.** One signature per
+- [x] **Confirm signature pricing with Svensk E-identitet.** One signature per
       ballot, not per login. This is the only item that could change the design
       after the fact, so settle it first.
-- [ ] Ask again for **test credentials**. Not a blocker — everything works
+- [x] Ask again for **test credentials**. Not a blocker — everything works
       without them — but every rehearsal currently costs money.
-- [ ] Have a **Vallentuna resident** complete one vote. The eligible path is the
+- [x] Have a **Vallentuna resident** complete one vote. The eligible path is the
       one branch never exercised end to end: all live runs so far ended in
       `WRONG_KOMMUN`, which proves the rejection path only. Verify afterwards
       that the vote row carries `verifiedAt`, `pnrHash` and `signatureHash`.
 
 ## 2. Environment
 
-- [ ] `GRANDID_ENV=production`, `GRANDID_API_KEY`, `GRANDID_SIGN_SERVICE_KEY` set in
+- [x] `GRANDID_ENV=production`, `GRANDID_API_KEY`, `GRANDID_SIGN_SERVICE_KEY` set in
       Vercel **Production scope only**. The service key must be the signing one
       (`…69dc`); the other is an authentication service and would silently
       produce `Identification` transactions that bind nobody to a ballot.
-- [ ] `VOTE_ID_PEPPER` set in Production, and **nowhere else**. Anyone holding
+- [x] `VOTE_ID_PEPPER` set in Production, and **nowhere else**. Anyone holding
       both the database and the pepper can identify every voter. It must never
       exist in a preview environment that shares a database with production.
-- [ ] Confirm all four are declared in `turbo.json`'s `env[]`, or a changed value
+- [x] Confirm all four are declared in `turbo.json`'s `env[]`, or a changed value
       can serve a stale cached build.
-- [ ] **`BANKID_ALLOW_ANY_KOMMUN` must not exist in Vercel at all.** It skips the
+- [x] **`BANKID_ALLOW_ANY_KOMMUN` must not exist in Vercel at all.** It skips the
       residency check. Three code-level guards make it inert on a deployment, but
       it has no business being set there — if it appears in the Vercel dashboard,
       someone has misunderstood it.
-- [ ] `NEXTAUTH_URL` must match the origin the browser actually reaches —
+- [x] `NEXTAUTH_URL` must match the origin the browser actually reaches —
       the web callback is built from it (`${getBaseUrl()}/rosta`).
 
 ## 3. Legal and store disclosures
@@ -48,13 +48,13 @@ These are the items most likely to be forgotten, and the most damaging to miss.
       collect personnummer" line is gone, the inventory gains the three BankID
       rows, Apple gains **Other Data** (there is no Government ID type) and Play gains
       **Personal info → Other personal info**.
-- [ ] **Transcribe those answers into the store consoles.** The document is only
+- [x] **Transcribe those answers into the store consoles.** The document is only
       the source of truth; Apple's App Privacy and Play's Data safety forms are
       filled in by hand and neither is updated by a release.
 - [x] **`/legal`** §2 and §4 rewritten: what is signed, what is checked, that no
       SPAR data is kept, what the per-question code is for, the 30-day purge and
       the anonymisation at close.
-- [ ] Say **"varje röst signeras med BankID"**, never "verifieras" — it is a
+- [x] Say **"varje röst signeras med BankID"**, never "verifieras" — it is a
       signature, and the distinction is the whole point of using the signing
       service.
 
@@ -64,11 +64,11 @@ Order matters here. The web and the app cannot switch at the same instant, and
 getting the sequence wrong either breaks voting or leaves an unverified path
 open.
 
-1. [ ] **Deploy the web** with both paths live. Current app builds keep using
+1. [x] **Deploy the web** with both paths live. Current app builds keep using
        `/api/mobile/questions/vote`; nothing breaks.
-2. [ ] **Release the app** (`pnpm release`) and wait until it is actually live in
+2. [x] **Release the app** (`pnpm release`) and wait until it is actually live in
        **both** stores.
-3. [ ] **Bump `LATEST_MOBILE_VERSION`** in `lib/app-version.ts` — only now, or
+3. [x] **Bump `LATEST_MOBILE_VERSION`** in `lib/app-version.ts` — only now, or
        users are nagged about a version the store does not have.
 4. [ ] **Retire the unverified path**: delete
        `pages/api/mobile/questions/vote.ts` and `PRE_ELECTION_LIMIT`, and raise
