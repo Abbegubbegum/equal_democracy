@@ -8,11 +8,11 @@ import {
   createMaterialTopTabNavigator,
   type MaterialTopTabNavigationOptions,
   type MaterialTopTabNavigationEventMap,
-} from "@react-navigation/material-top-tabs";
+} from "expo-router/js-top-tabs";
 import type {
   ParamListBase,
   TabNavigationState,
-} from "@react-navigation/native";
+} from "expo-router/react-navigation";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiClient } from "../../lib/api";
