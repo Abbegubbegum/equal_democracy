@@ -107,7 +107,14 @@ export default function HomePage() {
   ];
 
   // Hem feed: active questions the user hasn't voted on yet (already-voted hidden).
-  const feedQuestions = questions.filter((q) => !q.userVote);
+  const feedQuestions = questions.filter((q) => q.isActive && !q.userVote);
+  // Every currently-closed question, shown only once the feed above is empty —
+  // filler so Hem is never blank between rounds, mirroring the mobile app.
+  // Deliberately all of them, not just the latest one: political questions are
+  // often decided in a batch at the same municipal meeting. Disappears again
+  // the moment a new active question is published. The same list (sorted
+  // newest-closed-first by the API) also backs Arkiv's Hem tab.
+  const closedResults = questions.filter((q) => !q.isActive);
 
   return (
     <div className="min-h-screen bg-[#f7f8fb] overflow-x-hidden">
@@ -243,12 +250,25 @@ export default function HomePage() {
         {questionsLoading ? (
           <div className="text-center py-12 text-gray-500">Laddar frågor…</div>
         ) : feedQuestions.length === 0 ? (
-          <div className="bg-white rounded-card border border-black/5 p-10 text-center">
-            <p className="text-gray-700 font-semibold mb-1">Du är à jour! 🎉</p>
-            <p className="text-gray-500 text-sm">
-              Inga fler frågor att rösta på just nu.
-            </p>
-          </div>
+          <>
+            <div className="bg-white rounded-card border border-black/5 p-10 text-center mb-4">
+              <p className="text-gray-700 font-semibold mb-1">
+                Du är à jour! 🎉
+              </p>
+              <p className="text-gray-500 text-sm">
+                {closedResults.length > 0
+                  ? "Inga fler frågor att rösta på just nu — här är de senaste resultaten."
+                  : "Inga fler frågor att rösta på just nu."}
+              </p>
+            </div>
+            {closedResults.length > 0 && (
+              <div className="space-y-4">
+                {closedResults.map((q) => (
+                  <QuestionResultCard key={q.id} q={q} />
+                ))}
+              </div>
+            )}
+          </>
         ) : (
           <div className="space-y-4">
             {feedQuestions.map((q) => (
@@ -325,6 +345,47 @@ function QuestionCard({ q, onSelect }) {
   );
 }
 
-// ============================================================================
-// APPLY ADMIN VIEW
-// ============================================================================
+// Non-interactive twin of QuestionCard for a closed question: an
+// "Omröstningsresultat" eyebrow instead of "Röstning", the winning side alone
+// as a static pill instead of a "Välj" button, and the vote breakdown. Mirrors
+// the mobile app's Hem-tab result card (lib/VotingQuestionCard.tsx equivalent
+// in apps/mobile/app/(app)/index.tsx).
+function QuestionResultCard({ q }) {
+  const ja = q.voteCounts?.ja || 0;
+  const nej = q.voteCounts?.nej || 0;
+  const total = ja + nej;
+  const jaPct = total ? Math.round((ja / total) * 100) : 0;
+  const nejPct = total ? 100 - jaPct : 0;
+  const winner = ja === nej ? "Oavgjort" : ja > nej ? "Ja" : "Nej";
+
+  return (
+    <div className="relative flex flex-col justify-end rounded-[20px] overflow-hidden min-h-[250px] shadow-[0_14px_32px_-20px_rgba(0,20,64,0.6)]">
+      {q.imageUrl ? (
+        <img
+          src={q.imageUrl}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-400 to-primary-600" />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/10" />
+
+      <span className="absolute top-3.5 left-3.5 z-10 text-[0.64rem] font-extrabold uppercase tracking-[0.12em] text-white bg-black/40 border border-white/25 rounded-full px-2.5 py-1 backdrop-blur-sm">
+        Omröstningsresultat
+      </span>
+
+      <div className="relative z-[1] p-4 sm:p-5 text-white">
+        <p className="text-xl sm:text-2xl font-extrabold leading-tight drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]">
+          {q.text}
+        </p>
+        <div className="inline-flex items-center mt-3.5 bg-accent-400 text-primary-800 font-extrabold text-base px-5 py-2.5 rounded-btn">
+          {winner}
+        </div>
+        <p className="text-sm text-white/80 mt-2.5">
+          {total} röstande · {jaPct}% Ja · {nejPct}% Nej
+        </p>
+      </div>
+    </div>
+  );
+}

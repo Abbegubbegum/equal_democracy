@@ -288,7 +288,12 @@ function VoteCard({ question, onChooseAnother }) {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
 
-  const voted = !!question.userVote && !editing;
+  // /api/questions now also returns closed questions (for the Hem fallback
+  // and Arkiv's Hem tab) — a stale localStorage selection can land here on a
+  // question that closed since it was picked. `isActive` defaults true so an
+  // older cached payload without the field still behaves as before.
+  const isActive = question.isActive !== false;
+  const showResults = !isActive || (!!question.userVote && !editing);
   const ja = question.voteCounts?.ja || 0;
   const nej = question.voteCounts?.nej || 0;
   const total = ja + nej;
@@ -297,6 +302,12 @@ function VoteCard({ question, onChooseAnother }) {
 
   const deadline = question.deadline
     ? new Date(question.deadline).toLocaleDateString("sv-SE", {
+        day: "numeric",
+        month: "long",
+      })
+    : null;
+  const closedDate = question.closedAt
+    ? new Date(question.closedAt).toLocaleDateString("sv-SE", {
         day: "numeric",
         month: "long",
       })
@@ -363,9 +374,15 @@ function VoteCard({ question, onChooseAnother }) {
         <p className="text-xl sm:text-2xl font-extrabold leading-tight drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]">
           {question.text}
         </p>
-        {deadline && (
-          <p className="text-sm text-white/75 mt-2">Stänger {deadline}</p>
-        )}
+        {isActive
+          ? deadline && (
+              <p className="text-sm text-white/75 mt-2">Stänger {deadline}</p>
+            )
+          : closedDate && (
+              <p className="text-sm text-white/75 mt-2">
+                Avslutad {closedDate}
+              </p>
+            )}
 
         {error && (
           <div className="mt-3 text-sm bg-red-500/25 border border-red-300/40 text-red-50 rounded-xl px-3 py-2">
@@ -373,7 +390,7 @@ function VoteCard({ question, onChooseAnother }) {
           </div>
         )}
 
-        {voted ? (
+        {showResults ? (
           <div className="mt-4 space-y-2.5">
             <ResultBar
               label="Ja"
@@ -391,17 +408,25 @@ function VoteCard({ question, onChooseAnother }) {
             />
             <div className="flex items-center justify-between pt-1.5">
               <span className="text-sm text-white/80">
-                {total} {total === 1 ? "röst" : "röster"} · Din röst:{" "}
-                <b className="text-white">
-                  {question.userVote === "ja" ? "Ja" : "Nej"}
-                </b>
+                {total} {total === 1 ? "röst" : "röster"}
+                {question.userVote && (
+                  <>
+                    {" "}
+                    · Din röst:{" "}
+                    <b className="text-white">
+                      {question.userVote === "ja" ? "Ja" : "Nej"}
+                    </b>
+                  </>
+                )}
               </span>
-              <button
-                onClick={() => setEditing(true)}
-                className="text-sm font-semibold text-accent-400 hover:text-accent-500"
-              >
-                Ändra röst
-              </button>
+              {isActive && question.userVote && (
+                <button
+                  onClick={() => setEditing(true)}
+                  className="text-sm font-semibold text-accent-400 hover:text-accent-500"
+                >
+                  Ändra röst
+                </button>
+              )}
             </div>
           </div>
         ) : (

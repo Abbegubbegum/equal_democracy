@@ -5,6 +5,8 @@ import connectDB from "../../../lib/mongodb";
 import { User, MunicipalMeeting, Question } from "../../../lib/models";
 import { csrfProtection } from "../../../lib/csrf";
 import { createLogger } from "../../../lib/logger";
+import { anonymiseQuestionVotes } from "../../../lib/vote-anonymisation";
+import { notifyQuestionResult } from "../../../lib/question-result-notify";
 
 const log = createLogger("CloseItem");
 
@@ -77,12 +79,41 @@ export default async function handler(
     item.closedAt = new Date();
     item.closedBy = user._id;
 
-    // Also close the corresponding Question
+    // Also close the corresponding Question. Fetched (not
+    // findByIdAndUpdate) because notifying and anonymising both need the
+    // document, and because a question can outlive the item that spawned it
+    // being re-closed (defensive against a double-close of the same item).
     if (item.questionId) {
-      await Question.findByIdAndUpdate(item.questionId, {
-        status: "closed",
-        closedAt: new Date(),
-      });
+      const question = await Question.findById(item.questionId);
+      if (question && question.status !== "closed") {
+        question.status = "closed";
+        question.closedAt = new Date();
+        await question.save();
+
+        // Must run before anonymisation below strips the userId that ties a
+        // vote back to a person. A notification failure must not block the
+        // close itself.
+        try {
+          await notifyQuestionResult(question);
+        } catch (error) {
+          log.error("Failed to send question-result notifications", {
+            questionId: question._id.toString(),
+            error: error.message,
+          });
+        }
+
+        // This step was missing entirely before — every other question-close
+        // path anonymises (see lib/vote-anonymisation.ts), and a
+        // municipal-item close is a question close like any other.
+        try {
+          await anonymiseQuestionVotes(question._id.toString());
+        } catch (error) {
+          log.error("Failed to anonymise votes for a closed question", {
+            questionId: question._id.toString(),
+            error: error.message,
+          });
+        }
+      }
     }
 
     await meeting.save();

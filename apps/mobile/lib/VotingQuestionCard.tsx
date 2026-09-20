@@ -17,6 +17,7 @@ export interface VotingSession {
   isActive: boolean;
   deadline?: string;
   createdAt: string;
+  closedAt?: string | null;
   voteCounts: VoteCounts;
   userVote: "ja" | "nej" | null;
   categories?: string[];

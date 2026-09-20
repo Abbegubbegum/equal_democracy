@@ -53,6 +53,7 @@ export default function ArchivePage() {
   const [municipal, setMunicipal] = useState([]);
   const [budget, setBudget] = useState([]);
   const [sessions, setSessions] = useState([]);
+  const [closedQuestions, setClosedQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,11 +61,12 @@ export default function ArchivePage() {
     // The archive is the record this platform publishes. No account needed.
     (async () => {
       try {
-        const [pRes, mRes, bRes, sRes] = await Promise.all([
+        const [pRes, mRes, bRes, sRes, qRes] = await Promise.all([
           fetch("/api/citizen-proposals?status=all"),
           fetch("/api/municipal/sessions"),
           fetch("/api/budget/sessions"),
           fetch("/api/sessions/archived"),
+          fetch("/api/questions"),
         ]);
         const p = await pRes.json();
         setProposals(p.proposals || []);
@@ -85,6 +87,16 @@ export default function ArchivePage() {
           (Array.isArray(s) ? s : []).sort(
             byNewest((x) => x.endDate || x.createdAt),
           ),
+        );
+        const q = await qRes.json();
+        // Every currently-closed Ja/Nej question — the same list (already
+        // sorted newest-closed-first server-side) that also backs the web
+        // Hem page's closed-question fallback. Re-sorted here too, same as
+        // every other tab's data, rather than relying on the API's order.
+        setClosedQuestions(
+          (q.questions || [])
+            .filter((x) => !x.isActive)
+            .sort(byNewest((x) => x.closedAt || x.createdAt)),
         );
       } catch (error) {
         console.error("Error fetching archives:", error);
@@ -188,7 +200,13 @@ export default function ArchivePage() {
           })}
         </div>
 
-        {tab === "hem" && <HemTab approved={approved} rejected={rejected} />}
+        {tab === "hem" && (
+          <HemTab
+            approved={approved}
+            rejected={rejected}
+            closedQuestions={closedQuestions}
+          />
+        )}
         {tab === "fullmaktige" && <FullmaktigeTab meetings={municipal} />}
         {tab === "budget" && <BudgetTab sessions={budget} />}
         {tab === "livesessioner" && <LiveTab sessions={sessions} />}
@@ -201,6 +219,52 @@ function Empty({ text }) {
   return (
     <div className="bg-white rounded-card border border-black/5 p-10 text-center text-gray-500 text-sm">
       {text}
+    </div>
+  );
+}
+
+// Same "outcome row" language as OutcomeCard below, for a closed Ja/Nej
+// question instead of a fullmäktige-decided proposal: colored left border +
+// thumb icon by which side won, title, and a vote-count/percentage subtitle
+// instead of a description snippet.
+function QuestionOutcomeCard({ q }) {
+  const ja = q.voteCounts?.ja || 0;
+  const nej = q.voteCounts?.nej || 0;
+  const total = ja + nej;
+  const jaPct = total > 0 ? Math.round((ja / total) * 100) : 0;
+  const winner = ja === nej ? null : ja > nej ? "ja" : "nej";
+
+  return (
+    <div
+      className={`bg-white rounded-card border border-black/5 shadow-[0_8px_22px_-18px_rgba(0,20,64,0.4)] p-4 flex gap-3.5 border-l-4 ${
+        winner === "ja"
+          ? "border-l-green-500"
+          : winner === "nej"
+            ? "border-l-red-500"
+            : "border-l-gray-300"
+      }`}
+    >
+      {winner === "ja" ? (
+        <ThumbsUp
+          className="w-9 h-9 text-green-500 shrink-0"
+          strokeWidth={1.75}
+        />
+      ) : winner === "nej" ? (
+        <ThumbsDown
+          className="w-9 h-9 text-red-500 shrink-0"
+          strokeWidth={1.75}
+        />
+      ) : (
+        <Users className="w-9 h-9 text-gray-400 shrink-0" strokeWidth={1.75} />
+      )}
+      <div className="min-w-0 flex-1">
+        <h3 className="font-bold text-gray-800">{q.text}</h3>
+        <div className="text-xs text-gray-400 mt-1.5">
+          {q.closedAt && `Avslutad ${fmtDate(q.closedAt)}`}
+          {total > 0 &&
+            `${q.closedAt ? " · " : ""}${total} röstande · ${jaPct}% Ja`}
+        </div>
+      </div>
     </div>
   );
 }
@@ -243,11 +307,30 @@ function OutcomeCard({ p, approved }) {
   );
 }
 
-function HemTab({ approved, rejected }) {
-  if (approved.length === 0 && rejected.length === 0)
+function HemTab({ approved, rejected, closedQuestions }) {
+  if (
+    approved.length === 0 &&
+    rejected.length === 0 &&
+    closedQuestions.length === 0
+  )
     return <Empty text="Inga förslag har behandlats av fullmäktige än." />;
   return (
     <div className="space-y-6">
+      {closedQuestions.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 text-base font-extrabold text-gray-800 mb-3">
+            <span className="text-[0.66rem] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary-100 text-primary-700">
+              Omröstningar
+            </span>
+            avslutade frågor
+          </div>
+          <div className="space-y-3">
+            {closedQuestions.map((q) => (
+              <QuestionOutcomeCard key={q.id} q={q} />
+            ))}
+          </div>
+        </div>
+      )}
       {approved.length > 0 && (
         <div>
           <div className="flex items-center gap-2 text-base font-extrabold text-gray-800 mb-3">
