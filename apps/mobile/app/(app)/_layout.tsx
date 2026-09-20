@@ -179,7 +179,9 @@ function TabNavigator() {
           animationEnabled: true,
           lazy: false,
         }}
-        tabBar={(props) => <BottomBar {...props} bottomPad={bottomPad} />}
+        tabBar={(props: Omit<BottomBarProps, "bottomPad">) => (
+          <BottomBar {...props} bottomPad={bottomPad} />
+        )}
       >
         <MaterialTopTabs.Screen name="index" options={{ title: "Hem" }} />
         <MaterialTopTabs.Screen name="vote" options={{ title: "Rösta" }} />

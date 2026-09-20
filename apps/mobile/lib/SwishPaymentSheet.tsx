@@ -182,7 +182,7 @@ export default function SwishPaymentSheet({ visible, onClose, onPaid }: Props) {
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   wrap: { flex: 1, justifyContent: "flex-end" },

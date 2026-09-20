@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   wrap: { flex: 1, justifyContent: "flex-end" },

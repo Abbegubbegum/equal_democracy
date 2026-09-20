@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   cardTint: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.22)",
   },
   cardBottom: {
