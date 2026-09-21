@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-09-21
+
 ### Added
 
 - **Question-close result SMS/email.** The moment a `Question` closes — manually, on its deadline
@@ -407,7 +409,8 @@ Initial release — the platform as deployed for Vallentuna kommun.
 - Serverless-ready on Vercel: image uploads on Vercel Blob, a daily session-timeout cron, and a
   documented production deploy checklist (since rewritten as [SCALING.md](SCALING.md)).
 
-[Unreleased]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.3...v1.3.0
 [1.2.3]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.2...v1.2.3
