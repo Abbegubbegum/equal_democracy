@@ -79,6 +79,12 @@ importers:
       expo-web-browser:
         specifier: ~57.0.3
         version: 57.0.3(expo@57.0.24)(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))
+      node-addon-api:
+        specifier: ^8.9.2
+        version: 8.9.2
+      node-gyp:
+        specifier: ^13.0.2
+        version: 13.0.2
       react:
         specifier: 19.2.3
         version: 19.2.3
@@ -1641,6 +1647,13 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  "@isaacs/fs-minipass@4.0.1":
+    resolution:
+      {
+        integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==,
+      }
+    engines: { node: ">=18.0.0" }
+
   "@isaacs/ttlcache@1.4.1":
     resolution:
       {
@@ -3026,6 +3039,13 @@ packages:
     engines: { node: ">=10.0.0" }
     deprecated: this version has critical issues, please update to the latest version
 
+  abbrev@5.0.0:
+    resolution:
+      {
+        integrity: sha512-/XrFJgzQQQHpti1raDJC6m4ws6aNktmjBlhk8Fdlk7LwCEuDoieEJJY9OFHjfiFJFFRM2tK+Ky/IsfbbmlMu1w==,
+      }
+    engines: { node: ^22.22.2 || ^24.15.0 || >=26.0.0 }
+
   abort-controller@3.0.0:
     resolution:
       {
@@ -3558,6 +3578,13 @@ packages:
         integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==,
       }
     engines: { node: ">=10" }
+
+  chownr@3.0.0:
+    resolution:
+      {
+        integrity: sha512-+IxzY9BZOQd/XuYPRmrvEVjF/nqj5kgT4kEq7VofrDoM1MxoRjEWkrCC3EtLi59TVawxTAn+orJwFQcrqEN1+g==,
+      }
+    engines: { node: ">=18" }
 
   chrome-launcher@0.15.2:
     resolution:
@@ -4298,6 +4325,13 @@ packages:
         integrity: sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw==,
       }
     engines: { node: ">=0.12" }
+
+  env-paths@2.2.1:
+    resolution:
+      {
+        integrity: sha512-+h1lkLKhZMTYjog1VEpJNG7NZJWcuc2DDk/qsqSTRRCOXiLjeQ1d1/udrUGhqMxUgAlwKNZ0cf2uqan5GLuS2A==,
+      }
+    engines: { node: ">=6" }
 
   error-stack-parser@2.1.4:
     resolution:
@@ -5942,6 +5976,13 @@ packages:
         integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==,
       }
 
+  isexe@4.0.0:
+    resolution:
+      {
+        integrity: sha512-FFUtZMpoZ8RqHS3XeXEmHWLA4thH+ZxCv2lOiPIn1Xc7CxrqhWzNSDzD+/chS/zbYezmiwWLdQC09JdQKmthOw==,
+      }
+    engines: { node: ">=20" }
+
   iterator.prototype@1.1.5:
     resolution:
       {
@@ -6746,6 +6787,13 @@ packages:
       }
     engines: { node: ">=16 || 14 >=14.17" }
 
+  minizlib@3.1.0:
+    resolution:
+      {
+        integrity: sha512-KZxYo1BUkWD2TVFLr0MQoM8vUUigWD3LlD83a/75BqC+4qE0Hb1Vo5v1FgcfaNXvfXzr+5EhQ6ing/CaBijTlw==,
+      }
+    engines: { node: ">= 18" }
+
   mkdirp@1.0.4:
     resolution:
       {
@@ -6951,6 +6999,13 @@ packages:
       sass:
         optional: true
 
+  node-addon-api@8.9.2:
+    resolution:
+      {
+        integrity: sha512-VijLXbi3UACN69I0JVXJsX4tjACjNoQDgv2gTF6sx2wWEi8tkSg2eX8p5gSIFi8z2+DL3oHmY6OyKce38SDolg==,
+      }
+    engines: { node: ^18 || ^20 || >= 21 }
+
   node-exports-info@1.6.2:
     resolution:
       {
@@ -6977,6 +7032,14 @@ packages:
       }
     engines: { node: ">= 6.13.0" }
 
+  node-gyp@13.0.2:
+    resolution:
+      {
+        integrity: sha512-SXTvw3PxznpowYhJSOD9mVQBgDaCTWXffX+wQZsQ7PbcTV86TsXCUcSZhHnskFQvrvn/OdSzJPMsptT2pIj9ww==,
+      }
+    engines: { node: ^22.22.2 || ^24.15.0 || >=26.0.0 }
+    hasBin: true
+
   node-int64@0.4.0:
     resolution:
       {
@@ -6988,6 +7051,14 @@ packages:
       {
         integrity: sha512-TdC8FSgHz8Mwtw9g5L4gR/Sh9XhSP/0DEkQxfEFXOpiul5IiHgHan2VhYYb6agDSfp4KuvltmGApc8HMgUrIkA==,
       }
+
+  nopt@10.0.1:
+    resolution:
+      {
+        integrity: sha512-df3sBr/6ax9hSGuC3CspvLlbnX8cP5L5nZwXF8cGN8l0zSWR6BvzmQ6jPUKjvo6+/xdpkNvEcucBNUdBeeV13g==,
+      }
+    engines: { node: ^22.22.2 || ^24.15.0 || >=26.0.0 }
+    hasBin: true
 
   npm-package-arg@11.0.3:
     resolution:
@@ -7411,6 +7482,13 @@ packages:
         integrity: sha512-g8+OnU/L2v+wyiVK+D5fA34J7EH8jZ8DDlvwhRCMxmMj7UCBvxiO1mGeN+36JXIKF4zevU4kRBd8lVgG9vLelA==,
       }
     engines: { node: ^14.17.0 || ^16.13.0 || >=18.0.0 }
+
+  proc-log@7.0.0:
+    resolution:
+      {
+        integrity: sha512-FYgfaA69XZ93zaXLoMNQ+ViDXGGBgR8aLh03txzcFhV+9xOXx7+8DLCULrKKpR9+GsH9ZfHm82aSUPpozX0Ztg==,
+      }
+    engines: { node: ^22.22.2 || ^24.15.0 || >=26.0.0 }
 
   progress@2.0.3:
     resolution:
@@ -8501,6 +8579,13 @@ packages:
       }
     engines: { node: ">=6" }
 
+  tar@7.5.22:
+    resolution:
+      {
+        integrity: sha512-MFO/QzvtAOmJbkhOaCTvbGcFN9L9b+JunIsDwaKljSOdcLMea3NJ1k9Usz/rjdfSXTq4dfzfeS7W4p4YOAAHeA==,
+      }
+    engines: { node: ">=18" }
+
   terminal-link@2.1.1:
     resolution:
       {
@@ -8778,6 +8863,13 @@ packages:
       }
     engines: { node: ">=18.17" }
 
+  undici@8.10.2:
+    resolution:
+      {
+        integrity: sha512-/y4/bH9YNU5hi9NIrpOuvGXFcxrj3CMrV+/AYpowAYTpHn8gX/XPFjNy766FPoYY0miQhdW977JFWKGNhBdwyQ==,
+      }
+    engines: { node: ">=22.19.0" }
+
   unicode-canonical-property-names-ecmascript@2.0.1:
     resolution:
       {
@@ -9040,6 +9132,14 @@ packages:
     engines: { node: ">= 8" }
     hasBin: true
 
+  which@7.0.0:
+    resolution:
+      {
+        integrity: sha512-RancgH2dmbLdHl6LRhEqvklWMgl/Hdnun0Y90KhBOLkMefg8Qa7/Zel8Sm+8HEcP6DEjzsWzpkuBQEZok58isA==,
+      }
+    engines: { node: ^22.22.2 || ^24.15.0 || >=26.0.0 }
+    hasBin: true
+
   word-wrap@1.2.5:
     resolution:
       {
@@ -9170,6 +9270,13 @@ packages:
       {
         integrity: sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A==,
       }
+
+  yallist@5.0.0:
+    resolution:
+      {
+        integrity: sha512-YgvUTfwqyc7UXVMrB+SImsVYSmTS8X/tSrtdNZMImM+n7+QTriRXyXim0mBrTXNeqzVF0KWGgHPeiyViFFrNDw==,
+      }
+    engines: { node: ">=18" }
 
   yaml@2.9.0:
     resolution:
@@ -10345,6 +10452,10 @@ snapshots:
   "@img/sharp-win32-x64@0.34.5":
     optional: true
 
+  "@isaacs/fs-minipass@4.0.1":
+    dependencies:
+      minipass: 7.1.3
+
   "@isaacs/ttlcache@1.4.1": {}
 
   "@jest/schemas@29.6.3":
@@ -11297,6 +11408,8 @@ snapshots:
 
   "@xmldom/xmldom@0.8.11": {}
 
+  abbrev@5.0.0: {}
+
   abort-controller@3.0.0:
     dependencies:
       event-target-shim: 5.0.1
@@ -11663,6 +11776,8 @@ snapshots:
     dependencies:
       ansi-styles: 4.3.0
       supports-color: 7.2.0
+
+  chownr@3.0.0: {}
 
   chrome-launcher@0.15.2(supports-color@8.1.1):
     dependencies:
@@ -12114,6 +12229,8 @@ snapshots:
       tapable: 2.3.3
 
   entities@4.5.0: {}
+
+  env-paths@2.2.1: {}
 
   error-stack-parser@2.1.4:
     dependencies:
@@ -13527,6 +13644,8 @@ snapshots:
 
   isexe@2.0.0: {}
 
+  isexe@4.0.0: {}
+
   iterator.prototype@1.1.5:
     dependencies:
       define-data-property: 1.1.4
@@ -14175,6 +14294,10 @@ snapshots:
 
   minipass@7.1.3: {}
 
+  minizlib@3.1.0:
+    dependencies:
+      minipass: 7.1.3
+
   mkdirp@1.0.4: {}
 
   mongodb-connection-string-url@3.0.2:
@@ -14280,6 +14403,8 @@ snapshots:
       - "@babel/core"
       - babel-plugin-macros
 
+  node-addon-api@8.9.2: {}
+
   node-exports-info@1.6.2:
     dependencies:
       array.prototype.flatmap: 1.3.3
@@ -14293,9 +14418,26 @@ snapshots:
 
   node-forge@1.4.0: {}
 
+  node-gyp@13.0.2:
+    dependencies:
+      env-paths: 2.2.1
+      exponential-backoff: 3.1.3
+      graceful-fs: 4.2.11
+      nopt: 10.0.1
+      proc-log: 7.0.0
+      semver: 7.8.5
+      tar: 7.5.22
+      tinyglobby: 0.2.17
+      undici: 8.10.2
+      which: 7.0.0
+
   node-int64@0.4.0: {}
 
   node-releases@2.0.36: {}
+
+  nopt@10.0.1:
+    dependencies:
+      abbrev: 5.0.0
 
   npm-package-arg@11.0.3:
     dependencies:
@@ -14535,6 +14677,8 @@ snapshots:
   pretty-format@3.8.0: {}
 
   proc-log@4.2.0: {}
+
+  proc-log@7.0.0: {}
 
   progress@2.0.3: {}
 
@@ -15298,6 +15442,14 @@ snapshots:
 
   tapable@2.3.3: {}
 
+  tar@7.5.22:
+    dependencies:
+      "@isaacs/fs-minipass": 4.0.1
+      chownr: 3.0.0
+      minipass: 7.1.3
+      minizlib: 3.1.0
+      yallist: 5.0.0
+
   terminal-link@2.1.1:
     dependencies:
       ansi-escapes: 4.3.2
@@ -15472,6 +15624,8 @@ snapshots:
   undici-types@6.21.0: {}
 
   undici@6.28.0: {}
+
+  undici@8.10.2: {}
 
   unicode-canonical-property-names-ecmascript@2.0.1: {}
 
@@ -15654,6 +15808,10 @@ snapshots:
     dependencies:
       isexe: 2.0.0
 
+  which@7.0.0:
+    dependencies:
+      isexe: 4.0.0
+
   word-wrap@1.2.5: {}
 
   wrap-ansi@6.2.0:
@@ -15706,6 +15864,8 @@ snapshots:
   yallist@3.1.1: {}
 
   yallist@4.0.0: {}
+
+  yallist@5.0.0: {}
 
   yaml@2.9.0: {}
 
