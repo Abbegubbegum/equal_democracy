@@ -858,7 +858,7 @@ const styles = StyleSheet.create({
   // Full-screen block
   noImageBg: { backgroundColor: BLUE },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.40)",
   },
   rankBadge: {

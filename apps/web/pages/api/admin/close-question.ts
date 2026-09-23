@@ -7,6 +7,7 @@ import { csrfProtection } from "@/lib/csrf";
 import { hasAdminAccess, isSuperAdmin } from "@/lib/admin-helper";
 import { createLogger } from "@/lib/logger";
 import { anonymiseQuestionVotes } from "@/lib/vote-anonymisation";
+import { notifyQuestionResult } from "@/lib/question-result-notify";
 
 const log = createLogger("AdminCloseQuestion");
 
@@ -60,6 +61,19 @@ export default async function handler(
     question.status = "closed";
     question.closedAt = new Date();
     await question.save();
+
+    // Read the still-identified votes and text/email each voter the result —
+    // must happen before anonymisation below strips the userId that ties a
+    // vote back to a person. A notification failure must not block the
+    // close itself.
+    try {
+      await notifyQuestionResult(question);
+    } catch (error) {
+      log.error("Failed to send question-result notifications", {
+        questionId: question._id.toString(),
+        error: error.message,
+      });
+    }
 
     // Closing is the moment a vote stops needing an owner. Strip identity now
     // rather than on a schedule, so the window in which the result is both

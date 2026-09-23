@@ -26,6 +26,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-09-21
+
+### Added
+
+- **Question-close result SMS/email.** The moment a `Question` closes — manually, on its deadline
+  via the daily cron, or as part of closing a municipal agenda item — every voter who left a phone
+  number or email now gets `Omröstningen "<text>" är avslutad. Resultatet blev <Ja/Nej> med <x>% av
+rösterna. Tack för ditt engagemang.` (`lib/question-result-notify.ts`, same channel gating as the
+  existing municipal-meeting notifications). Reads `QuestionVote.userId` before it is anonymised, so
+  every close path now calls it ahead of `anonymiseQuestionVotes()`.
+- **Hem tab never goes blank between rounds.** Once every active question is voted, the mobile Hem
+  feed now falls back to a result card for every currently-closed question — not just the latest one,
+  since political questions are often decided in a batch at the same meeting — instead of just showing
+  "Du är à jour!". Each card: question text, an eyebrow "OMRÖSTNINGSRESULTAT" label, a single amber
+  pill for the side that won, and the vote count/percentages. The whole list disappears from Hem as
+  soon as a new active question is published — but nothing is lost, see the Arkiv entry below.
+  `GET /api/mobile/questions` now also returns `closedAt` and sorts closed questions by it instead of
+  `createdAt`.
+- **Arkiv gained an "Omröstningar" tab.** Closed questions that roll off Hem once a new active
+  question is published now have a permanent home: `app/archive.tsx` is now two tabs, "Sessioner"
+  (the original archived-session content, unchanged) and "Omröstningar" (every closed `Question`,
+  reusing the same yes/no vote-bar card style). Both tabs stay in falling chronological order —
+  `startDate`/`closedAt` descending, both already sorted server-side.
+- **The web app got the same two features.** `GET /api/questions` now matches `GET /api/mobile/questions`'s
+  shape — active questions first, then every closed one (`isActive`, `closedAt`, capped at
+  `CLOSED_QUESTION_LIMIT`, now shared from `lib/question-feed.ts` instead of duplicated in each
+  endpoint) — and its turnout tally moved from pulling every vote into the lambda to a `$group`
+  aggregation. `pages/index.tsx` (the web Hem page) falls back to a `QuestionResultCard` for every
+  closed question once the active feed is empty, same as mobile. The pre-existing "Hem" tab on
+  `pages/archive/index.tsx`'s Arkiv page gained an "Omröstningar" section of closed-question rows
+  above its fullmäktige-outcome cards. `pages/rosta.tsx`'s `VoteCard` was updated to render read-only
+  results (never the Ja/Nej submit buttons) for a closed question reached via a stale
+  `localStorage` selection — impossible before this change, since `/api/questions` used to return
+  active questions only.
+
+### Fixed
+
+- **`/api/municipal/close-item` never anonymised the votes on the `Question` it closed.** Every
+  other question-close path calls `anonymiseQuestionVotes()`; this one used a bare
+  `Question.findByIdAndUpdate()` and skipped it entirely, leaving a closed municipal-item question's
+  votes identified indefinitely. Fixed in the same change that added the result notification above,
+  since both needed to fetch the document instead of blind-updating it.
+
 ## [1.3.1] - 2026-09-02
 
 ### Fixed
@@ -366,7 +409,8 @@ Initial release — the platform as deployed for Vallentuna kommun.
 - Serverless-ready on Vercel: image uploads on Vercel Blob, a daily session-timeout cron, and a
   documented production deploy checklist (since rewritten as [SCALING.md](SCALING.md)).
 
-[Unreleased]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.3...v1.3.0
 [1.2.3]: https://github.com/Abbegubbegum/equal_democracy/compare/v1.2.2...v1.2.3

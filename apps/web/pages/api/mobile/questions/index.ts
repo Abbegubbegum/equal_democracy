@@ -4,33 +4,21 @@ import { Question, QuestionVote } from "../../../../lib/models";
 import { optionalBearerToken } from "../../../../lib/mobile-jwt";
 import { createLogger } from "../../../../lib/logger";
 import { PRE_ELECTION_LIMIT } from "../../../../lib/vote-quota";
+import {
+  CLOSED_QUESTION_LIMIT,
+  byTurnout,
+} from "../../../../lib/question-feed";
 
 const log = createLogger("MobileQuestions");
 
-// Closed questions are only reachable on Rösta (a question the user selected or
-// voted in that has since closed), so the tail doesn't need to be unbounded —
-// without a cap this payload grows forever as questions accumulate.
-const CLOSED_QUESTION_LIMIT = 100;
-
 const QUESTION_FIELDS =
-  "_id text imageUrl deadline createdAt status categories";
-
-/** Sort by total turnout (ja+nej) descending, newest as tie-break. */
-function byTurnout(
-  a: { voteCounts: { ja: number; nej: number }; createdAt: Date },
-  b: { voteCounts: { ja: number; nej: number }; createdAt: Date },
-) {
-  const at = a.voteCounts.ja + a.voteCounts.nej;
-  const bt = b.voteCounts.ja + b.voteCounts.nej;
-  if (bt !== at) return bt - at;
-  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-}
+  "_id text imageUrl deadline createdAt status categories closedAt";
 
 /**
  * GET /api/mobile/questions
  * Returns { questions, quota } — active questions first (most-voted first, i.e.
- * by total ja+nej count descending, newest as tie-break), then closed/archived
- * newest-first. Backs the mobile Hem/Rösta tabs.
+ * by total ja+nej count descending, newest as tie-break), then closed
+ * questions newest-closed-first. Backs the mobile Hem/Rösta tabs.
  */
 export default async function handler(
   req: NextApiRequest,
@@ -52,9 +40,14 @@ export default async function handler(
         .select(QUESTION_FIELDS)
         .sort({ createdAt: -1 })
         .lean(),
+      // closedAt first: a question's own creation date is not when it closed
+      // (deadlines and manual closes both make that gap variable), and the
+      // mobile Hem tab picks the single most-recently-closed one as filler
+      // content — createdAt as tie-break only for the (should-never-happen)
+      // case of two questions closing at the exact same millisecond.
       Question.find({ status: "closed" })
         .select(QUESTION_FIELDS)
-        .sort({ createdAt: -1 })
+        .sort({ closedAt: -1, createdAt: -1 })
         .limit(CLOSED_QUESTION_LIMIT)
         .lean(),
       user ? QuestionVote.countDocuments({ userId: user.id }) : 0,
@@ -113,6 +106,7 @@ export default async function handler(
         categories: (q as any).categories ?? [],
         voteCounts: tallyMap.get(qid) ?? { ja: 0, nej: 0 },
         createdAt: q.createdAt,
+        closedAt: (q as any).closedAt ?? null,
         userVote: userVoteMap.get(qid) ?? null,
       };
     });

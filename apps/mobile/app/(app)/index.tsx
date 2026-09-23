@@ -42,6 +42,13 @@ export default function HomeScreen() {
   const navigation = useNavigation<any>();
   const [sessions, setSessions] = useState<VotingSession[]>([]);
   const [quota, setQuota] = useState<VotingQuota | null>(null);
+  // Every currently-closed question, kept around purely as filler: shown only
+  // once `sessions` above is empty, so the tab is never blank between rounds.
+  // Political questions are often decided in a batch at the same meeting, so
+  // this is deliberately not just the single latest one — all of them stay
+  // visible together until a new active question is published, which is what
+  // empties `sessions` again and hides this list.
+  const [closedResults, setClosedResults] = useState<VotingSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const listRef = useRef<FlatList<VotingSession>>(null);
@@ -51,9 +58,11 @@ export default function HomeScreen() {
   }
 
   const applyPayload = useCallback((payload: QuestionsPayload) => {
-    setSessions(
-      (payload.questions ?? []).filter((s) => s.isActive && !s.userVote),
-    );
+    const all = payload.questions ?? [];
+    setSessions(all.filter((s) => s.isActive && !s.userVote));
+    // The API already returns closed questions newest-closed-first — kept in
+    // that order here too.
+    setClosedResults(all.filter((s) => !s.isActive));
     setQuota(payload.quota ?? null);
   }, []);
 
@@ -132,6 +141,50 @@ export default function HomeScreen() {
     [handleSelect],
   );
 
+  // Non-interactive twin of renderCard's bottom panel: the winning side alone
+  // (matching the request — "the button the majority voted for stands
+  // alone"), no Välj button since the question is closed and can't be acted
+  // on. Reuses väljBtn/väljText for the pill so it stays the same amber
+  // "button" look, just as a plain View instead of a TouchableOpacity.
+  function renderResultCard(item: VotingSession) {
+    const uri = imageUri(item);
+    const { ja, nej } = item.voteCounts;
+    const total = ja + nej;
+    const jaPct = total === 0 ? 0 : Math.round((ja / total) * 100);
+    const nejPct = total === 0 ? 0 : 100 - jaPct;
+    const winner = ja === nej ? "Oavgjort" : ja > nej ? "Ja" : "Nej";
+
+    return (
+      <View style={styles.card}>
+        {uri ? (
+          <Image
+            source={{ uri }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={200}
+            cachePolicy="memory-disk"
+            placeholder={{ blurhash: BLURHASH }}
+            recyclingKey={item.id}
+          />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: BLUE }]} />
+        )}
+        <View style={styles.cardTint} />
+        <View style={styles.cardBottom}>
+          <Text style={styles.resultEyebrow}>Omröstningsresultat</Text>
+          <Text style={styles.cardQuestion}>{item.text}</Text>
+          <View style={styles.väljBtn}>
+            <Text style={styles.väljText}>{winner}</Text>
+            <Ionicons name="checkmark-circle" size={20} color={BLUE} />
+          </View>
+          <Text style={styles.resultStats}>
+            {total} röstande · {jaPct}% Ja · {nejPct}% Nej
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   if (loading) {
     return <LoadingLoop />;
   }
@@ -149,15 +202,58 @@ export default function HomeScreen() {
   }
 
   if (sessions.length === 0) {
+    // No closed question to fall back on (a brand-new deployment, or every
+    // closed question already scrolled past the API's cap) — the original
+    // plain empty state.
+    if (closedResults.length === 0) {
+      return (
+        <View style={[styles.center, { paddingTop: insets.top }]}>
+          <Ionicons name="checkmark-circle-outline" size={56} color="#16a34a" />
+          <Text style={styles.emptyTitle}>Du är à jour!</Text>
+          <Text style={styles.emptyText}>
+            {quota && quota.used > 0
+              ? `Du har röstat i ${quota.used} av ${quota.limit} frågor. Kom tillbaka när nästa fråga publiceras.`
+              : "Inga aktiva frågor just nu. Kom tillbaka snart."}
+          </Text>
+        </View>
+      );
+    }
+
+    // Otherwise: the same message, followed by every currently-closed question
+    // as a result card instead of leaving the tab blank. A FlatList (not a
+    // ScrollView) for the same reason as the main feed below — a batch of
+    // closed questions from one meeting is still a list of full-bleed remote
+    // images, and windowing is what keeps them from all downloading at once.
+    // The whole list disappears again the instant a new active question shows
+    // up in `sessions`.
     return (
-      <View style={[styles.center, { paddingTop: insets.top }]}>
-        <Ionicons name="checkmark-circle-outline" size={56} color="#16a34a" />
-        <Text style={styles.emptyTitle}>Du är à jour!</Text>
-        <Text style={styles.emptyText}>
-          {quota && quota.used > 0
-            ? `Du har röstat i ${quota.used} av ${quota.limit} frågor. Kom tillbaka när nästa fråga publiceras.`
-            : "Inga aktiva frågor just nu. Kom tillbaka snart."}
-        </Text>
+      <View style={styles.screen}>
+        <FlatList
+          data={closedResults}
+          keyExtractor={(s) => s.id}
+          renderItem={({ item }) => renderResultCard(item)}
+          contentContainerStyle={[styles.feed, { paddingTop: insets.top + 20 }]}
+          showsVerticalScrollIndicator={false}
+          initialNumToRender={2}
+          maxToRenderPerBatch={3}
+          windowSize={5}
+          removeClippedSubviews
+          ListHeaderComponent={
+            <View style={styles.resultHeader}>
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={40}
+                color="#16a34a"
+              />
+              <Text style={styles.emptyTitle}>Du är à jour!</Text>
+              <Text style={styles.emptyText}>
+                {quota && quota.used > 0
+                  ? `Du har röstat i ${quota.used} av ${quota.limit} frågor. Kom tillbaka när nästa fråga publiceras.`
+                  : "Inga aktiva frågor just nu. Kom tillbaka snart."}
+              </Text>
+            </View>
+          }
+        />
       </View>
     );
   }
@@ -249,7 +345,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   cardTint: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.22)",
   },
   cardBottom: {
@@ -293,6 +389,36 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   väljText: { color: BLUE, fontSize: 15, fontWeight: "800" },
+
+  // "Du är à jour" header shown above the filler result card — same copy as
+  // `center`'s empty state but top-aligned (not flex-centered) since a card
+  // follows it.
+  resultHeader: {
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 28,
+  },
+  resultEyebrow: {
+    color: YELLOW,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginBottom: 6,
+    textShadowColor: "rgba(0,0,0,0.75)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
+  resultStats: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 10,
+    textShadowColor: "rgba(0,0,0,0.75)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
 
   center: {
     flex: 1,

@@ -12,6 +12,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { apiClient } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
+import { fetchQuestions } from "../lib/questions-cache";
+import type { VotingSession } from "../lib/VotingQuestionCard";
 
 interface TopProposal {
   title: string;
@@ -28,11 +30,20 @@ interface ArchivedSession {
   topProposals: TopProposal[];
 }
 
+type ArchiveTab = "sessioner" | "omrostningar";
+
 export default function ArchiveScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { isLoading } = useAuth();
+  const [tab, setTab] = useState<ArchiveTab>("sessioner");
   const [sessions, setSessions] = useState<ArchivedSession[]>([]);
+  // Closed questions that used to disappear from Hem the instant a new active
+  // question was published — this is where they land instead, so nothing is
+  // ever actually lost, just moved. Both API calls already return their list
+  // newest-first (startDate / closedAt descending), which is what keeps each
+  // tab in falling chronological order without any client-side sorting.
+  const [closedQuestions, setClosedQuestions] = useState<VotingSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -45,23 +56,52 @@ export default function ArchiveScreen() {
   async function load() {
     setLoading(true);
     setError(null);
-    try {
-      const data = await apiClient<ArchivedSession[]>(
-        "/api/mobile/sessions/archived",
-      );
-      setSessions(data);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
+    // Independent sources feeding independent tabs — allSettled so one
+    // failing (e.g. a flaky /api/mobile/questions) doesn't blank out the
+    // other tab's data, which a shared try/catch around a single Promise.all
+    // would do.
+    const [sessionsResult, questionsResult] = await Promise.allSettled([
+      apiClient<ArchivedSession[]>("/api/mobile/sessions/archived"),
+      fetchQuestions(),
+    ]);
+
+    const sessionsList =
+      sessionsResult.status === "fulfilled" ? sessionsResult.value : [];
+    const questionsList =
+      questionsResult.status === "fulfilled"
+        ? questionsResult.value.questions.filter((q) => !q.isActive)
+        : [];
+
+    setSessions(sessionsList);
+    setClosedQuestions(questionsList);
+
+    // Default to whichever tab actually has something, rather than always
+    // landing on a tab that turns out to be empty.
+    if (sessionsList.length === 0 && questionsList.length > 0) {
+      setTab("omrostningar");
     }
+
+    // Only a total failure blocks the screen — one source loading fine while
+    // the other errored still leaves a tab worth showing.
+    if (
+      sessionsResult.status === "rejected" &&
+      questionsResult.status === "rejected"
+    ) {
+      setError(
+        (sessionsResult.reason as any)?.message ?? "Kunde inte hämta arkivet",
+      );
+    }
+
+    setLoading(false);
   }
 
   function toggleExpand(id: string) {
     setExpanded((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }));
   }
 
-  if (isLoading || (loading && sessions.length === 0)) {
+  const isEmpty = sessions.length === 0 && closedQuestions.length === 0;
+
+  if (isLoading || (loading && isEmpty)) {
     return (
       <View style={[styles.center, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={BLUE} />
@@ -79,7 +119,7 @@ export default function ArchiveScreen() {
       </View>
     );
   }
-  if (sessions.length === 0) {
+  if (isEmpty) {
     return (
       <View style={[styles.center, { paddingTop: insets.top }]}>
         <TouchableOpacity
@@ -89,9 +129,9 @@ export default function ArchiveScreen() {
           <Ionicons name="chevron-back" size={22} color={BLUE} />
         </TouchableOpacity>
         <Ionicons name="archive-outline" size={56} color="#ccc" />
-        <Text style={styles.emptyTitle}>Inga avslutade sessioner</Text>
+        <Text style={styles.emptyTitle}>Inget arkiverat än</Text>
         <Text style={styles.emptyText}>
-          Avslutade sessioner med resultat visas här.
+          Avslutade sessioner och omröstningar visas här.
         </Text>
       </View>
     );
@@ -117,94 +157,189 @@ export default function ArchiveScreen() {
         <Text style={styles.pageTitle}>Arkiv</Text>
       </View>
 
-      {sessions.map((session) => {
-        const isOpen = expanded[session.id] ?? true;
-        const totalVotes = session.topProposals.reduce(
-          (sum, p) => sum + p.yesVotes + p.noVotes,
-          0,
-        );
-        return (
-          <View key={session.id} style={styles.sessionCard}>
-            <TouchableOpacity
-              style={styles.sessionHeader}
-              onPress={() => toggleExpand(session.id)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.headerLeft}>
-                <Text style={styles.sessionPlace}>{session.title}</Text>
-                <Text style={styles.sessionDate}>
-                  {new Date(session.startDate).toLocaleDateString("sv-SE", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                  {session.endDate
-                    ? ` – ${new Date(session.endDate).toLocaleDateString(
-                        "sv-SE",
-                        { day: "numeric", month: "short" },
-                      )}`
-                    : ""}
-                </Text>
-                {totalVotes > 0 && (
-                  <Text style={styles.voteCount}>
-                    {totalVotes} röster totalt
-                  </Text>
-                )}
-              </View>
-              <Ionicons
-                name={isOpen ? "chevron-up" : "chevron-down"}
-                size={18}
-                color="rgba(255,255,255,0.7)"
-              />
-            </TouchableOpacity>
+      <View style={styles.tabRow}>
+        <TouchableOpacity
+          style={[styles.tabBtn, tab === "sessioner" && styles.tabBtnActive]}
+          onPress={() => setTab("sessioner")}
+          activeOpacity={0.8}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              tab === "sessioner" && styles.tabTextActive,
+            ]}
+          >
+            Sessioner{sessions.length > 0 ? ` (${sessions.length})` : ""}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabBtn, tab === "omrostningar" && styles.tabBtnActive]}
+          onPress={() => setTab("omrostningar")}
+          activeOpacity={0.8}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              tab === "omrostningar" && styles.tabTextActive,
+            ]}
+          >
+            Omröstningar
+            {closedQuestions.length > 0 ? ` (${closedQuestions.length})` : ""}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-            {isOpen && (
-              <View style={styles.proposalList}>
-                {session.topProposals.length === 0 ? (
-                  <Text style={styles.noResults}>
-                    Inga topförslag registrerade.
-                  </Text>
-                ) : (
-                  session.topProposals.map((tp, i) => {
-                    const total = tp.yesVotes + tp.noVotes;
-                    const yesPct =
-                      total > 0 ? Math.round((tp.yesVotes / total) * 100) : 0;
-                    return (
-                      <View key={i} style={styles.proposalItem}>
-                        <Text style={styles.proposalTitle}>{tp.title}</Text>
-                        <View style={styles.voteBar}>
-                          <View
-                            style={[
-                              styles.yesBar,
-                              { flex: tp.yesVotes || 0.001 },
-                            ]}
-                          />
-                          <View
-                            style={[
-                              styles.noBar,
-                              { flex: tp.noVotes || 0.001 },
-                            ]}
-                          />
-                        </View>
-                        <View style={styles.voteLegend}>
-                          <Text style={styles.yesLabel}>
-                            <Ionicons name="checkmark" size={11} /> Ja:{" "}
-                            {tp.yesVotes} ({yesPct}%)
-                          </Text>
-                          <Text style={styles.noLabel}>
-                            <Ionicons name="close" size={11} /> Nej:{" "}
-                            {tp.noVotes} ({100 - yesPct}%)
-                          </Text>
-                        </View>
-                      </View>
-                    );
-                  })
+      {tab === "sessioner" ? (
+        sessions.length === 0 ? (
+          <View style={styles.tabEmpty}>
+            <Ionicons name="archive-outline" size={40} color="#ccc" />
+            <Text style={styles.emptyText}>Inga avslutade sessioner ännu.</Text>
+          </View>
+        ) : (
+          sessions.map((session) => {
+            const isOpen = expanded[session.id] ?? true;
+            const totalVotes = session.topProposals.reduce(
+              (sum, p) => sum + p.yesVotes + p.noVotes,
+              0,
+            );
+            return (
+              <View key={session.id} style={styles.sessionCard}>
+                <TouchableOpacity
+                  style={styles.sessionHeader}
+                  onPress={() => toggleExpand(session.id)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.headerLeft}>
+                    <Text style={styles.sessionPlace}>{session.title}</Text>
+                    <Text style={styles.sessionDate}>
+                      {new Date(session.startDate).toLocaleDateString("sv-SE", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                      {session.endDate
+                        ? ` – ${new Date(session.endDate).toLocaleDateString(
+                            "sv-SE",
+                            { day: "numeric", month: "short" },
+                          )}`
+                        : ""}
+                    </Text>
+                    {totalVotes > 0 && (
+                      <Text style={styles.voteCount}>
+                        {totalVotes} röster totalt
+                      </Text>
+                    )}
+                  </View>
+                  <Ionicons
+                    name={isOpen ? "chevron-up" : "chevron-down"}
+                    size={18}
+                    color="rgba(255,255,255,0.7)"
+                  />
+                </TouchableOpacity>
+
+                {isOpen && (
+                  <View style={styles.proposalList}>
+                    {session.topProposals.length === 0 ? (
+                      <Text style={styles.noResults}>
+                        Inga topförslag registrerade.
+                      </Text>
+                    ) : (
+                      session.topProposals.map((tp, i) => {
+                        const total = tp.yesVotes + tp.noVotes;
+                        const yesPct =
+                          total > 0
+                            ? Math.round((tp.yesVotes / total) * 100)
+                            : 0;
+                        return (
+                          <View key={i} style={styles.proposalItem}>
+                            <Text style={styles.proposalTitle}>{tp.title}</Text>
+                            <View style={styles.voteBar}>
+                              <View
+                                style={[
+                                  styles.yesBar,
+                                  { flex: tp.yesVotes || 0.001 },
+                                ]}
+                              />
+                              <View
+                                style={[
+                                  styles.noBar,
+                                  { flex: tp.noVotes || 0.001 },
+                                ]}
+                              />
+                            </View>
+                            <View style={styles.voteLegend}>
+                              <Text style={styles.yesLabel}>
+                                <Ionicons name="checkmark" size={11} /> Ja:{" "}
+                                {tp.yesVotes} ({yesPct}%)
+                              </Text>
+                              <Text style={styles.noLabel}>
+                                <Ionicons name="close" size={11} /> Nej:{" "}
+                                {tp.noVotes} ({100 - yesPct}%)
+                              </Text>
+                            </View>
+                          </View>
+                        );
+                      })
+                    )}
+                  </View>
                 )}
               </View>
-            )}
-          </View>
-        );
-      })}
+            );
+          })
+        )
+      ) : closedQuestions.length === 0 ? (
+        <View style={styles.tabEmpty}>
+          <Ionicons name="checkbox-outline" size={40} color="#ccc" />
+          <Text style={styles.emptyText}>
+            Inga avslutade omröstningar ännu.
+          </Text>
+        </View>
+      ) : (
+        closedQuestions.map((q) => {
+          const { ja, nej } = q.voteCounts;
+          const total = ja + nej;
+          const yesPct = total > 0 ? Math.round((ja / total) * 100) : 0;
+          const dateLabel = q.closedAt ?? q.createdAt;
+          return (
+            <View key={q.id} style={styles.sessionCard}>
+              <View style={styles.sessionHeader}>
+                <View style={styles.headerLeft}>
+                  <Text style={styles.sessionPlace}>{q.text}</Text>
+                  <Text style={styles.sessionDate}>
+                    {new Date(dateLabel).toLocaleDateString("sv-SE", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </Text>
+                  {total > 0 && (
+                    <Text style={styles.voteCount}>{total} röster totalt</Text>
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.proposalList}>
+                <View style={styles.proposalItem}>
+                  <View style={styles.voteBar}>
+                    <View style={[styles.yesBar, { flex: ja || 0.001 }]} />
+                    <View style={[styles.noBar, { flex: nej || 0.001 }]} />
+                  </View>
+                  <View style={styles.voteLegend}>
+                    <Text style={styles.yesLabel}>
+                      <Ionicons name="checkmark" size={11} /> Ja: {ja} ({yesPct}
+                      %)
+                    </Text>
+                    <Text style={styles.noLabel}>
+                      <Ionicons name="close" size={11} /> Nej: {nej} (
+                      {100 - yesPct}%)
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          );
+        })
+      )}
     </ScrollView>
   );
 }
@@ -242,6 +377,29 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: BLUE,
     letterSpacing: 0.5,
+  },
+
+  tabRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+  },
+  tabBtnActive: { backgroundColor: BLUE, borderColor: BLUE },
+  tabText: { fontSize: 14, fontWeight: "700", color: BLUE },
+  tabTextActive: { color: "#fff" },
+  tabEmpty: {
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 40,
   },
 
   sessionCard: {

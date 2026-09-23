@@ -8,6 +8,7 @@ import {
 } from "@/lib/forslag-maintenance";
 import { createLogger } from "@/lib/logger";
 import { anonymiseQuestionVotes } from "@/lib/vote-anonymisation";
+import { notifyQuestionResult } from "@/lib/question-result-notify";
 
 const log = createLogger("SessionTimeout");
 
@@ -73,6 +74,18 @@ export default async function handler(
       question.status = "closed";
       question.closedAt = currentTime;
       await question.save();
+
+      // Must run before anonymisation below strips the userId that ties a
+      // vote back to a person. One question's notifications failing must not
+      // abort the rest of the cron run.
+      try {
+        await notifyQuestionResult(question);
+      } catch (error) {
+        log.error("Failed to send question-result notifications", {
+          questionId: question._id.toString(),
+          error: error.message,
+        });
+      }
 
       // One question failing to anonymise must not abort the rest of the cron
       // run — the remaining questions still need closing, and a missed
