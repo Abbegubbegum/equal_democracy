@@ -31,6 +31,7 @@ export interface BudgetIncomeCategory {
   name: string;
   amount: number;
   color: string;
+  imageUrl?: string | null;
   isTaxRate: boolean;
   taxRatePercent?: number;
 }

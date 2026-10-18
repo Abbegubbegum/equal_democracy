@@ -7,6 +7,7 @@ import CategoryInput from "../../components/budget/CategoryInput";
 import IncomeCategoryInput from "../../components/budget/IncomeCategoryInput";
 import { fetchWithCsrf } from "../../lib/fetch-with-csrf";
 import { useTranslation } from "../../lib/hooks/useTranslation";
+import { isSchoolVoucher } from "@repo/types";
 
 export default function BudgetVotingPage() {
   const { data: session, status } = useSession();
@@ -261,26 +262,14 @@ export default function BudgetVotingPage() {
     },
   );
 
-  // Sort categories to put priorityCategoryId first.
-  // Override Skolpeng and Gymnasieskolpeng: adjustable at 70–130% of default (default in middle).
-  const isSkolpeng = (name) =>
-    name &&
-    (name.toLowerCase().includes("skolpeng") ||
-      name.toLowerCase().includes("gymnasieskolpeng"));
+  // Sort categories to put priorityCategoryId first. Skolpeng and
+  // Gymnasieskolpeng are always adjustable (70–130%, enforced by the shared
+  // expensePostRange rule), so they are never shown as fixed.
   const sortedExpenseCategories = budgetSession?.categories
     ? [...budgetSession.categories]
-        .map((cat) => {
-          if (isSkolpeng(cat.name)) {
-            const def = cat.defaultAmount || cat.amount;
-            return {
-              ...cat,
-              isFixed: false,
-              fixedPercentage: 0,
-              minAmount: Math.round(def * 0.7),
-            };
-          }
-          return cat;
-        })
+        .map((cat) =>
+          isSchoolVoucher(cat.name) ? { ...cat, isFixed: false } : cat,
+        )
         .sort((a, b) => {
           if (a.id === priorityCategoryId) return -1;
           if (b.id === priorityCategoryId) return 1;

@@ -28,6 +28,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Images on income budget posts.** `BudgetSession.incomeCategories[]` gained
+  `imageUrl`; `/api/admin/budget-category-image` takes `kind: "income"`, the budget admin panel has an
+  upload per income post, and the web budget page shows the thumbnail. Budget `PUT` now merges
+  `incomeCategories` by id instead of overwriting the array, so an edit can't wipe an image.
+- **Budget-post image library.** Budget posts recur year to year as new budget sessions, so their
+  illustrations now live in a `BudgetPostImage` library keyed by post name (files in Blob under
+  `budget-post-images/`). A new budget gets matching images automatically at creation; an admin upload
+  replaces the image on every budget with that post name, and old files are deleted only once nothing
+  references them. `pnpm budget-images --dir <folder> [--production] [--apply]` fills the library
+  from a folder of images named after the posts.
+- **Budget module entry in the app.** When a budget process is active, the Hem tab shows a budget
+  card (balance-scale illustration) at the top; tapping it opens the budget module on the Rösta tab.
+  Rösta's selection is now a question _or_ the budget (`lib/selection.ts`, replacing
+  `lib/selected-question.ts`). Uses the web's existing `GET /api/budget/sessions` — no new backend
+  routes.
+- **Budget diagram and posts in the app.** The budget view on Rösta shows the web's layered treemap
+  (expenses and income, three views, balance header) ported to react-native-svg with the same
+  `d3-hierarchy` layout as the web, followed by the budget posts with their images in the web's order.
+  Shows the user's saved proposal when there is one.
+- **Adjust and submit a budget proposal in the app.** Tapping a budget post unfolds it into an image
+  card (the post's illustration full-bleed, the name in a Förslag-style dark box) with an amber slider
+  along the bottom; the diagram follows the sliders live. "Lämna budgetförslag" saves through the web's
+  own `POST /api/budget/vote`. Slider ranges come from new shared rules in `@repo/types`
+  (`budget-rules.ts`), also used by the web sliders and the server's validation.
+  Swiping between tabs is off on Rösta while it shows the budget, so dragging a slider can't change
+  tab; the tab bar still works.
 - **Question-close result SMS/email.** The moment a `Question` closes — manually, on its deadline
   via the daily cron, or as part of closing a municipal agenda item — every voter who left a phone
   number or email now gets `Omröstningen "<text>" är avslutad. Resultatet blev <Ja/Nej> med <x>% av
@@ -61,6 +87,17 @@ rösterna. Tack för ditt engagemang.` (`lib/question-result-notify.ts`, same ch
 
 ### Fixed
 
+- **An underfunded budget proposal could be submitted.** Nothing checked that income covers
+  expenses — the web only said it "should". `validateBudgetVote()` now refuses a deficit with
+  "Budgeten är underfinansierad: utgifterna överstiger intäkterna med X mnkr", computing totals from
+  the posts themselves (an omitted post counts at the municipality's figure; client totals are
+  ignored). The app checks before sending and shows the same message.
+- **Lowering a budget post below the municipality's figure could not be saved, on the web either.**
+  The slider allowed down to 70%, but the server rejected anything under the post's `minAmount`, which
+  a PDF import sets equal to the default. Both now use the same rule (`expensePostRange()`).
+- **The app can write through cookie-era endpoints.** `csrfProtection()` now lets a request with a
+  valid Bearer token through; CSRF only threatens ambient cookie credentials, and a cross-site page
+  cannot send an `Authorization` header. A forged token still gets the normal check.
 - **`/api/municipal/close-item` never anonymised the votes on the `Question` it closed.** Every
   other question-close path calls `anonymiseQuestionVotes()`; this one used a bare
   `Question.findByIdAndUpdate()` and skipped it entirely, leaving a closed municipal-item question's

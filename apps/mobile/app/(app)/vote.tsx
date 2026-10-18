@@ -17,10 +17,13 @@ import { Ionicons } from "@expo/vector-icons";
 import BankIdVoteSheet from "../../lib/BankIdVoteSheet";
 import type { VerificationState } from "../../lib/bankid";
 import {
-  getSelectedQuestion,
-  clearSelectedQuestion,
-  onSelectedQuestionChange,
-} from "../../lib/selected-question";
+  getSelection,
+  clearSelection,
+  onSelectionChange,
+  sameSelection,
+  type Selection,
+} from "../../lib/selection";
+import BudgetModule from "../../lib/BudgetModule";
 import {
   fetchQuestions,
   getCachedQuestions,
@@ -48,7 +51,8 @@ export default function VoteScreen() {
   const navigation = useNavigation<any>();
 
   const [sessions, setSessions] = useState<VotingSession[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // What Hem (or a push deep link) picked: a question, or the budget process.
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [selected, setSelected] = useState<"ja" | "nej" | null>(null);
@@ -68,47 +72,60 @@ export default function VoteScreen() {
 
   // A tapped push notification can preselect a question while this screen is
   // already the focused tab — no blur/focus happens then, so the focus effect
-  // above never re-runs and we'd keep showing the previous question.
-  const selectedIdRef = useRef<string | null>(null);
-  selectedIdRef.current = selectedId;
+  // above never re-runs and we'd keep showing the previous selection.
+  const selectionRef = useRef<Selection | null>(null);
+  selectionRef.current = selection;
 
   useEffect(
     () =>
-      onSelectedQuestionChange((id) => {
-        if (id && id !== selectedIdRef.current) load();
+      onSelectionChange((next) => {
+        if (next && !sameSelection(next, selectionRef.current)) load();
       }),
     [],
   );
 
+  // The budget view is full of horizontal sliders, and a sideways drag there
+  // must adjust the post, not swipe to the next tab. The tab bar still
+  // switches tabs. `swipeEnabled` is per screen, so only Rösta is affected,
+  // and only while it shows the budget.
+  const isBudget = selection?.kind === "budget";
+  useEffect(() => {
+    navigation.setOptions({ swipeEnabled: !isBudget });
+  }, [navigation, isBudget]);
+
   function apply(
     list: VotingSession[],
     nextQuota: VotingQuota | null,
-    storedId: string | null,
+    stored: Selection | null,
   ) {
+    const storedId = stored?.kind === "question" ? stored.id : null;
     setSessions(list);
     setQuota(nextQuota);
-    setSelectedId(storedId);
+    setSelection(stored);
     setSelected(
       storedId ? (list.find((s) => s.id === storedId)?.userVote ?? null) : null,
     );
   }
 
   async function load() {
-    const storedId = await getSelectedQuestion();
+    const stored = await getSelection();
+    // Set before the question fetch: a budget selection renders without
+    // waiting on (or being blocked by) the question list.
+    setSelection(stored);
 
     // Hem fetched this exact payload moments ago on its way here — render it
     // straight away and revalidate behind the screen, rather than holding a
     // full-screen LoadingLoop over a duplicate round trip.
     const cached = getCachedQuestions();
     if (cached) {
-      apply(cached.questions, cached.quota, storedId);
+      apply(cached.questions, cached.quota, stored);
       setLoading(false);
     }
 
     setFetchError(null);
     try {
       const data = await fetchQuestions();
-      apply(data.questions, data.quota, storedId);
+      apply(data.questions, data.quota, stored);
     } catch (e: any) {
       // A failed background revalidation must not blank out good cached data.
       if (!getCachedQuestions()) setFetchError(e.message);
@@ -117,7 +134,10 @@ export default function VoteScreen() {
     }
   }
 
-  const selectedSession = sessions.find((s) => s.id === selectedId) ?? null;
+  const selectedSession =
+    selection?.kind === "question"
+      ? (sessions.find((s) => s.id === selection.id) ?? null)
+      : null;
 
   function bgUri(s: VotingSession): string | null {
     if (!s.imageUrl) return null;
@@ -167,10 +187,20 @@ export default function VoteScreen() {
   }
 
   async function handleUnselect() {
-    await clearSelectedQuestion();
-    setSelectedId(null);
+    await clearSelection();
+    setSelection(null);
     setSelected(null);
     navigation.navigate("index");
+  }
+
+  if (selection?.kind === "budget") {
+    return (
+      <BudgetModule
+        key={selection.id}
+        sessionId={selection.id}
+        onUnselect={handleUnselect}
+      />
+    );
   }
 
   if (loading) {

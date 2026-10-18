@@ -1,8 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import formidable from "formidable";
 import fs from "fs";
-import { put, del } from "@vercel/blob";
-import { compressImage } from "../../../lib/image";
+import { setPostImage } from "../../../lib/budget/post-images";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
@@ -51,6 +50,10 @@ export default async function handler(
   const categoryId = Array.isArray(fields.categoryId)
     ? fields.categoryId[0]
     : fields.categoryId;
+  const kindField = Array.isArray(fields.kind) ? fields.kind[0] : fields.kind;
+  // Expense posts live in `categories`, income posts in `incomeCategories`;
+  // both carry an imageUrl and share this one upload path.
+  const kind = kindField === "income" ? "income" : "expense";
   const file = Array.isArray(files.image) ? files.image[0] : files.image;
 
   if (!file || !sessionId || !categoryId) {
@@ -69,36 +72,29 @@ export default async function handler(
         .json({ message: "Budgetsessionen hittades inte." });
     }
 
-    const category = budgetSession.categories.find(
-      (c: any) => c.id === categoryId,
-    );
+    const list =
+      kind === "income"
+        ? budgetSession.incomeCategories
+        : budgetSession.categories;
+    const category = list.find((c: any) => c.id === categoryId);
     if (!category) {
       return res.status(404).json({ message: "Kategorin hittades inte." });
     }
 
-    const blobPath = `budget-category-images/${categoryId}-${Date.now()}.jpg`;
     const raw = await fs.promises.readFile(file.filepath);
-    const buffer = await compressImage(raw);
-
-    const { url } = await put(blobPath, buffer, {
-      access: "public",
-      contentType: "image/jpeg",
-    });
-
     fs.promises.unlink(file.filepath).catch(() => {});
 
-    if (category.imageUrl && String(category.imageUrl).startsWith("http")) {
-      del(category.imageUrl).catch(() => {});
-    }
+    // The image goes into the post-name library, not just this session: it
+    // lands on every budget (this year's and future ones) whose post has
+    // this name. See lib/budget/post-images.ts.
+    const { imageUrl } = await setPostImage(category.name, raw);
 
-    category.imageUrl = url;
-    await budgetSession.save();
-
-    return res.status(200).json({ imageUrl: url });
+    return res.status(200).json({ imageUrl });
   } catch (err: any) {
     log.error("Budget category image upload failed", {
       sessionId,
       categoryId,
+      kind,
       error: err?.message,
       stack: err?.stack,
     });

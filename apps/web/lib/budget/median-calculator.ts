@@ -1,3 +1,5 @@
+import { budgetTotals, expensePostRange, isUnderfunded } from "@repo/types";
+
 /**
  * Median Budget Calculator
  * Calculates the collective median budget from individual votes
@@ -177,14 +179,17 @@ export function validateBudgetVote(vote, session) {
       continue;
     }
 
-    // Check minimum amount for category
-    if (allocation.amount < category.minAmount) {
+    // Same lower bound the sliders offer (web and app) — the raw minAmount
+    // used to be checked here, which rejected every reduction on a budget
+    // whose minAmount equals its default even though the slider allowed it.
+    const { min } = expensePostRange(category);
+    if (allocation.amount < min) {
       errors.push({
         key: "budget.validation.belowMinimum",
         params: {
           category: category.name,
           amount: (allocation.amount / 1000000).toFixed(2),
-          minimum: (category.minAmount / 1000000).toFixed(2),
+          minimum: (min / 1000000).toFixed(2),
         },
       });
     }
@@ -215,6 +220,16 @@ export function validateBudgetVote(vote, session) {
         });
       }
     }
+  }
+
+  // No proposal may spend more than it raises. Computed here from the posts
+  // themselves — the client's totalExpenses/totalIncome are never trusted.
+  const { balance } = budgetTotals(session, vote);
+  if (isUnderfunded(balance)) {
+    errors.push({
+      key: "budget.validation.underfunded",
+      params: { deficit: (-balance / 1000000).toFixed(1) },
+    });
   }
 
   return {

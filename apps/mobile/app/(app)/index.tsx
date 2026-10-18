@@ -11,7 +11,12 @@ import { Image } from "expo-image";
 import { useFocusEffect, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { selectQuestion } from "../../lib/selected-question";
+import { selectQuestion, selectBudget } from "../../lib/selection";
+import {
+  fetchActiveBudget,
+  formatSek,
+  type BudgetSessionSummary,
+} from "../../lib/budget";
 import type { VotingSession, VotingQuota } from "../../lib/VotingQuestionCard";
 import {
   fetchQuestions,
@@ -29,6 +34,7 @@ const BLURHASH = "L6PZfSi_.AyE_3t7t7R**0o#DgR4";
 const CARD_HEIGHT = Math.round(Dimensions.get("window").width * 0.78);
 const CARD_GAP = 16;
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
+const BUDGET_IMAGE = require("../../assets/budget-scale.jpg");
 
 function imageUri(s: VotingSession): string | null {
   if (!s.imageUrl) return null;
@@ -49,6 +55,10 @@ export default function HomeScreen() {
   // visible together until a new active question is published, which is what
   // empties `sessions` again and hides this list.
   const [closedResults, setClosedResults] = useState<VotingSession[]>([]);
+  // The one active budget process, if any — shown as its own card at the top
+  // of every Hem state (feed or "Du är à jour"), since it stays current
+  // regardless of how many questions the user has voted on.
+  const [budget, setBudget] = useState<BudgetSessionSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const listRef = useRef<FlatList<VotingSession>>(null);
@@ -77,6 +87,12 @@ export default function HomeScreen() {
   );
 
   async function load() {
+    // Independent of the question feed: a budget fetch failing just means no
+    // budget card, never an error screen over the questions.
+    fetchActiveBudget()
+      .then(setBudget)
+      .catch(() => {});
+
     // Render whatever the cache holds first — the spinner is only for a genuine
     // cold start, never for a refocus that already has data to show.
     const cached = getCachedQuestions();
@@ -102,6 +118,44 @@ export default function HomeScreen() {
     },
     [navigation],
   );
+
+  const handleOpenBudget = useCallback(
+    async (sessionId: string) => {
+      await selectBudget(sessionId);
+      navigation.navigate("vote");
+    },
+    [navigation],
+  );
+
+  // Entry point to the budget module. Same card shape as a question card, with
+  // the bundled balance-scale illustration as its fixed image.
+  function renderBudgetCard(b: BudgetSessionSummary) {
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => handleOpenBudget(b.sessionId)}
+        activeOpacity={0.9}
+      >
+        <Image
+          source={BUDGET_IMAGE}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+        />
+        <View style={styles.cardTint} />
+        <View style={styles.cardBottom}>
+          <Text style={styles.resultEyebrow}>Kommunens budget</Text>
+          <Text style={styles.cardQuestion}>{b.name}</Text>
+          <View style={styles.väljBtn}>
+            <Text style={styles.väljText}>Gör din budget</Text>
+            <Ionicons name="arrow-forward-circle" size={20} color={BLUE} />
+          </View>
+          <Text style={styles.resultStats}>
+            {b.municipality} · {formatSek(b.totalBudget)}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }
 
   const renderCard = useCallback(
     ({ item }: { item: VotingSession }) => {
@@ -202,10 +256,10 @@ export default function HomeScreen() {
   }
 
   if (sessions.length === 0) {
-    // No closed question to fall back on (a brand-new deployment, or every
-    // closed question already scrolled past the API's cap) — the original
-    // plain empty state.
-    if (closedResults.length === 0) {
+    // Nothing to show at all — no closed question to fall back on (a
+    // brand-new deployment) and no budget running — the original plain
+    // empty state.
+    if (closedResults.length === 0 && !budget) {
       return (
         <View style={[styles.center, { paddingTop: insets.top }]}>
           <Ionicons name="checkmark-circle-outline" size={56} color="#16a34a" />
@@ -251,6 +305,11 @@ export default function HomeScreen() {
                   ? `Du har röstat i ${quota.used} av ${quota.limit} frågor. Kom tillbaka när nästa fråga publiceras.`
                   : "Inga aktiva frågor just nu. Kom tillbaka snart."}
               </Text>
+              {budget && (
+                <View style={styles.resultHeaderBudget}>
+                  {renderBudgetCard(budget)}
+                </View>
+              )}
             </View>
           }
         />
@@ -287,6 +346,11 @@ export default function HomeScreen() {
               <Text style={styles.quotaLine}>
                 {quota.limit - quota.used} av {quota.limit} röster kvar
               </Text>
+            )}
+            {budget && (
+              <View style={styles.feedHeaderBudget}>
+                {renderBudgetCard(budget)}
+              </View>
             )}
           </View>
         }
@@ -398,6 +462,15 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingBottom: 28,
+  },
+  // The budget card sits inside a list header; its own marginBottom (from
+  // `card`) separates it from the first list item, these give it room above.
+  feedHeaderBudget: { marginTop: CARD_GAP - 4, marginBottom: -CARD_GAP },
+  // Cancels resultHeader's horizontal padding so the card is full feed width.
+  resultHeaderBudget: {
+    alignSelf: "stretch",
+    marginHorizontal: -16,
+    marginTop: 20,
   },
   resultEyebrow: {
     color: YELLOW,

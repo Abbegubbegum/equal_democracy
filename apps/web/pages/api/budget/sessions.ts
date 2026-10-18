@@ -9,6 +9,7 @@ import {
   ensureUniqueSessionId,
 } from "../../../lib/budget/session-id";
 import { createLogger } from "@/lib/logger";
+import { applyPostImages, postImageMap } from "@/lib/budget/post-images";
 
 const log = createLogger("BudgetSessions");
 
@@ -114,6 +115,9 @@ export default async function handler(
         status: "draft",
       });
 
+      // Recurring posts get last year's illustrations straight away.
+      applyPostImages(budgetSession, await postImageMap());
+
       await budgetSession.save();
 
       return res.status(201).json({
@@ -156,7 +160,6 @@ export default async function handler(
         "name",
         "municipality",
         "totalBudget",
-        "incomeCategories",
         "startDate",
         "endDate",
         "status",
@@ -195,6 +198,29 @@ export default async function handler(
           },
         );
       }
+
+      // Same merge for income posts, so editing amounts never wipes an
+      // imageUrl set through the image-upload library.
+      if (updateData.incomeCategories !== undefined) {
+        const existingById = new Map<string, any>(
+          budgetSession.incomeCategories.map((c) => [c.id, c]),
+        );
+        budgetSession.incomeCategories = updateData.incomeCategories.map(
+          (incoming: Record<string, unknown>) => {
+            const existing = existingById.get(incoming.id as string);
+            return existing
+              ? {
+                  ...existing.toObject(),
+                  ...incoming,
+                  imageUrl: existing.imageUrl,
+                }
+              : incoming;
+          },
+        );
+      }
+
+      // A post that was added or renamed here may have a library image.
+      applyPostImages(budgetSession, await postImageMap());
 
       await budgetSession.save();
 

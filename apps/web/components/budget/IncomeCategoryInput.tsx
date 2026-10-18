@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { incomePostRange, isTaxIncome, taxIncomeRange } from "@repo/types";
 
 /**
  * Tax Income Sliders Component
@@ -15,12 +16,16 @@ function TaxIncomeSliders({
   taxRateInfo,
   readOnly,
 }) {
-  // Calculate default tax rate from amount and taxBase
-  const defaultTaxRate = category.amount / taxBase;
-  const minTaxRate =
-    taxRateInfo?.minTaxRateKr || Math.floor(defaultTaxRate * 0.9 * 100) / 100;
-  const maxTaxRate =
-    taxRateInfo?.maxTaxRateKr || Math.ceil(defaultTaxRate * 1.1 * 100) / 100;
+  // Range rule shared with the app — packages/types/src/budget-rules.ts.
+  const {
+    defaultRate: defaultTaxRate,
+    minRate: minTaxRate,
+    maxRate: maxTaxRate,
+  } = taxIncomeRange(category, {
+    taxBase: taxRateInfo ? taxBase : undefined,
+    minTaxRateKr: taxRateInfo?.minTaxRateKr,
+    maxTaxRateKr: taxRateInfo?.maxTaxRateKr,
+  });
 
   // State: we store the tax rate (kr), and calculate amount from it
   const [taxRateKr, setTaxRateKr] = useState(
@@ -118,6 +123,13 @@ function TaxIncomeSliders({
       <div className="p-4 bg-blue-50 border border-blue-300 rounded-lg">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
+            {category.imageUrl && (
+              <img
+                src={category.imageUrl}
+                alt=""
+                className="w-8 h-8 rounded object-cover"
+              />
+            )}
             <h3 className="font-medium text-gray-900">Skattesats</h3>
             <span className="text-xs text-gray-500">(kr per invånare)</span>
           </div>
@@ -281,23 +293,20 @@ export default function IncomeCategoryInput({
   taxRateInfo,
   readOnly = false,
 }) {
-  const isTaxIncome =
-    category.isTaxRate || category.name.toLowerCase().includes("skatt");
+  const isTax = isTaxIncome(category);
 
   // Calculate taxBase from existing data if not provided
   // Formula: taxBase = Skatteintäkter / Skattesats (kr)
   const calculatedTaxBase =
-    !taxRateInfo && isTaxIncome && category.amount > 0
+    !taxRateInfo && isTax && category.amount > 0
       ? category.amount / 19 // Assume default 19 kr if no taxRateInfo
       : taxRateInfo?.taxBase;
 
   // For non-tax income, use regular slider - define all hooks first before any early returns
-  const defaultValue = category.defaultAmount || category.amount;
-  const minValue =
-    category.minAmount && category.minAmount < defaultValue
-      ? category.minAmount
-      : Math.floor(defaultValue * 0.7);
-  const maxValue = minValue + 2 * (defaultValue - minValue);
+  const range = incomePostRange(category);
+  const defaultValue = range.default;
+  const minValue = range.min;
+  const maxValue = range.max;
 
   const [value, setValue] = useState(allocation?.amount || defaultValue);
   const [isEditing, setIsEditing] = useState(false);
@@ -313,7 +322,7 @@ export default function IncomeCategoryInput({
   }, [allocationAmount]);
 
   // If this is tax income, render TWO synchronized sliders
-  if (isTaxIncome && calculatedTaxBase) {
+  if (isTax && calculatedTaxBase) {
     return (
       <TaxIncomeSliders
         category={category}
@@ -362,7 +371,16 @@ export default function IncomeCategoryInput({
   return (
     <div className="p-4 bg-white border border-blue-200 rounded-lg">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="font-medium text-gray-900">{category.name}</h3>
+        <div className="flex items-center gap-2">
+          {category.imageUrl && (
+            <img
+              src={category.imageUrl}
+              alt=""
+              className="w-8 h-8 rounded object-cover"
+            />
+          )}
+          <h3 className="font-medium text-gray-900">{category.name}</h3>
+        </div>
         <div className="text-right">
           {isEditing ? (
             <div className="flex items-center gap-1">
@@ -408,7 +426,7 @@ export default function IncomeCategoryInput({
           type="range"
           min={minValue}
           max={maxValue}
-          step={Math.max(1000000, Math.floor((maxValue - minValue) / 100))}
+          step={range.step}
           value={value}
           onChange={handleSliderChange}
           disabled={readOnly}

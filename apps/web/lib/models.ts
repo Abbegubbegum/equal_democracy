@@ -1101,6 +1101,12 @@ const BudgetSessionSchema = new mongoose.Schema(
           type: String,
           default: "#6b7280",
         },
+        // Illustration shown on the budget post (web + app). Set only via
+        // /api/admin/budget-category-image with kind "income".
+        imageUrl: {
+          type: String,
+          default: null,
+        },
         // For tax rate (kommunalskatt)
         isTaxRate: {
           type: Boolean,
@@ -1369,6 +1375,27 @@ if (mongoose.models["BudgetSession"]) delete mongoose.models["BudgetSession"];
 export const BudgetSession: AnyModel = mongoose.model(
   "BudgetSession",
   BudgetSessionSchema,
+);
+
+// BudgetPostImage - the reusable illustration library for budget posts, keyed
+// by post name. Budget posts recur year to year as new BudgetSessions, so the
+// image belongs to the name ("Kulturnämnden"), not to one session's post —
+// see lib/budget/post-images.ts. The file itself lives in Vercel Blob under
+// budget-post-images/.
+const BudgetPostImageSchema = new mongoose.Schema(
+  {
+    // postImageKey(name): NFC, trimmed, lower-cased, whitespace collapsed.
+    key: { type: String, required: true, unique: true },
+    // The name as last uploaded, for display in admin.
+    name: { type: String, required: true },
+    imageUrl: { type: String, required: true },
+  },
+  { timestamps: true },
+);
+
+export const BudgetPostImage = safeModel(
+  "BudgetPostImage",
+  BudgetPostImageSchema,
 );
 
 // BudgetArgument - structured debate arguments tied to budget categories

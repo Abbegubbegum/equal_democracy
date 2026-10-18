@@ -365,6 +365,12 @@ function CategoryEditor({ session, onSaved }) {
   const [categories, setCategories] = useState(
     () => session.categories?.map((c) => ({ ...c })) || [],
   );
+  // Income posts are shown here only for their image — amounts come from the
+  // PDF import, and the image is saved immediately by the upload endpoint, so
+  // nothing about them goes through handleSave.
+  const [incomeCategories, setIncomeCategories] = useState(
+    () => session.incomeCategories?.map((c) => ({ ...c })) || [],
+  );
   const [saving, setSaving] = useState(false);
   const [imageUploading, setImageUploading] = useState(null);
   const [error, setError] = useState("");
@@ -390,20 +396,27 @@ function CategoryEditor({ session, onSaved }) {
     );
   }
 
-  async function uploadImage(categoryId, file) {
+  async function uploadImage(categoryId, file, kind = "expense") {
     setImageUploading(categoryId);
     try {
       const formData = new FormData();
       formData.append("image", file);
       formData.append("sessionId", session.sessionId);
       formData.append("categoryId", categoryId);
+      formData.append("kind", kind);
       const res = await fetch("/api/admin/budget-category-image", {
         method: "POST",
         body: formData,
       });
       if (res.ok) {
         const { imageUrl } = await res.json();
-        updateCategory(categoryId, "imageUrl", imageUrl);
+        if (kind === "income") {
+          setIncomeCategories((prev) =>
+            prev.map((c) => (c.id === categoryId ? { ...c, imageUrl } : c)),
+          );
+        } else {
+          updateCategory(categoryId, "imageUrl", imageUrl);
+        }
       } else {
         const data = await res.json().catch(() => null);
         alert(data?.message || "Kunde inte ladda upp bilden");
@@ -529,6 +542,53 @@ function CategoryEditor({ session, onSaved }) {
           </div>
         </div>
       ))}
+      {incomeCategories.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-bold text-slate-700">Intäkter</h4>
+          {incomeCategories.map((c) => (
+            <div
+              key={c.id}
+              className="bg-white border border-slate-200 rounded-lg p-3 flex items-center gap-3"
+            >
+              {c.imageUrl && (
+                <img
+                  src={c.imageUrl}
+                  alt=""
+                  className="w-16 h-16 rounded-lg object-cover"
+                />
+              )}
+              <span className="flex-1 text-sm font-semibold text-slate-800">
+                {c.name}
+              </span>
+              <label
+                className={`flex items-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                  imageUploading === c.id
+                    ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400"
+                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <ImagePlus className="w-3.5 h-3.5" />
+                {imageUploading === c.id
+                  ? "Laddar upp…"
+                  : c.imageUrl
+                    ? "Byt bild"
+                    : "Lägg till bild"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={imageUploading === c.id}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadImage(c.id, file, "income");
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="flex gap-2">
         <button
           onClick={handleSave}

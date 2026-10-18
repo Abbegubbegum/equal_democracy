@@ -378,7 +378,8 @@ export const sv = {
     infoAdjustAllocations:
       "Justera budgetallokeringar genom att dra reglagen eller ange nya belopp",
     infoMinimumAmounts: "Oundvikliga minimibelopp kan inte minskas",
-    infoIncomeGreater: "Dina totala intäkter bör vara större än dina utgifter",
+    infoIncomeGreater:
+      "Dina totala intäkter måste vara minst lika stora som dina utgifter — ett förslag med underskott kan inte lämnas in",
     infoMedianProposal:
       "Efter omröstningen blir medianen av alla förslag det gemensamma budgetförslaget",
 
@@ -396,6 +397,8 @@ export const sv = {
         "{category}: Beloppet {amount} mnkr är under minimum {minimum} mnkr",
       subcategoryBelowMinimum:
         "{category} - {subcategory}: Beloppet {amount} mnkr är under minimum {minimum} mnkr",
+      underfunded:
+        "Budgeten är underfinansierad: utgifterna överstiger intäkterna med {deficit} mnkr. Minska utgifterna eller öka intäkterna innan du lämnar förslaget.",
       categoryNotFound: "Kategori {categoryId} hittades inte",
       subcategoryNotFound: "Underkategori {subcategoryId} hittades inte",
     },

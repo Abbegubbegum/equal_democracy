@@ -13,7 +13,8 @@
     "backup": "node scripts/backup-to-mongodb.js",
     "grandid": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-grandid-connection.mjs",
     "eligibility": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-eligibility.mjs",
-    "settle-test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-vote-settle.mjs"
+    "settle-test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-vote-settle.mjs",
+    "budget-images": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/upload-budget-images.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.69.0",

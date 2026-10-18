@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Star } from "lucide-react";
 import { fetchWithCsrf } from "../../lib/fetch-with-csrf";
+import { expensePostRange, isSchoolVoucher } from "@repo/types";
 
 function CategoryRating({ sessionId, category }) {
   const [rating, setRating] = useState(0);
@@ -78,27 +79,16 @@ export default function CategoryInput({
   // Calculate slider range based on budget size
   // For larger budgets, we need larger scales
   // Minimum on LEFT, default in MIDDLE, maximum on RIGHT
-  const defaultValue = category.defaultAmount || category.amount;
-
-  // Ensure minValue is less than defaultValue (use 70% of default as minimum if not specified)
-  let minValue =
-    category.minAmount < defaultValue
-      ? category.minAmount
-      : Math.floor(defaultValue * 0.7);
-
-  // Calculate maximum so that default is in the middle
-  // If default should be at 50%, then: maxValue = minValue + 2 * (defaultValue - minValue)
-  const maxValue = minValue + 2 * (defaultValue - minValue);
-
-  // If there's a fixed portion, adjust min/max to account for it
-  const fixedAmount = category.fixedPercentage
-    ? (category.fixedPercentage / 100) * defaultValue
-    : 0;
-
-  if (fixedAmount > 0) {
-    // Minimum must include the fixed portion
-    minValue = Math.max(minValue, fixedAmount);
-  }
+  // The range rule is shared with the server's validation and the app —
+  // see packages/types/src/budget-rules.ts.
+  const range = expensePostRange(category);
+  const defaultValue = range.default;
+  const minValue = range.min;
+  const maxValue = range.max;
+  const fixedAmount =
+    category.fixedPercentage && !isSchoolVoucher(category.name)
+      ? (category.fixedPercentage / 100) * defaultValue
+      : 0;
 
   // Initialize with allocation amount if available, otherwise use defaultValue
   const initialValue =
@@ -276,7 +266,7 @@ export default function CategoryInput({
               type="range"
               min={minValue}
               max={maxValue}
-              step={Math.max(1000000, Math.floor((maxValue - minValue) / 100))} // Step size based on range
+              step={range.step}
               value={value}
               onChange={handleSliderChange}
               disabled={readOnly}

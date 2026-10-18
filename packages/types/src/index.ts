@@ -74,6 +74,17 @@ export type {
 } from "./budget";
 
 export {
+  isSchoolVoucher,
+  isTaxIncome,
+  expensePostRange,
+  incomePostRange,
+  taxIncomeRange,
+  budgetTotals,
+  isUnderfunded,
+} from "./budget-rules";
+export type { BudgetRange, TaxRange } from "./budget-rules";
+
+export {
   MEMBERSHIP_FEE_SEK,
   MEMBERSHIP_YEARS,
   MEMBERSHIP_PAYMENT_MESSAGE,
