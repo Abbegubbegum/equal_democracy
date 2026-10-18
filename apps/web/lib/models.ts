@@ -1182,8 +1182,9 @@ const BudgetVoteSchema = new mongoose.Schema(
           required: true,
           min: 0,
         },
-        // For tax rate
-        taxRatePercent: {
+        // The tax post's rate in kronor per hundred kronor of taxable
+        // income ("kr per hundralapp") — what the slider sets.
+        taxRateKr: {
           type: Number,
           min: 0,
           max: 100,
@@ -1273,8 +1274,8 @@ const BudgetResultSchema = new mongoose.Schema(
           required: true,
           min: 0,
         },
-        // For tax rate
-        medianTaxRatePercent: {
+        // Median tax rate, kronor per hundralapp
+        medianTaxRateKr: {
           type: Number,
           min: 0,
           max: 100,
@@ -1333,8 +1334,18 @@ export const WinningProposal = safeModel(
   WinningProposalSchema,
 );
 export const SessionRequest = safeModel("SessionRequest", SessionRequestSchema);
-export const BudgetVote = safeModel("BudgetVote", BudgetVoteSchema);
-export const BudgetResult = safeModel("BudgetResult", BudgetResultSchema);
+// Force-refreshed (see CLAUDE.md, Mongoose Model Cache): the tax-rate field
+// was renamed, and a cached model would silently drop the new one in dev.
+if (mongoose.models["BudgetVote"]) delete mongoose.models["BudgetVote"];
+export const BudgetVote: AnyModel = mongoose.model(
+  "BudgetVote",
+  BudgetVoteSchema,
+);
+if (mongoose.models["BudgetResult"]) delete mongoose.models["BudgetResult"];
+export const BudgetResult: AnyModel = mongoose.model(
+  "BudgetResult",
+  BudgetResultSchema,
+);
 export const CitizenProposalRating = safeModel(
   "CitizenProposalRating",
   CitizenProposalRatingSchema,

@@ -80,6 +80,89 @@ export async function fetchMyBudgetVote(
 }
 
 /**
+ * The collective proposal of a closed budget — the server's median of every
+ * saved proposal (apps/web/lib/budget/median-calculator.ts), whether it was
+ * made on the web or in the app.
+ */
+export interface BudgetResultSummary {
+  session: BudgetSessionSummary;
+  voterCount: number;
+  totalIncome: number;
+  balancedExpenses: number;
+  /** Median tax rate, kronor per hundralapp; null if nobody set one. */
+  taxRateKr: number | null;
+}
+
+async function fetchResult(
+  session: BudgetSessionSummary,
+): Promise<BudgetResultSummary | null> {
+  try {
+    const data = await apiClient<{
+      result: {
+        voterCount: number;
+        totalMedianIncome: number;
+        balancedExpenses: number;
+        medianIncomeAllocations: {
+          categoryId: string;
+          medianTaxRateKr?: number | null;
+        }[];
+      };
+    }>(
+      `/api/budget/results?sessionId=${encodeURIComponent(session.sessionId)}`,
+    );
+    const r = data.result;
+    const tax = r.medianIncomeAllocations.find(
+      (a) => a.medianTaxRateKr != null,
+    );
+    return {
+      session,
+      voterCount: r.voterCount,
+      totalIncome: r.totalMedianIncome,
+      balancedExpenses: r.balancedExpenses,
+      taxRateKr: tax?.medianTaxRateKr ?? null,
+    };
+  } catch {
+    // 404: closed without a single proposal — there is no result to show.
+    return null;
+  }
+}
+
+/**
+ * Every closed budget that has a result, newest first — the Arkiv "Budget"
+ * tab. Budgets are one per year, so one results call each is fine.
+ */
+export async function fetchBudgetResults(): Promise<BudgetResultSummary[]> {
+  const data = await apiClient<{ sessions: BudgetSessionSummary[] }>(
+    "/api/budget/sessions?status=closed",
+  );
+  const results = await Promise.all((data?.sessions ?? []).map(fetchResult));
+  return results.filter((r): r is BudgetResultSummary => r !== null);
+}
+
+/**
+ * The newest closed budget's result — what Hem shows between budget rounds,
+ * the way it shows closed questions' results until new ones are published.
+ */
+export async function fetchLatestBudgetResult(): Promise<BudgetResultSummary | null> {
+  const data = await apiClient<{ sessions: BudgetSessionSummary[] }>(
+    "/api/budget/sessions?status=closed",
+  );
+  for (const session of data?.sessions ?? []) {
+    const result = await fetchResult(session);
+    if (result) return result;
+  }
+  return null;
+}
+
+/** "19,00 kr per hundralapp" */
+export function formatTaxRate(kr: number): string {
+  return `${kr.toLocaleString("sv-SE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} kr per hundralapp`;
+}
+
+/**
  * Saves the user's proposal through the web's own endpoint — the same
  * validation (lib/budget/median-calculator.ts) and the same median it feeds.
  */

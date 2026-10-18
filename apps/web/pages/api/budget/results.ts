@@ -20,11 +20,10 @@ export default async function handler(
 ) {
   await connectDB();
 
+  // GET is public: a closed budget's collective result is part of the record
+  // this platform publishes (the archive and the app show it signed out).
+  // Recalculating (POST) is superadmin only, checked below.
   const session = await getServerSession(req, res, authOptions);
-
-  if (!session) {
-    return res.status(401).json({ message: "You must be logged in" });
-  }
 
   // GET - Get results for a session
   if (req.method === "GET") {
@@ -88,6 +87,10 @@ export default async function handler(
     // CSRF protection
     if (!csrfProtection(req, res)) {
       return;
+    }
+
+    if (!session) {
+      return res.status(401).json({ message: "You must be logged in" });
     }
 
     const user = await User.findById(session.user.id);

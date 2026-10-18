@@ -14,8 +14,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { selectQuestion, selectBudget } from "../../lib/selection";
 import {
   fetchActiveBudget,
+  fetchLatestBudgetResult,
   formatSek,
+  formatMnkr,
+  formatTaxRate,
   type BudgetSessionSummary,
+  type BudgetResultSummary,
 } from "../../lib/budget";
 import type { VotingSession, VotingQuota } from "../../lib/VotingQuestionCard";
 import {
@@ -59,6 +63,12 @@ export default function HomeScreen() {
   // of every Hem state (feed or "Du är à jour"), since it stays current
   // regardless of how many questions the user has voted on.
   const [budget, setBudget] = useState<BudgetSessionSummary | null>(null);
+  // Between budget rounds: the latest closed budget's collective result, in
+  // the budget card's place — the same "results stay until the next round"
+  // rule as closed questions. Never shown while a budget is active.
+  const [budgetResult, setBudgetResult] = useState<BudgetResultSummary | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const listRef = useRef<FlatList<VotingSession>>(null);
@@ -90,7 +100,10 @@ export default function HomeScreen() {
     // Independent of the question feed: a budget fetch failing just means no
     // budget card, never an error screen over the questions.
     fetchActiveBudget()
-      .then(setBudget)
+      .then(async (active) => {
+        setBudget(active);
+        setBudgetResult(active ? null : await fetchLatestBudgetResult());
+      })
       .catch(() => {});
 
     // Render whatever the cache holds first — the spinner is only for a genuine
@@ -156,6 +169,43 @@ export default function HomeScreen() {
       </TouchableOpacity>
     );
   }
+
+  // Non-interactive twin of the budget card for a closed budget, laid out like
+  // a closed question's result card: eyebrow, name, one amber pill with the
+  // outcome (the collective tax rate), and the totals.
+  function renderBudgetResultCard(r: BudgetResultSummary) {
+    return (
+      <View style={styles.card}>
+        <Image
+          source={BUDGET_IMAGE}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+        />
+        <View style={styles.cardTint} />
+        <View style={styles.cardBottom}>
+          <Text style={styles.resultEyebrow}>Budgetresultat</Text>
+          <Text style={styles.cardQuestion}>{r.session.name}</Text>
+          {r.taxRateKr != null && (
+            <View style={styles.väljBtn}>
+              <Text style={styles.väljText}>{formatTaxRate(r.taxRateKr)}</Text>
+              <Ionicons name="checkmark-circle" size={20} color={BLUE} />
+            </View>
+          )}
+          <Text style={styles.resultStats}>
+            {r.voterCount} budgetförslag · Totala intäkter{" "}
+            {formatMnkr(r.totalIncome)}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // The top-of-Hem budget slot: the active budget, else the latest result.
+  const budgetSlot = budget
+    ? renderBudgetCard(budget)
+    : budgetResult
+      ? renderBudgetResultCard(budgetResult)
+      : null;
 
   const renderCard = useCallback(
     ({ item }: { item: VotingSession }) => {
@@ -257,9 +307,9 @@ export default function HomeScreen() {
 
   if (sessions.length === 0) {
     // Nothing to show at all — no closed question to fall back on (a
-    // brand-new deployment) and no budget running — the original plain
+    // brand-new deployment) and nothing in the budget slot — the original plain
     // empty state.
-    if (closedResults.length === 0 && !budget) {
+    if (closedResults.length === 0 && !budgetSlot) {
       return (
         <View style={[styles.center, { paddingTop: insets.top }]}>
           <Ionicons name="checkmark-circle-outline" size={56} color="#16a34a" />
@@ -305,10 +355,8 @@ export default function HomeScreen() {
                   ? `Du har röstat i ${quota.used} av ${quota.limit} frågor. Kom tillbaka när nästa fråga publiceras.`
                   : "Inga aktiva frågor just nu. Kom tillbaka snart."}
               </Text>
-              {budget && (
-                <View style={styles.resultHeaderBudget}>
-                  {renderBudgetCard(budget)}
-                </View>
+              {budgetSlot && (
+                <View style={styles.resultHeaderBudget}>{budgetSlot}</View>
               )}
             </View>
           }
@@ -347,10 +395,8 @@ export default function HomeScreen() {
                 {quota.limit - quota.used} av {quota.limit} röster kvar
               </Text>
             )}
-            {budget && (
-              <View style={styles.feedHeaderBudget}>
-                {renderBudgetCard(budget)}
-              </View>
+            {budgetSlot && (
+              <View style={styles.feedHeaderBudget}>{budgetSlot}</View>
             )}
           </View>
         }

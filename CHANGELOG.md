@@ -54,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`budget-rules.ts`), also used by the web sliders and the server's validation.
   Swiping between tabs is off on Rösta while it shows the budget, so dragging a slider can't change
   tab; the tab bar still works.
+- **Budget results in the app.** Between budget rounds, Hem shows the latest closed budget's result
+  card (like closed questions): the collective tax rate in kr per hundralapp, the number of proposals
+  and the total income. Arkiv gained a "Budget" tab with every closed budget's result.
 - **Question-close result SMS/email.** The moment a `Question` closes — manually, on its deadline
   via the daily cron, or as part of closing a municipal agenda item — every voter who left a phone
   number or email now gets `Omröstningen "<text>" är avslutad. Resultatet blev <Ja/Nej> med <x>% av
@@ -87,6 +90,12 @@ rösterna. Tack för ditt engagemang.` (`lib/question-result-notify.ts`, same ch
 
 ### Fixed
 
+- **The collective budget's tax rate was never computed.** The median read `taxRatePercent`, a field
+  nothing wrote, while the sliders send `taxRateKr` — which the schema then dropped. Renamed to
+  `taxRateKr` / `medianTaxRateKr` throughout (kronor per hundralapp); votes saved before the fix get
+  their rate derived from the amount. The web results page shows it as "kr per hundralapp".
+- **Budget results required a login to read**, unlike the rest of the published record.
+  `GET /api/budget/results` is now public; recalculation stays superadmin-only.
 - **An underfunded budget proposal could be submitted.** Nothing checked that income covers
   expenses — the web only said it "should". `validateBudgetVote()` now refuses a deficit with
   "Budgeten är underfinansierad: utgifterna överstiger intäkterna med X mnkr", computing totals from

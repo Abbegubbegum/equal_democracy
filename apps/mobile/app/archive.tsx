@@ -14,6 +14,12 @@ import { apiClient } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { fetchQuestions } from "../lib/questions-cache";
 import type { VotingSession } from "../lib/VotingQuestionCard";
+import {
+  fetchBudgetResults,
+  formatMnkr,
+  formatTaxRate,
+  type BudgetResultSummary,
+} from "../lib/budget";
 
 interface TopProposal {
   title: string;
@@ -30,7 +36,7 @@ interface ArchivedSession {
   topProposals: TopProposal[];
 }
 
-type ArchiveTab = "sessioner" | "omrostningar";
+type ArchiveTab = "sessioner" | "omrostningar" | "budget";
 
 export default function ArchiveScreen() {
   const insets = useSafeAreaInsets();
@@ -44,6 +50,8 @@ export default function ArchiveScreen() {
   // newest-first (startDate / closedAt descending), which is what keeps each
   // tab in falling chronological order without any client-side sorting.
   const [closedQuestions, setClosedQuestions] = useState<VotingSession[]>([]);
+  // Closed budgets with their collective (median) result, newest first.
+  const [budgetResults, setBudgetResults] = useState<BudgetResultSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -60,10 +68,12 @@ export default function ArchiveScreen() {
     // failing (e.g. a flaky /api/mobile/questions) doesn't blank out the
     // other tab's data, which a shared try/catch around a single Promise.all
     // would do.
-    const [sessionsResult, questionsResult] = await Promise.allSettled([
-      apiClient<ArchivedSession[]>("/api/mobile/sessions/archived"),
-      fetchQuestions(),
-    ]);
+    const [sessionsResult, questionsResult, budgetsResult] =
+      await Promise.allSettled([
+        apiClient<ArchivedSession[]>("/api/mobile/sessions/archived"),
+        fetchQuestions(),
+        fetchBudgetResults(),
+      ]);
 
     const sessionsList =
       sessionsResult.status === "fulfilled" ? sessionsResult.value : [];
@@ -72,20 +82,26 @@ export default function ArchiveScreen() {
         ? questionsResult.value.questions.filter((q) => !q.isActive)
         : [];
 
+    const budgetList =
+      budgetsResult.status === "fulfilled" ? budgetsResult.value : [];
+
     setSessions(sessionsList);
     setClosedQuestions(questionsList);
+    setBudgetResults(budgetList);
 
     // Default to whichever tab actually has something, rather than always
     // landing on a tab that turns out to be empty.
-    if (sessionsList.length === 0 && questionsList.length > 0) {
-      setTab("omrostningar");
+    if (sessionsList.length === 0) {
+      if (questionsList.length > 0) setTab("omrostningar");
+      else if (budgetList.length > 0) setTab("budget");
     }
 
     // Only a total failure blocks the screen — one source loading fine while
     // the other errored still leaves a tab worth showing.
     if (
       sessionsResult.status === "rejected" &&
-      questionsResult.status === "rejected"
+      questionsResult.status === "rejected" &&
+      budgetsResult.status === "rejected"
     ) {
       setError(
         (sessionsResult.reason as any)?.message ?? "Kunde inte hämta arkivet",
@@ -99,7 +115,10 @@ export default function ArchiveScreen() {
     setExpanded((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }));
   }
 
-  const isEmpty = sessions.length === 0 && closedQuestions.length === 0;
+  const isEmpty =
+    sessions.length === 0 &&
+    closedQuestions.length === 0 &&
+    budgetResults.length === 0;
 
   if (isLoading || (loading && isEmpty)) {
     return (
@@ -131,7 +150,7 @@ export default function ArchiveScreen() {
         <Ionicons name="archive-outline" size={56} color="#ccc" />
         <Text style={styles.emptyTitle}>Inget arkiverat än</Text>
         <Text style={styles.emptyText}>
-          Avslutade sessioner och omröstningar visas här.
+          Avslutade sessioner, omröstningar och budgetar visas här.
         </Text>
       </View>
     );
@@ -185,6 +204,18 @@ export default function ArchiveScreen() {
           >
             Omröstningar
             {closedQuestions.length > 0 ? ` (${closedQuestions.length})` : ""}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabBtn, tab === "budget" && styles.tabBtnActive]}
+          onPress={() => setTab("budget")}
+          activeOpacity={0.8}
+        >
+          <Text
+            style={[styles.tabText, tab === "budget" && styles.tabTextActive]}
+          >
+            Budget
+            {budgetResults.length > 0 ? ` (${budgetResults.length})` : ""}
           </Text>
         </TouchableOpacity>
       </View>
@@ -286,6 +317,53 @@ export default function ArchiveScreen() {
               </View>
             );
           })
+        )
+      ) : tab === "budget" ? (
+        budgetResults.length === 0 ? (
+          <View style={styles.tabEmpty}>
+            <Ionicons name="pie-chart-outline" size={40} color="#ccc" />
+            <Text style={styles.emptyText}>Inga avslutade budgetar ännu.</Text>
+          </View>
+        ) : (
+          // Each closed budget's collective proposal — the median of every
+          // proposal, from the web and the app alike.
+          budgetResults.map((r) => (
+            <View key={r.session.sessionId} style={styles.sessionCard}>
+              <View style={styles.sessionHeader}>
+                <View style={styles.headerLeft}>
+                  <Text style={styles.sessionPlace}>{r.session.name}</Text>
+                  <Text style={styles.sessionDate}>
+                    {r.session.municipality}
+                    {r.session.endDate
+                      ? ` · ${new Date(r.session.endDate).toLocaleDateString(
+                          "sv-SE",
+                          { day: "numeric", month: "long", year: "numeric" },
+                        )}`
+                      : ""}
+                  </Text>
+                  <Text style={styles.voteCount}>
+                    {r.voterCount} budgetförslag
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.proposalList}>
+                {r.taxRateKr != null && (
+                  <View style={styles.budgetRow}>
+                    <Text style={styles.budgetLabel}>Skattesats</Text>
+                    <Text style={styles.budgetValue}>
+                      {formatTaxRate(r.taxRateKr)}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.budgetRow}>
+                  <Text style={styles.budgetLabel}>Totala intäkter</Text>
+                  <Text style={styles.budgetValue}>
+                    {formatMnkr(r.totalIncome)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ))
         )
       ) : closedQuestions.length === 0 ? (
         <View style={styles.tabEmpty}>
@@ -394,8 +472,16 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   tabBtnActive: { backgroundColor: BLUE, borderColor: BLUE },
-  tabText: { fontSize: 14, fontWeight: "700", color: BLUE },
+  // 13 so three labels with counts fit side by side on a phone.
+  tabText: { fontSize: 13, fontWeight: "700", color: BLUE },
   tabTextActive: { color: "#fff" },
+  budgetRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  budgetLabel: { fontSize: 14, color: "#475569", fontWeight: "600" },
+  budgetValue: { fontSize: 14, color: "#111", fontWeight: "800" },
   tabEmpty: {
     alignItems: "center",
     gap: 10,

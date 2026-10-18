@@ -83,7 +83,7 @@ export default function BudgetResultsPage() {
     result?.medianIncomeAllocations?.map((allocation) => ({
       categoryId: allocation.categoryId,
       amount: allocation.medianAmount,
-      taxRatePercent: allocation.medianTaxRatePercent,
+      taxRateKr: allocation.medianTaxRateKr,
     })) || [];
 
   return (
@@ -242,10 +242,14 @@ export default function BudgetResultsPage() {
                       <h3 className="font-medium text-gray-900">
                         {category?.name}
                       </h3>
-                      {allocation.medianTaxRatePercent && (
+                      {allocation.medianTaxRateKr != null && (
                         <p className="text-xs text-gray-500">
-                          Tax rate: {allocation.medianTaxRatePercent.toFixed(2)}
-                          %
+                          Skattesats:{" "}
+                          {allocation.medianTaxRateKr.toLocaleString("sv-SE", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          kr per hundralapp
                         </p>
                       )}
                     </div>

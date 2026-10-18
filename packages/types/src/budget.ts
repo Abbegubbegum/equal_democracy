@@ -62,7 +62,8 @@ export interface BudgetVoteAllocation {
 export interface BudgetVoteIncomeAllocation {
   categoryId: string;
   amount: number;
-  taxRatePercent?: number;
+  /** Tax post only: kronor per hundred kronor of taxable income. */
+  taxRateKr?: number;
 }
 
 export interface BudgetVote extends BaseDocument {
@@ -88,7 +89,7 @@ export interface BudgetMedianAllocation {
 export interface BudgetMedianIncomeAllocation {
   categoryId: string;
   medianAmount: number;
-  medianTaxRatePercent?: number;
+  medianTaxRateKr?: number;
 }
 
 export interface BudgetResult extends BaseDocument {

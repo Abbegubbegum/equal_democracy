@@ -1,4 +1,10 @@
-import { budgetTotals, expensePostRange, isUnderfunded } from "@repo/types";
+import {
+  budgetTotals,
+  expensePostRange,
+  isTaxIncome,
+  isUnderfunded,
+  taxIncomeRange,
+} from "@repo/types";
 
 /**
  * Median Budget Calculator
@@ -52,25 +58,35 @@ export function calculateMedianBudget(votes, session) {
 
     const medianAmount = calculateMedian(amounts);
 
-    // For tax rate categories, also calculate median tax rate
-    let medianTaxRatePercent = null;
-    if (incomeCategory.isTaxRate) {
+    // For the tax post, also the median tax rate (kr per hundralapp). Read
+    // from `taxRateKr`, the field the sliders actually send — this used to
+    // read `taxRatePercent`, which nothing ever wrote, so the stored median
+    // rate was always empty.
+    let medianTaxRateKr = null;
+    if (isTaxIncome(incomeCategory)) {
       const taxRates = votes
         .map((vote) => {
           const allocation = vote.incomeAllocations.find(
             (a) => a.categoryId === incomeCategory.id,
           );
-          return allocation ? allocation.taxRatePercent : null;
+          if (!allocation) return null;
+          // Proposals saved before taxRateKr was stored carry only the
+          // amount; the rate follows from it exactly as the slider computes
+          // it (amount = rate × tax base).
+          return (
+            allocation.taxRateKr ??
+            allocation.amount / taxIncomeRange(incomeCategory, session).taxBase
+          );
         })
         .filter((rate) => rate !== null && rate !== undefined);
 
-      medianTaxRatePercent = calculateMedian(taxRates);
+      medianTaxRateKr = taxRates.length ? calculateMedian(taxRates) : null;
     }
 
     medianIncomeAllocations.push({
       categoryId: incomeCategory.id,
       medianAmount,
-      medianTaxRatePercent,
+      medianTaxRateKr,
     });
 
     totalMedianIncome += medianAmount;
