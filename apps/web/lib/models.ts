@@ -1027,6 +1027,19 @@ const BudgetSessionSchema = new mongoose.Schema(
           type: Boolean,
           default: false,
         },
+        // Own slider span, ± this many percent of defaultAmount (e.g. 10 →
+        // 90–110%). Unset: the default 70–130% (see expensePostRange).
+        adjustPercent: {
+          type: Number,
+          min: 1,
+          max: 100,
+        },
+        // Short explanation shown with the post — e.g. what a locked net post
+        // is made of.
+        note: {
+          type: String,
+          default: null,
+        },
         color: {
           type: String,
           default: "#4a90e2",
@@ -1107,6 +1120,12 @@ const BudgetSessionSchema = new mongoose.Schema(
           type: String,
           default: null,
         },
+        // Counted in the balance but not adjustable (state grants,
+        // financial income) — expensePostRange/incomePostRange lock it.
+        isFixed: {
+          type: Boolean,
+          default: false,
+        },
         // For tax rate (kommunalskatt)
         isTaxRate: {
           type: Boolean,
@@ -1117,6 +1136,25 @@ const BudgetSessionSchema = new mongoose.Schema(
           min: 0,
           max: 100,
         },
+      },
+    ],
+    // The parties' own budget proposals for the same year — shown as a
+    // coloured marker per party on every slider. The posts above carry the
+    // governing coalition's figures (the slider default).
+    alternatives: [
+      {
+        _id: false,
+        key: { type: String, required: true }, // "S", "SD", …
+        label: { type: String, required: true },
+        color: { type: String, required: true },
+        taxRateKr: { type: Number }, // kr per hundralapp
+        allocations: [
+          {
+            _id: false,
+            categoryId: { type: String, required: true },
+            amount: { type: Number, required: true },
+          },
+        ],
       },
     ],
     createdAt: {

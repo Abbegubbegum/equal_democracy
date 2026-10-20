@@ -32,7 +32,7 @@ export default function LayeredTreemaps({
 
   // Calculate proportional sizes based on FULL amounts - largest is 100%, smaller scales proportionally
   // Width-based scaling to show budget surplus/deficit horizontally
-  // Amplify the difference by 4x to make it visible (since only ~430 mnkr adjustable portion is shown)
+  // Amplify the difference by 4x to make a surplus/deficit visible
   const maxTotal = Math.max(totalFullExpenses, totalFullIncome);
   const difference = Math.abs(totalFullExpenses - totalFullIncome);
   const amplifiedDifference = difference * 4;
@@ -65,13 +65,9 @@ export default function LayeredTreemaps({
         )
       : 100;
 
-  // Filter expense categories to show only the adjustable portion (30%)
-  const filteredExpenseCategories =
-    expenseCategories?.map((cat) => ({
-      ...cat,
-      amount: cat.amount * 0.3,
-      defaultAmount: (cat.defaultAmount || cat.amount) * 0.3,
-    })) || [];
+  // Every expense post at its real amount, so a box reads the same figure as
+  // its slider.
+  const filteredExpenseCategories = expenseCategories || [];
 
   // Filter income categories - remove Statsbidrag (not adjustable)
   const filteredIncomeCategories =

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { incomePostRange, isTaxIncome, taxIncomeRange } from "@repo/types";
+import { PartyMarkers, PartyLegend } from "./PartyMarkers";
 
 /**
  * Tax Income Sliders Component
@@ -15,6 +16,7 @@ function TaxIncomeSliders({
   taxBase,
   taxRateInfo,
   readOnly,
+  markers,
 }) {
   // Range rule shared with the app — packages/types/src/budget-rules.ts.
   const {
@@ -165,6 +167,7 @@ function TaxIncomeSliders({
 
         <div className="relative mb-2">
           <div className="relative h-2 bg-blue-200 rounded-full">
+            <PartyMarkers markers={markers} min={minTaxRate} max={maxTaxRate} />
             <div
               className="absolute top-0 bottom-0 w-0.5 bg-blue-600 z-10"
               style={{ left: `${defaultTaxRatePercentage}%` }}
@@ -197,6 +200,10 @@ function TaxIncomeSliders({
           </button>
           <span>Max: {maxTaxRate.toFixed(2)} kr</span>
         </div>
+        <PartyLegend
+          markers={markers}
+          format={(v) => `${v.toFixed(2).replace(".", ",")} kr`}
+        />
       </div>
 
       {/* Tax Income Slider (Skatteintäkter) - synchronized with tax rate */}
@@ -292,6 +299,7 @@ export default function IncomeCategoryInput({
   onUpdate,
   taxRateInfo,
   readOnly = false,
+  markers = [],
 }) {
   const isTax = isTaxIncome(category);
 
@@ -304,6 +312,8 @@ export default function IncomeCategoryInput({
 
   // For non-tax income, use regular slider - define all hooks first before any early returns
   const range = incomePostRange(category);
+  // State grants, financial income: counted in the balance, not adjustable.
+  const locked = range.min === range.max;
   const defaultValue = range.default;
   const minValue = range.min;
   const maxValue = range.max;
@@ -331,6 +341,7 @@ export default function IncomeCategoryInput({
         taxBase={calculatedTaxBase}
         taxRateInfo={taxRateInfo}
         readOnly={readOnly}
+        markers={markers}
       />
     );
   }
@@ -411,40 +422,53 @@ export default function IncomeCategoryInput({
         </div>
       </div>
 
-      <div className="relative mb-2">
-        <div className="relative h-2 bg-blue-100 rounded-full">
-          <div
-            className="absolute top-0 bottom-0 w-0.5 bg-blue-400 z-10"
-            style={{ left: `${defaultPercentage}%` }}
-          />
-          <div
-            className="absolute top-0 bottom-0 left-0 bg-blue-500 rounded-full"
-            style={{ width: `${currentPercentage}%` }}
-          />
+      {locked ? (
+        <div className="py-2 text-sm text-gray-500 italic">
+          Låst belopp — ingår i balansen men går inte att ändra
         </div>
-        <input
-          type="range"
-          min={minValue}
-          max={maxValue}
-          step={range.step}
-          value={value}
-          onChange={handleSliderChange}
-          disabled={readOnly}
-          className="absolute top-0 w-full h-2 opacity-0 cursor-pointer disabled:cursor-not-allowed"
-          style={{ zIndex: 20 }}
-        />
-      </div>
+      ) : (
+        <>
+          <div className="relative mb-2">
+            <div className="relative h-2 bg-blue-100 rounded-full">
+              <PartyMarkers markers={markers} min={minValue} max={maxValue} />
+              <div
+                className="absolute top-0 bottom-0 w-0.5 bg-blue-400 z-10"
+                style={{ left: `${defaultPercentage}%` }}
+              />
+              <div
+                className="absolute top-0 bottom-0 left-0 bg-blue-500 rounded-full"
+                style={{ width: `${currentPercentage}%` }}
+              />
+            </div>
+            <input
+              type="range"
+              min={minValue}
+              max={maxValue}
+              step={range.step}
+              value={value}
+              onChange={handleSliderChange}
+              disabled={readOnly}
+              className="absolute top-0 w-full h-2 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+              style={{ zIndex: 20 }}
+            />
+          </div>
 
-      <div className="flex justify-between text-xs text-gray-600">
-        <span>Min: {(minValue / 1000000).toFixed(1)} mnkr</span>
-        <button
-          onClick={handleResetToDefault}
-          className="text-blue-600 font-medium hover:text-blue-800 hover:underline cursor-pointer"
-        >
-          Default: {(defaultValue / 1000000).toFixed(1)} mnkr
-        </button>
-        <span>Max: {(maxValue / 1000000).toFixed(1)} mnkr</span>
-      </div>
+          <div className="flex justify-between text-xs text-gray-600">
+            <span>Min: {(minValue / 1000000).toFixed(1)} mnkr</span>
+            <button
+              onClick={handleResetToDefault}
+              className="text-blue-600 font-medium hover:text-blue-800 hover:underline cursor-pointer"
+            >
+              Default: {(defaultValue / 1000000).toFixed(1)} mnkr
+            </button>
+            <span>Max: {(maxValue / 1000000).toFixed(1)} mnkr</span>
+          </div>
+        </>
+      )}
+      <PartyLegend
+        markers={markers}
+        format={(v) => `${(v / 1000000).toFixed(1)} mnkr`}
+      />
     </div>
   );
 }

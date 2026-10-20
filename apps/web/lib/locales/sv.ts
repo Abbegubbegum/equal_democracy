@@ -395,6 +395,8 @@ export const sv = {
     validation: {
       belowMinimum:
         "{category}: Beloppet {amount} mnkr är under minimum {minimum} mnkr",
+      aboveMaximum:
+        "{category}: Beloppet {amount} mnkr är över maximum {maximum} mnkr",
       subcategoryBelowMinimum:
         "{category} - {subcategory}: Beloppet {amount} mnkr är under minimum {minimum} mnkr",
       underfunded:

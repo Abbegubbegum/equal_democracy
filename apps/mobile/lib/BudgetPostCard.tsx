@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
+import type { AlternativeMarker } from "@repo/types";
 import AmberSlider from "./AmberSlider";
 import { formatMnkr } from "./budget";
 
@@ -34,6 +35,12 @@ export interface BudgetPostView {
   };
   /** Set for the tax income post, where the slider is the tax rate. */
   taxRate?: boolean;
+  /** Counted in the balance, not adjustable: no slider. */
+  locked?: boolean;
+  /** Short explanation, e.g. what a locked net post is made of. */
+  note?: string | null;
+  /** The parties' figures for this post, in the slider's unit. */
+  markers: AlternativeMarker[];
 }
 
 const sek2 = (n: number) =>
@@ -87,6 +94,9 @@ export default function BudgetPostCard({
           <Text style={styles.rowName}>{post.name}</Text>
           <Text style={styles.rowAmount}>{formatMnkr(post.amount)}</Text>
         </View>
+        {post.locked && (
+          <Ionicons name="lock-closed" size={14} color="#94a3b8" />
+        )}
         <Ionicons name="chevron-down" size={18} color="#94a3b8" />
       </TouchableOpacity>
     );
@@ -137,33 +147,70 @@ export default function BudgetPostCard({
         )}
       </TouchableOpacity>
 
-      {/* Amber slider along the bottom edge. */}
+      {/* Amber slider along the bottom edge — or, for a locked post, a note
+          that it counts in the balance but can't be changed. */}
       <View style={styles.sliderBox}>
-        {post.taxRate && <Text style={styles.sliderLabel}>Skattesats</Text>}
-        <AmberSlider
-          min={slider.min}
-          max={slider.max}
-          step={slider.step}
-          value={slider.value}
-          markerValue={slider.default}
-          onChange={onChange}
-        />
-        <View style={styles.scale}>
-          <Text style={styles.scaleText}>{fmt(slider.min)}</Text>
-          {changed ? (
-            <TouchableOpacity
-              onPress={() => onChange(slider.default)}
-              hitSlop={8}
-            >
-              <Text style={styles.reset}>
-                Återställ ({fmt(slider.default)})
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={styles.scaleText}>Kommunens förslag</Text>
-          )}
-          <Text style={styles.scaleText}>{fmt(slider.max)}</Text>
-        </View>
+        {post.locked ? (
+          <View style={styles.lockedRow}>
+            <Ionicons
+              name="lock-closed"
+              size={14}
+              color="rgba(255,255,255,0.8)"
+            />
+            <Text style={styles.lockedText}>
+              {post.note ??
+                "Låst belopp — ingår i balansen men går inte att ändra"}
+            </Text>
+          </View>
+        ) : (
+          <>
+            {post.taxRate && <Text style={styles.sliderLabel}>Skattesats</Text>}
+            <AmberSlider
+              min={slider.min}
+              max={slider.max}
+              step={slider.step}
+              value={slider.value}
+              markerValue={slider.default}
+              partyMarkers={post.markers}
+              onChange={onChange}
+            />
+          </>
+        )}
+        {!post.locked && (
+          <View style={styles.scale}>
+            <Text style={styles.scaleText}>{fmt(slider.min)}</Text>
+            {changed ? (
+              <TouchableOpacity
+                onPress={() => onChange(slider.default)}
+                hitSlop={8}
+              >
+                <Text style={styles.reset}>
+                  Återställ ({fmt(slider.default)})
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.scaleText}>Kommunens förslag</Text>
+            )}
+            <Text style={styles.scaleText}>{fmt(slider.max)}</Text>
+          </View>
+        )}
+        {/* What each party proposes for this post — the legend for the
+            coloured lines, and the real figure when a line is pinned to an
+            end of the slider. */}
+        {post.markers.length > 0 && (
+          <View style={styles.legend}>
+            {post.markers.map((m) => (
+              <View key={m.key} style={styles.legendItem}>
+                <View
+                  style={[styles.legendDot, { backgroundColor: m.color }]}
+                />
+                <Text style={styles.legendText}>
+                  {m.key} {fmt(m.value)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
       </View>
     </View>
   );
@@ -250,4 +297,32 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   reset: { fontSize: 12, color: YELLOW, fontWeight: "800" },
+  lockedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+  },
+  lockedText: {
+    flex: 1,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.85)",
+    fontWeight: "600",
+  },
+  legend: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    columnGap: 12,
+    rowGap: 4,
+    marginTop: 8,
+  },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  legendDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 2,
+    borderWidth: 0.5,
+    borderColor: "rgba(255,255,255,0.9)",
+  },
+  legendText: { fontSize: 11, color: "#fff", fontWeight: "700" },
 });

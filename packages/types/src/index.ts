@@ -62,6 +62,7 @@ export type {
   BudgetSubcategory,
   BudgetCategory,
   BudgetIncomeCategory,
+  BudgetAlternative,
   BudgetSession,
   BudgetVoteAllocation,
   BudgetVoteIncomeAllocation,
@@ -81,8 +82,9 @@ export {
   taxIncomeRange,
   budgetTotals,
   isUnderfunded,
+  alternativeMarkers,
 } from "./budget-rules";
-export type { BudgetRange, TaxRange } from "./budget-rules";
+export type { BudgetRange, TaxRange, AlternativeMarker } from "./budget-rules";
 
 export {
   MEMBERSHIP_FEE_SEK,

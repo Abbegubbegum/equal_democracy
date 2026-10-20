@@ -28,6 +28,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Creating a budget in admin: from a budget file or a PDF, always reviewed first.** The budget admin's
+  create form now offers "Från budgetfil" (a JSON budget file with the parties' proposals, spans,
+  locked posts and notes) next to "Från PDF med AI". Both produce the same budget file shape and a
+  server-side preview — balance per proposal, every post's slider span, warnings such as Avskrivningar
+  as its own post or an underfunded default — before "Skapa budget"; the reviewed file can be
+  downloaded, corrected and uploaded again. `lib/budget/budget-spec.ts` is the single import path,
+  shared by `POST /api/admin/budget-import` and `pnpm budget-import`; the unused
+  `POST /api/budget/sessions` create branch is gone.
+- **The parties' budget proposals on every slider.** A budget can carry each party's own proposal
+  (`BudgetSession.alternatives`); the app and the web draw a coloured vertical line per party on each
+  slider — amount, or tax rate on the tax slider — with a legend giving each party's figure.
+- **Budget 2027 as data.** `apps/web/data/budgets/vallentuna-2027.json` holds the governing
+  coalition's KP 2027 (the slider defaults) and the proposals of S, V, MP and SD, read out of
+  Kommunplan 2027–2029. `pnpm budget-import` creates the budget from it. Avskrivningar is not a post
+  (the plan nets it to zero). Finansieringsenheten, finansiella kostnader and finansiella intäkter
+  are folded into one locked "Övriga finansiella poster (netto)" post (9 mnkr; the parties 13) with
+  an explanatory note — still counted in the balance — and statsbidrag is a locked income post.
+  Budget posts gained `note`, a short explanation shown with the post.
+- **Per-post slider span.** A budget post can set `adjustPercent` (± percent of its figure) instead
+  of the default 70–130%. Budget 2027 uses ±10% on Kommunstyrelsen, Skolpeng, Gymnasieskolpeng and
+  Socialnämnden, where 30% meant hundreds of millions; every party's figure still fits inside.
+- **Locked budget posts.** `isFixed` now locks a post in the shared range rules (min = max), for
+  income posts too; the app and web show "Låst belopp" instead of a slider.
 - **Images on income budget posts.** `BudgetSession.incomeCategories[]` gained
   `imageUrl`; `/api/admin/budget-category-image` takes `kind: "income"`, the budget admin panel has an
   upload per income post, and the web budget page shows the thumbnail. Budget `PUT` now merges
@@ -90,6 +113,13 @@ rösterna. Tack för ditt engagemang.` (`lib/question-result-notify.ts`, same ch
 
 ### Fixed
 
+- **The budget diagram labelled posts at 30% of their amount.** Both the web and the app drew each
+  expense post scaled to 30% ("the adjustable part"), so Skolpeng read 226,5 mnkr in the diagram next
+  to 755 mnkr on its slider. The scaling never changed the layout — every post scaled alike — so the
+  boxes now show real amounts, following the sliders live.
+- **A budget proposal's upper bound was never checked.** `validateBudgetVote()` only checked the
+  minimum; any amount above the slider's maximum was accepted. Both bounds are now enforced
+  (`budget.validation.aboveMaximum`).
 - **The collective budget's tax rate was never computed.** The median read `taxRatePercent`, a field
   nothing wrote, while the sliders send `taxRateKr` — which the schema then dropped. Renamed to
   `taxRateKr` / `medianTaxRateKr` throughout (kronor per hundralapp); votes saved before the fix get

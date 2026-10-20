@@ -1,3 +1,4 @@
+import type { BudgetAlternative } from "@repo/types";
 import { apiClient } from "./api";
 
 /**
@@ -11,6 +12,10 @@ export interface BudgetExpensePost {
   defaultAmount: number;
   minAmount?: number;
   fixedPercentage?: number;
+  /** Own slider span, ± percent of defaultAmount (default 70–130%). */
+  adjustPercent?: number;
+  /** Short explanation shown with the post. */
+  note?: string | null;
   color?: string;
   imageUrl?: string | null;
   isFixed?: boolean;
@@ -23,6 +28,7 @@ export interface BudgetIncomePost {
   color?: string;
   imageUrl?: string | null;
   isTaxRate?: boolean;
+  isFixed?: boolean;
 }
 
 export interface BudgetSessionSummary {
@@ -38,6 +44,8 @@ export interface BudgetSessionSummary {
   taxBase?: number;
   minTaxRateKr?: number;
   maxTaxRateKr?: number;
+  /** The parties' own proposals — markers on the sliders. */
+  alternatives?: BudgetAlternative[];
 }
 
 /** The signed-in user's saved budget proposal (web: BudgetVote). */

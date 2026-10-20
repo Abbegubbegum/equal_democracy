@@ -393,6 +393,8 @@ export const en = {
     validation: {
       belowMinimum:
         "{category}: Amount {amount} MSEK is below minimum {minimum} MSEK",
+      aboveMaximum:
+        "{category}: Amount {amount} MSEK is above maximum {maximum} MSEK",
       subcategoryBelowMinimum:
         "{category} - {subcategory}: Amount {amount} MSEK is below minimum {minimum} MSEK",
       underfunded:

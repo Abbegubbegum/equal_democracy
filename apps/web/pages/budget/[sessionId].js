@@ -7,7 +7,7 @@ import CategoryInput from "../../components/budget/CategoryInput";
 import IncomeCategoryInput from "../../components/budget/IncomeCategoryInput";
 import { fetchWithCsrf } from "../../lib/fetch-with-csrf";
 import { useTranslation } from "../../lib/hooks/useTranslation";
-import { isSchoolVoucher } from "@repo/types";
+import { alternativeMarkers, isSchoolVoucher, isTaxIncome } from "@repo/types";
 
 export default function BudgetVotingPage() {
   const { data: session, status } = useSession();
@@ -45,19 +45,18 @@ export default function BudgetVotingPage() {
         const defaultIncomeAllocations = budgetSessionData.incomeCategories.map(
           (cat) => {
             // For tax income, calculate default tax rate if not provided
-            const isTaxIncome =
-              cat.isTaxRate || cat.name.toLowerCase().includes("skatt");
+            const isTax = isTaxIncome(cat);
             let taxRateKr = cat.taxRateKr || 19; // Default 19 kr
 
             // If we have amount and taxBase, calculate the rate
-            if (isTaxIncome && budgetSessionData.taxBase && cat.amount) {
+            if (isTax && budgetSessionData.taxBase && cat.amount) {
               taxRateKr = cat.amount / budgetSessionData.taxBase;
             }
 
             return {
               categoryId: cat.id,
               amount: cat.amount,
-              taxRateKr: isTaxIncome ? taxRateKr : undefined,
+              taxRateKr: isTax ? taxRateKr : undefined,
             };
           },
         );
@@ -481,6 +480,11 @@ export default function BudgetVotingPage() {
                   <IncomeCategoryInput
                     key={category.id}
                     category={category}
+                    markers={alternativeMarkers(
+                      budgetSession.alternatives,
+                      category.id,
+                      isTaxIncome(category),
+                    )}
                     allocation={incomeAllocations.find(
                       (a) => a.categoryId === category.id,
                     )}
@@ -504,6 +508,10 @@ export default function BudgetVotingPage() {
                 <CategoryInput
                   key={category.id}
                   category={category}
+                  markers={alternativeMarkers(
+                    budgetSession.alternatives,
+                    category.id,
+                  )}
                   allocation={allocations.find(
                     (a) => a.categoryId === category.id,
                   )}
@@ -538,6 +546,11 @@ export default function BudgetVotingPage() {
                   <IncomeCategoryInput
                     key={category.id}
                     category={category}
+                    markers={alternativeMarkers(
+                      budgetSession.alternatives,
+                      category.id,
+                      isTaxIncome(category),
+                    )}
                     allocation={incomeAllocations.find(
                       (a) => a.categoryId === category.id,
                     )}
@@ -561,6 +574,10 @@ export default function BudgetVotingPage() {
                 <CategoryInput
                   key={category.id}
                   category={category}
+                  markers={alternativeMarkers(
+                    budgetSession.alternatives,
+                    category.id,
+                  )}
                   allocation={allocations.find(
                     (a) => a.categoryId === category.id,
                   )}
@@ -584,6 +601,10 @@ export default function BudgetVotingPage() {
                   <CategoryInput
                     key={category.id}
                     category={category}
+                    markers={alternativeMarkers(
+                      budgetSession.alternatives,
+                      category.id,
+                    )}
                     allocation={allocations.find(
                       (a) => a.categoryId === category.id,
                     )}
@@ -613,6 +634,11 @@ export default function BudgetVotingPage() {
                     <IncomeCategoryInput
                       key={category.id}
                       category={category}
+                      markers={alternativeMarkers(
+                        budgetSession.alternatives,
+                        category.id,
+                        isTaxIncome(category),
+                      )}
                       allocation={incomeAllocations.find(
                         (a) => a.categoryId === category.id,
                       )}

@@ -248,12 +248,9 @@ export default function BudgetTreemap({
   const expenseWidth = (width * widthPct(totalExpenses, totalIncome)) / 100;
   const incomeWidth = (width * widthPct(totalIncome, totalExpenses)) / 100;
 
-  // Only the adjustable part is drawn: 30% of each expense post, and income
-  // without the state grants (not adjustable) — same filters as the web.
-  const expenseCells = useMemo(
-    () => expenses.map((p) => ({ ...p, amount: p.amount * 0.3 })),
-    [expenses],
-  );
+  // Every expense post at its real amount, so a box reads the same figure as
+  // its slider. Income without the state grants, as on the web.
+  const expenseCells = expenses;
   const incomeCells = useMemo(
     () => income.filter((p) => !p.name.toLowerCase().includes("statsbidrag")),
     [income],

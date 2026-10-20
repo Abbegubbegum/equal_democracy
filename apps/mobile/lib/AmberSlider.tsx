@@ -19,6 +19,7 @@ export default function AmberSlider({
   step,
   value,
   markerValue,
+  partyMarkers,
   onChange,
   onRelease,
 }: {
@@ -28,6 +29,11 @@ export default function AmberSlider({
   value: number;
   /** Where the white tick goes — the default the user is adjusting from. */
   markerValue?: number;
+  /**
+   * The parties' own figures — a coloured vertical line each, drawn behind
+   * the thumb. A value outside the slider's range sits at the nearest end.
+   */
+  partyMarkers?: { key: string; color: string; value: number }[];
   onChange: (value: number) => void;
   onRelease?: () => void;
 }) {
@@ -78,6 +84,17 @@ export default function AmberSlider({
       <View style={styles.track} pointerEvents="none">
         <View style={[styles.fill, { width: pos(value) }]} />
       </View>
+      {width > 0 &&
+        partyMarkers?.map((m) => (
+          <View
+            key={m.key}
+            pointerEvents="none"
+            style={[
+              styles.partyMarker,
+              { left: pos(m.value) - 1.5, backgroundColor: m.color },
+            ]}
+          />
+        ))}
       {markerValue !== undefined && width > 0 && (
         <View
           pointerEvents="none"
@@ -106,6 +123,17 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   fill: { height: "100%", backgroundColor: YELLOW, borderRadius: 4 },
+  // Taller than the white default tick, with a white edge so a dark party
+  // colour still reads against the dark box behind the slider.
+  partyMarker: {
+    position: "absolute",
+    top: 7,
+    width: 3,
+    height: 26,
+    borderRadius: 1.5,
+    borderWidth: 0.5,
+    borderColor: "rgba(255,255,255,0.9)",
+  },
   marker: {
     position: "absolute",
     top: 12,

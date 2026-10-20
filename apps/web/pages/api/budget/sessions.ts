@@ -4,10 +4,6 @@ import { authOptions } from "../auth/[...nextauth]";
 import connectDB from "../../../lib/mongodb";
 import { BudgetSession, User } from "../../../lib/models";
 import { csrfProtection } from "../../../lib/csrf";
-import {
-  generateSessionId,
-  ensureUniqueSessionId,
-} from "../../../lib/budget/session-id";
 import { createLogger } from "@/lib/logger";
 import { applyPostImages, postImageMap } from "@/lib/budget/post-images";
 
@@ -58,78 +54,6 @@ export default async function handler(
     }
   }
 
-  // POST - Create new budget session (superadmin only)
-  if (req.method === "POST") {
-    // CSRF protection
-    if (!csrfProtection(req, res)) {
-      return;
-    }
-
-    // Only superadmins can create budget sessions
-    if (!user.isSuperAdmin) {
-      return res.status(403).json({ message: "Superadmin access required" });
-    }
-
-    try {
-      const {
-        name,
-        municipality,
-        totalBudget,
-        categories,
-        incomeCategories,
-        startDate,
-        endDate,
-      } = req.body;
-
-      // Validate required fields
-      if (!name || !municipality || !totalBudget) {
-        return res.status(400).json({
-          message: "Name, municipality, and totalBudget are required",
-        });
-      }
-
-      if (!categories || categories.length === 0) {
-        return res.status(400).json({
-          message: "At least one category is required",
-        });
-      }
-
-      // Generate user-friendly session ID
-      const baseSessionId = generateSessionId(name, municipality);
-      const sessionId = await ensureUniqueSessionId(
-        baseSessionId,
-        BudgetSession,
-      );
-
-      // Create new budget session
-      const budgetSession = new BudgetSession({
-        sessionId,
-        name,
-        municipality,
-        totalBudget,
-        categories,
-        incomeCategories,
-        startDate: startDate ? new Date(startDate) : null,
-        endDate: endDate ? new Date(endDate) : null,
-        createdBy: user._id,
-        status: "draft",
-      });
-
-      // Recurring posts get last year's illustrations straight away.
-      applyPostImages(budgetSession, await postImageMap());
-
-      await budgetSession.save();
-
-      return res.status(201).json({
-        message: "Budget session created successfully",
-        session: budgetSession,
-      });
-    } catch (error) {
-      log.error("Failed to create budget session", { error: error.message });
-      return res.status(500).json({ message: "An error occurred" });
-    }
-  }
-
   // PUT - Update budget session (superadmin only)
   if (req.method === "PUT") {
     // CSRF protection
@@ -160,6 +84,7 @@ export default async function handler(
         "name",
         "municipality",
         "totalBudget",
+        "alternatives",
         "startDate",
         "endDate",
         "status",

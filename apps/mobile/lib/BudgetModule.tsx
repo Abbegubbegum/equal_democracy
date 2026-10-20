@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
+  alternativeMarkers,
   expensePostRange,
   incomePostRange,
   isTaxIncome,
@@ -54,11 +55,13 @@ function describeErrors(e: unknown): string {
         .map((x: any) =>
           x?.key === "budget.validation.belowMinimum"
             ? `${x.params.category}: Beloppet ${x.params.amount} mnkr är under minimum ${x.params.minimum} mnkr`
-            : x?.key === "budget.validation.underfunded"
-              ? underfundedMessage(x.params.deficit)
-              : typeof x === "string"
-                ? x
-                : (x?.key ?? ""),
+            : x?.key === "budget.validation.aboveMaximum"
+              ? `${x.params.category}: Beloppet ${x.params.amount} mnkr är över maximum ${x.params.maximum} mnkr`
+              : x?.key === "budget.validation.underfunded"
+                ? underfundedMessage(x.params.deficit)
+                : typeof x === "string"
+                  ? x
+                  : (x?.key ?? ""),
         )
         .join("\n");
     }
@@ -140,7 +143,11 @@ export default function BudgetModule({
     () =>
       (budget?.categories ?? []).map((c) => {
         const range = expensePostRange(c);
-        const amount = draft.expenses[c.id] ?? range.default;
+        const locked = range.min === range.max;
+        // A locked post is always the municipality's own figure.
+        const amount = locked
+          ? range.default
+          : (draft.expenses[c.id] ?? range.default);
         return {
           id: c.id,
           kind: "expense",
@@ -148,6 +155,9 @@ export default function BudgetModule({
           imageUrl: c.imageUrl,
           color: c.color,
           amount,
+          locked,
+          note: c.note,
+          markers: alternativeMarkers(budget?.alternatives, c.id),
           slider: { ...range, value: amount },
         };
       }),
@@ -170,6 +180,7 @@ export default function BudgetModule({
             color: c.color,
             amount: rate * t.taxBase,
             taxRate: true,
+            markers: alternativeMarkers(budget.alternatives, c.id, true),
             slider: {
               value: rate,
               min: t.minRate,
@@ -180,7 +191,10 @@ export default function BudgetModule({
           };
         }
         const range = incomePostRange(c);
-        const amount = saved?.amount ?? range.default;
+        const locked = range.min === range.max;
+        const amount = locked
+          ? range.default
+          : (saved?.amount ?? range.default);
         return {
           id: c.id,
           kind: "income",
@@ -188,6 +202,8 @@ export default function BudgetModule({
           imageUrl: c.imageUrl,
           color: c.color,
           amount,
+          locked,
+          markers: alternativeMarkers(budget?.alternatives, c.id),
           slider: { ...range, value: amount },
         };
       }),

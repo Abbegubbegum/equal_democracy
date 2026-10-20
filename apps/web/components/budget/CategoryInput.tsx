@@ -1,7 +1,12 @@
 import { useState, useEffect } from "react";
 import { Star } from "lucide-react";
 import { fetchWithCsrf } from "../../lib/fetch-with-csrf";
-import { expensePostRange, isSchoolVoucher } from "@repo/types";
+import {
+  expensePostRange,
+  isSchoolVoucher,
+  type AlternativeMarker,
+} from "@repo/types";
+import { PartyMarkers, PartyLegend } from "./PartyMarkers";
 
 function CategoryRating({ sessionId, category }) {
   const [rating, setRating] = useState(0);
@@ -75,6 +80,15 @@ export default function CategoryInput({
   onUpdate,
   readOnly = false,
   sessionId,
+  markers = [],
+}: {
+  category: any;
+  allocation?: any;
+  onUpdate: (categoryId: string, amount: number) => void;
+  readOnly?: boolean;
+  sessionId?: string;
+  /** The parties' figures for this post (see PartyMarkers). */
+  markers?: AlternativeMarker[];
 }) {
   // Calculate slider range based on budget size
   // For larger budgets, we need larger scales
@@ -225,7 +239,8 @@ export default function CategoryInput({
 
       {isFixed ? (
         <div className="py-2 text-sm text-gray-500 italic">
-          This amount is fixed and cannot be changed
+          {category.note ??
+            "Låst belopp — ingår i balansen men går inte att ändra"}
         </div>
       ) : (
         <>
@@ -243,6 +258,7 @@ export default function CategoryInput({
                   }}
                 />
               )}
+              <PartyMarkers markers={markers} min={minValue} max={maxValue} />
               {/* Default position marker (blue tick) */}
               <div
                 className="absolute w-0.5 bg-blue-500 z-10"
@@ -295,6 +311,10 @@ export default function CategoryInput({
               Max: {maxInMnkr} mnkr
             </span>
           </div>
+          <PartyLegend
+            markers={markers}
+            format={(v) => `${(v / 1000000).toFixed(1)} mnkr`}
+          />
         </>
       )}
     </div>

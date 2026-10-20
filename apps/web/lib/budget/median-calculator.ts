@@ -195,11 +195,23 @@ export function validateBudgetVote(vote, session) {
       continue;
     }
 
-    // Same lower bound the sliders offer (web and app) — the raw minAmount
-    // used to be checked here, which rejected every reduction on a budget
-    // whose minAmount equals its default even though the slider allowed it.
-    const { min } = expensePostRange(category);
-    if (allocation.amount < min) {
+    // Same bounds the sliders offer (web and app) — the raw minAmount used
+    // to be checked here, which rejected every reduction on a budget whose
+    // minAmount equals its default even though the slider allowed it. The
+    // upper bound was never checked at all, and a locked post (min = max)
+    // must stay at its own figure.
+    const { min, max } = expensePostRange(category);
+    if (allocation.amount > max + 0.5) {
+      errors.push({
+        key: "budget.validation.aboveMaximum",
+        params: {
+          category: category.name,
+          amount: (allocation.amount / 1000000).toFixed(2),
+          maximum: (max / 1000000).toFixed(2),
+        },
+      });
+    }
+    if (allocation.amount < min - 0.5) {
       errors.push({
         key: "budget.validation.belowMinimum",
         params: {
