@@ -1,6 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 
-export const STORAGE_SELECTED_QUESTION = "selected_voting_question";
+// JSON-encoded Selection (lib/selection.ts) — a question or the active budget.
+export const STORAGE_SELECTION = "rosta_selection";
 
 /**
  * The contact phone number, mirrored on the device so the settings form can

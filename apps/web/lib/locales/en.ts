@@ -376,7 +376,8 @@ export const en = {
     infoAdjustAllocations:
       "Adjust budget allocations by dragging the sliders or entering new amounts",
     infoMinimumAmounts: "Inevitable minimum amounts cannot be reduced",
-    infoIncomeGreater: "Your total income should be greater than your expenses",
+    infoIncomeGreater:
+      "Your total income must at least cover your expenses — a proposal with a deficit cannot be submitted",
     infoMedianProposal:
       "After the vote is over, the median of all proposals becomes the joint budget proposal",
 
@@ -392,8 +393,12 @@ export const en = {
     validation: {
       belowMinimum:
         "{category}: Amount {amount} MSEK is below minimum {minimum} MSEK",
+      aboveMaximum:
+        "{category}: Amount {amount} MSEK is above maximum {maximum} MSEK",
       subcategoryBelowMinimum:
         "{category} - {subcategory}: Amount {amount} MSEK is below minimum {minimum} MSEK",
+      underfunded:
+        "The budget is underfunded: expenses exceed income by {deficit} MSEK. Reduce expenses or increase income before submitting.",
       categoryNotFound: "Category {categoryId} not found",
       subcategoryNotFound: "Subcategory {subcategoryId} not found",
     },

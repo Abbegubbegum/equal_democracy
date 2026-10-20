@@ -7,6 +7,7 @@ import CategoryInput from "../../components/budget/CategoryInput";
 import IncomeCategoryInput from "../../components/budget/IncomeCategoryInput";
 import { fetchWithCsrf } from "../../lib/fetch-with-csrf";
 import { useTranslation } from "../../lib/hooks/useTranslation";
+import { alternativeMarkers, isSchoolVoucher, isTaxIncome } from "@repo/types";
 
 export default function BudgetVotingPage() {
   const { data: session, status } = useSession();
@@ -44,19 +45,18 @@ export default function BudgetVotingPage() {
         const defaultIncomeAllocations = budgetSessionData.incomeCategories.map(
           (cat) => {
             // For tax income, calculate default tax rate if not provided
-            const isTaxIncome =
-              cat.isTaxRate || cat.name.toLowerCase().includes("skatt");
+            const isTax = isTaxIncome(cat);
             let taxRateKr = cat.taxRateKr || 19; // Default 19 kr
 
             // If we have amount and taxBase, calculate the rate
-            if (isTaxIncome && budgetSessionData.taxBase && cat.amount) {
+            if (isTax && budgetSessionData.taxBase && cat.amount) {
               taxRateKr = cat.amount / budgetSessionData.taxBase;
             }
 
             return {
               categoryId: cat.id,
               amount: cat.amount,
-              taxRateKr: isTaxIncome ? taxRateKr : undefined,
+              taxRateKr: isTax ? taxRateKr : undefined,
             };
           },
         );
@@ -261,26 +261,14 @@ export default function BudgetVotingPage() {
     },
   );
 
-  // Sort categories to put priorityCategoryId first.
-  // Override Skolpeng and Gymnasieskolpeng: adjustable at 70–130% of default (default in middle).
-  const isSkolpeng = (name) =>
-    name &&
-    (name.toLowerCase().includes("skolpeng") ||
-      name.toLowerCase().includes("gymnasieskolpeng"));
+  // Sort categories to put priorityCategoryId first. Skolpeng and
+  // Gymnasieskolpeng are always adjustable (70–130%, enforced by the shared
+  // expensePostRange rule), so they are never shown as fixed.
   const sortedExpenseCategories = budgetSession?.categories
     ? [...budgetSession.categories]
-        .map((cat) => {
-          if (isSkolpeng(cat.name)) {
-            const def = cat.defaultAmount || cat.amount;
-            return {
-              ...cat,
-              isFixed: false,
-              fixedPercentage: 0,
-              minAmount: Math.round(def * 0.7),
-            };
-          }
-          return cat;
-        })
+        .map((cat) =>
+          isSchoolVoucher(cat.name) ? { ...cat, isFixed: false } : cat,
+        )
         .sort((a, b) => {
           if (a.id === priorityCategoryId) return -1;
           if (b.id === priorityCategoryId) return 1;
@@ -492,6 +480,11 @@ export default function BudgetVotingPage() {
                   <IncomeCategoryInput
                     key={category.id}
                     category={category}
+                    markers={alternativeMarkers(
+                      budgetSession.alternatives,
+                      category.id,
+                      isTaxIncome(category),
+                    )}
                     allocation={incomeAllocations.find(
                       (a) => a.categoryId === category.id,
                     )}
@@ -515,6 +508,10 @@ export default function BudgetVotingPage() {
                 <CategoryInput
                   key={category.id}
                   category={category}
+                  markers={alternativeMarkers(
+                    budgetSession.alternatives,
+                    category.id,
+                  )}
                   allocation={allocations.find(
                     (a) => a.categoryId === category.id,
                   )}
@@ -549,6 +546,11 @@ export default function BudgetVotingPage() {
                   <IncomeCategoryInput
                     key={category.id}
                     category={category}
+                    markers={alternativeMarkers(
+                      budgetSession.alternatives,
+                      category.id,
+                      isTaxIncome(category),
+                    )}
                     allocation={incomeAllocations.find(
                       (a) => a.categoryId === category.id,
                     )}
@@ -572,6 +574,10 @@ export default function BudgetVotingPage() {
                 <CategoryInput
                   key={category.id}
                   category={category}
+                  markers={alternativeMarkers(
+                    budgetSession.alternatives,
+                    category.id,
+                  )}
                   allocation={allocations.find(
                     (a) => a.categoryId === category.id,
                   )}
@@ -595,6 +601,10 @@ export default function BudgetVotingPage() {
                   <CategoryInput
                     key={category.id}
                     category={category}
+                    markers={alternativeMarkers(
+                      budgetSession.alternatives,
+                      category.id,
+                    )}
                     allocation={allocations.find(
                       (a) => a.categoryId === category.id,
                     )}
@@ -624,6 +634,11 @@ export default function BudgetVotingPage() {
                     <IncomeCategoryInput
                       key={category.id}
                       category={category}
+                      markers={alternativeMarkers(
+                        budgetSession.alternatives,
+                        category.id,
+                        isTaxIncome(category),
+                      )}
                       allocation={incomeAllocations.find(
                         (a) => a.categoryId === category.id,
                       )}

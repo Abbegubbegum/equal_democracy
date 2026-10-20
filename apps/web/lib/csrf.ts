@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "crypto";
+import { verifyBearerToken } from "./mobile-jwt";
 
 /**
  * Simple CSRF token generator and validator
@@ -101,6 +102,21 @@ export function csrfProtection(req, res) {
   // Skip CSRF for GET, HEAD, OPTIONS
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
     return true;
+  }
+
+  // The app authenticates with a Bearer token, not a cookie, and has no CSRF
+  // cookie to echo back. CSRF is an attack on ambient (cookie) credentials: a
+  // cross-site page cannot attach an Authorization header without a CORS
+  // preflight, which this API never grants. So a request carrying a *valid*
+  // Bearer token is not forgeable and needs no token — an invalid or missing
+  // one still goes through the normal check below.
+  if (req.headers?.authorization) {
+    try {
+      verifyBearerToken(req.headers.authorization);
+      return true;
+    } catch {
+      // Fall through to the cookie-based check.
+    }
   }
 
   // Validate CSRF token

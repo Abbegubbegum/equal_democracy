@@ -21,7 +21,7 @@ import XAIModal from "../../lib/XAIModal";
 import InterestsModal from "../../lib/InterestsModal";
 import { SettingsModal } from "../../lib/SettingsModal";
 import { LinkGate } from "../../lib/LinkGate";
-import { selectQuestion } from "../../lib/selected-question";
+import { selectQuestion } from "../../lib/selection";
 import {
   incrementLoginCount,
   getOnboardingState,

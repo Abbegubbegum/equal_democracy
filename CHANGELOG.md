@@ -26,6 +26,104 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Creating a budget in admin: from a budget file or a PDF, always reviewed first.** The budget admin's
+  create form now offers "Från budgetfil" (a JSON budget file with the parties' proposals, spans,
+  locked posts and notes) next to "Från PDF med AI". Both produce the same budget file shape and a
+  server-side preview — balance per proposal, every post's slider span, warnings such as Avskrivningar
+  as its own post or an underfunded default — before "Skapa budget"; the reviewed file can be
+  downloaded, corrected and uploaded again. `lib/budget/budget-spec.ts` is the single import path,
+  shared by `POST /api/admin/budget-import` and `pnpm budget-import`; the unused
+  `POST /api/budget/sessions` create branch is gone.
+
+- **The parties' budget proposals on every slider.** A budget can carry each party's own proposal
+  (`BudgetSession.alternatives`); the app and the web draw a coloured vertical line per party on each
+  slider — amount, or tax rate on the tax slider — with a legend giving each party's figure.
+
+- **Budget 2027 as data.** `apps/web/data/budgets/vallentuna-2027.json` holds the governing
+  coalition's KP 2027 (the slider defaults) and the proposals of S, V, MP and SD, read out of
+  Kommunplan 2027–2029. `pnpm budget-import` creates the budget from it. Avskrivningar is not a post
+  (the plan nets it to zero). Finansieringsenheten, finansiella kostnader and finansiella intäkter
+  are folded into one locked "Övriga finansiella poster (netto)" post (9 mnkr; the parties 13) with
+  an explanatory note — still counted in the balance — and statsbidrag is a locked income post.
+  Budget posts gained `note`, a short explanation shown with the post.
+
+- **Per-post slider span.** A budget post can set `adjustPercent` (± percent of its figure) instead
+  of the default 70–130%. Budget 2027 uses ±10% on Kommunstyrelsen, Skolpeng, Gymnasieskolpeng and
+  Socialnämnden, where 30% meant hundreds of millions; every party's figure still fits inside.
+
+- **Locked budget posts.** `isFixed` now locks a post in the shared range rules (min = max), for
+  income posts too; the app and web show "Låst belopp" instead of a slider.
+
+- **Images on income budget posts.** `BudgetSession.incomeCategories[]` gained
+  `imageUrl`; `/api/admin/budget-category-image` takes `kind: "income"`, the budget admin panel has an
+  upload per income post, and the web budget page shows the thumbnail. Budget `PUT` now merges
+  `incomeCategories` by id instead of overwriting the array, so an edit can't wipe an image.
+
+- **Budget-post image library.** Budget posts recur year to year as new budget sessions, so their
+  illustrations now live in a `BudgetPostImage` library keyed by post name (files in Blob under
+  `budget-post-images/`). A new budget gets matching images automatically at creation; an admin upload
+  replaces the image on every budget with that post name, and old files are deleted only once nothing
+  references them. `pnpm budget-images --dir <folder> [--production] [--apply]` fills the library
+  from a folder of images named after the posts.
+
+- **Budget module entry in the app.** When a budget process is active, the Hem tab shows a budget
+  card (balance-scale illustration) at the top; tapping it opens the budget module on the Rösta tab.
+  Rösta's selection is now a question _or_ the budget (`lib/selection.ts`, replacing
+  `lib/selected-question.ts`). Uses the web's existing `GET /api/budget/sessions` — no new backend
+  routes.
+
+- **Budget diagram and posts in the app.** The budget view on Rösta shows the web's layered treemap
+  (expenses and income, three views, balance header) ported to react-native-svg with the same
+  `d3-hierarchy` layout as the web, followed by the budget posts with their images in the web's order.
+  Shows the user's saved proposal when there is one.
+
+- **Adjust and submit a budget proposal in the app.** Tapping a budget post unfolds it into an image
+  card (the post's illustration full-bleed, the name in a Förslag-style dark box) with an amber slider
+  along the bottom; the diagram follows the sliders live. "Lämna budgetförslag" saves through the web's
+  own `POST /api/budget/vote`. Slider ranges come from new shared rules in `@repo/types`
+  (`budget-rules.ts`), also used by the web sliders and the server's validation.
+  Swiping between tabs is off on Rösta while it shows the budget, so dragging a slider can't change
+  tab; the tab bar still works.
+
+- **Budget results in the app.** Between budget rounds, Hem shows the latest closed budget's result
+  card (like closed questions): the collective tax rate in kr per hundralapp, the number of proposals
+  and the total income. Arkiv gained a "Budget" tab with every closed budget's result.
+
+### Fixed
+
+- **The budget diagram labelled posts at 30% of their amount.** Both the web and the app drew each
+  expense post scaled to 30% ("the adjustable part"), so Skolpeng read 226,5 mnkr in the diagram next
+  to 755 mnkr on its slider. The scaling never changed the layout — every post scaled alike — so the
+  boxes now show real amounts, following the sliders live.
+
+- **A budget proposal's upper bound was never checked.** `validateBudgetVote()` only checked the
+  minimum; any amount above the slider's maximum was accepted. Both bounds are now enforced
+  (`budget.validation.aboveMaximum`).
+
+- **The collective budget's tax rate was never computed.** The median read `taxRatePercent`, a field
+  nothing wrote, while the sliders send `taxRateKr` — which the schema then dropped. Renamed to
+  `taxRateKr` / `medianTaxRateKr` throughout (kronor per hundralapp); votes saved before the fix get
+  their rate derived from the amount. The web results page shows it as "kr per hundralapp".
+
+- **Budget results required a login to read**, unlike the rest of the published record.
+  `GET /api/budget/results` is now public; recalculation stays superadmin-only.
+
+- **An underfunded budget proposal could be submitted.** Nothing checked that income covers
+  expenses — the web only said it "should". `validateBudgetVote()` now refuses a deficit with
+  "Budgeten är underfinansierad: utgifterna överstiger intäkterna med X mnkr", computing totals from
+  the posts themselves (an omitted post counts at the municipality's figure; client totals are
+  ignored). The app checks before sending and shows the same message.
+
+- **Lowering a budget post below the municipality's figure could not be saved, on the web either.**
+  The slider allowed down to 70%, but the server rejected anything under the post's `minAmount`, which
+  a PDF import sets equal to the default. Both now use the same rule (`expensePostRange()`).
+
+- **The app can write through cookie-era endpoints.** `csrfProtection()` now lets a request with a
+  valid Bearer token through; CSRF only threatens ambient cookie credentials, and a cross-site page
+  cannot send an `Authorization` header. A forged token still gets the normal check.
+
 ## [1.3.2] - 2026-09-21
 
 ### Added
@@ -33,9 +131,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Question-close result SMS/email.** The moment a `Question` closes — manually, on its deadline
   via the daily cron, or as part of closing a municipal agenda item — every voter who left a phone
   number or email now gets `Omröstningen "<text>" är avslutad. Resultatet blev <Ja/Nej> med <x>% av
-rösterna. Tack för ditt engagemang.` (`lib/question-result-notify.ts`, same channel gating as the
-  existing municipal-meeting notifications). Reads `QuestionVote.userId` before it is anonymised, so
-  every close path now calls it ahead of `anonymiseQuestionVotes()`.
+existing municipal-meeting notifications). Reads `QuestionVote.userId`before it is anonymised, so
+every close path now calls it ahead of`anonymiseQuestionVotes()`.
+
 - **Hem tab never goes blank between rounds.** Once every active question is voted, the mobile Hem
   feed now falls back to a result card for every currently-closed question — not just the latest one,
   since political questions are often decided in a batch at the same meeting — instead of just showing
@@ -44,11 +142,13 @@ rösterna. Tack för ditt engagemang.` (`lib/question-result-notify.ts`, same ch
   soon as a new active question is published — but nothing is lost, see the Arkiv entry below.
   `GET /api/mobile/questions` now also returns `closedAt` and sorts closed questions by it instead of
   `createdAt`.
+
 - **Arkiv gained an "Omröstningar" tab.** Closed questions that roll off Hem once a new active
   question is published now have a permanent home: `app/archive.tsx` is now two tabs, "Sessioner"
   (the original archived-session content, unchanged) and "Omröstningar" (every closed `Question`,
   reusing the same yes/no vote-bar card style). Both tabs stay in falling chronological order —
   `startDate`/`closedAt` descending, both already sorted server-side.
+
 - **The web app got the same two features.** `GET /api/questions` now matches `GET /api/mobile/questions`'s
   shape — active questions first, then every closed one (`isActive`, `closedAt`, capped at
   `CLOSED_QUESTION_LIMIT`, now shared from `lib/question-feed.ts` instead of duplicated in each

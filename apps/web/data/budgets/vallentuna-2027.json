@@ -1,0 +1,107 @@
+{
+  "_comment": "Budget 2027, Vallentuna. Source: Kommunplan 2027-2029 (https://www.vallentuna.se/download/18.7078fd331a12f52fa5537917/1792411963021/05.%20Kommunplan%202027-2029.pdf). Posts and income are the governing coalition's (KP 2027: Figur 15 p.38, 9.1 Resultaträkning p.31). Alternatives: Socialdemokraterna p.100-101 (decimals from p.100), Vänsterpartiet p.136, Miljöpartiet p.143, Sverigedemokraterna p.120 (image). Amounts in mnkr. adjustPercent sets a post's own slider span (± percent; default 70–130%). Import: pnpm budget-import --file data/budgets/vallentuna-2027.json [--production] [--apply]. Finansieringsenheten, finansiella kostnader and finansiella intäkter are folded into one locked net post (coalition 10 + 14 − 15 = 9; S/V/MP 14 + 14 − 15 = 13) — small, and not something budget work can change, but they count in the balance. Avskrivningar is deliberately not a post: the plan subtracts it in the operating statement and adds it back in the income statement, so it nets to zero — as its own post it would be counted twice.",
+  "sessionId": "vallentuna-2027",
+  "name": "Budget 2027",
+  "municipality": "Vallentuna",
+  "taxRateKr": 18.8,
+  "minTaxRateKr": 18,
+  "maxTaxRateKr": 21,
+  "expenses": [
+    { "name": "Kommunstyrelsen", "amount": 379, "adjustPercent": 10 },
+    { "name": "Barn- och ungdomsnämnden", "amount": 135 },
+    { "name": "Skolpeng", "amount": 755, "adjustPercent": 10 },
+    { "name": "Utbildningsnämnden", "amount": 33 },
+    { "name": "Gymnasieskolpeng", "amount": 206, "adjustPercent": 10 },
+    { "name": "Socialnämnden", "amount": 796, "adjustPercent": 10 },
+    { "name": "Fritidsnämnden", "amount": 78 },
+    { "name": "Kulturnämnden", "amount": 51 },
+    { "name": "Bygg- och miljötillsynsnämnden", "amount": 18 },
+    {
+      "name": "Övriga finansiella poster (netto)",
+      "amount": 9,
+      "fixed": true,
+      "note": "Finansieringsenheten 10 mnkr + finansiella kostnader 14 mnkr − finansiella intäkter 15 mnkr. Ingår i balansen men påverkas inte i budgetarbetet."
+    }
+  ],
+  "income": [
+    { "name": "Skatteintäkter", "amount": 2304, "tax": true },
+    {
+      "name": "Generella statsbidrag och utjämning",
+      "amount": 231,
+      "fixed": true
+    }
+  ],
+  "alternatives": [
+    {
+      "key": "S",
+      "label": "Socialdemokraterna",
+      "color": "#E8112D",
+      "taxRateKr": 18.9,
+      "amounts": {
+        "Kommunstyrelsen": 377.1,
+        "Barn- och ungdomsnämnden": 149.8,
+        "Skolpeng": 740.1,
+        "Utbildningsnämnden": 37.4,
+        "Gymnasieskolpeng": 206.4,
+        "Socialnämnden": 811.7,
+        "Fritidsnämnden": 80.7,
+        "Kulturnämnden": 54.6,
+        "Bygg- och miljötillsynsnämnden": 19.3,
+        "Övriga finansiella poster (netto)": 13
+      }
+    },
+    {
+      "key": "V",
+      "label": "Vänsterpartiet",
+      "color": "#8B0000",
+      "taxRateKr": 18.9,
+      "amounts": {
+        "Kommunstyrelsen": 375,
+        "Barn- och ungdomsnämnden": 150,
+        "Skolpeng": 749,
+        "Utbildningsnämnden": 33,
+        "Gymnasieskolpeng": 206,
+        "Socialnämnden": 808,
+        "Fritidsnämnden": 82,
+        "Kulturnämnden": 54,
+        "Bygg- och miljötillsynsnämnden": 18,
+        "Övriga finansiella poster (netto)": 13
+      }
+    },
+    {
+      "key": "MP",
+      "label": "Miljöpartiet",
+      "color": "#53A045",
+      "taxRateKr": 18.9,
+      "amounts": {
+        "Kommunstyrelsen": 381,
+        "Barn- och ungdomsnämnden": 142,
+        "Skolpeng": 747,
+        "Utbildningsnämnden": 33,
+        "Gymnasieskolpeng": 206,
+        "Socialnämnden": 802,
+        "Fritidsnämnden": 79,
+        "Kulturnämnden": 53,
+        "Bygg- och miljötillsynsnämnden": 18,
+        "Övriga finansiella poster (netto)": 13
+      }
+    },
+    {
+      "key": "SD",
+      "label": "Sverigedemokraterna",
+      "color": "#0057A8",
+      "taxRateKr": 18.8,
+      "_note": "SD's own structure: Socialnämnd 429 + Äldreomsorgsnämnden 354 = Socialnämnden 783. Their combined Fritids- och kulturnämnden (129) can't be split across our two posts, so SD has no marker on Fritidsnämnden/Kulturnämnden. The plan gives no SD income statement, so their net financial posts assume the coalition's financial costs (14) and income (15): 14 + 14 − 15 = 13.",
+      "amounts": {
+        "Kommunstyrelsen": 377,
+        "Barn- och ungdomsnämnden": 133,
+        "Skolpeng": 730,
+        "Utbildningsnämnden": 33,
+        "Gymnasieskolpeng": 206,
+        "Socialnämnden": 783,
+        "Bygg- och miljötillsynsnämnden": 18,
+        "Övriga finansiella poster (netto)": 13
+      }
+    }
+  ]
+}

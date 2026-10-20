@@ -1027,6 +1027,19 @@ const BudgetSessionSchema = new mongoose.Schema(
           type: Boolean,
           default: false,
         },
+        // Own slider span, ± this many percent of defaultAmount (e.g. 10 →
+        // 90–110%). Unset: the default 70–130% (see expensePostRange).
+        adjustPercent: {
+          type: Number,
+          min: 1,
+          max: 100,
+        },
+        // Short explanation shown with the post — e.g. what a locked net post
+        // is made of.
+        note: {
+          type: String,
+          default: null,
+        },
         color: {
           type: String,
           default: "#4a90e2",
@@ -1101,6 +1114,18 @@ const BudgetSessionSchema = new mongoose.Schema(
           type: String,
           default: "#6b7280",
         },
+        // Illustration shown on the budget post (web + app). Set only via
+        // /api/admin/budget-category-image with kind "income".
+        imageUrl: {
+          type: String,
+          default: null,
+        },
+        // Counted in the balance but not adjustable (state grants,
+        // financial income) — expensePostRange/incomePostRange lock it.
+        isFixed: {
+          type: Boolean,
+          default: false,
+        },
         // For tax rate (kommunalskatt)
         isTaxRate: {
           type: Boolean,
@@ -1111,6 +1136,25 @@ const BudgetSessionSchema = new mongoose.Schema(
           min: 0,
           max: 100,
         },
+      },
+    ],
+    // The parties' own budget proposals for the same year — shown as a
+    // coloured marker per party on every slider. The posts above carry the
+    // governing coalition's figures (the slider default).
+    alternatives: [
+      {
+        _id: false,
+        key: { type: String, required: true }, // "S", "SD", …
+        label: { type: String, required: true },
+        color: { type: String, required: true },
+        taxRateKr: { type: Number }, // kr per hundralapp
+        allocations: [
+          {
+            _id: false,
+            categoryId: { type: String, required: true },
+            amount: { type: Number, required: true },
+          },
+        ],
       },
     ],
     createdAt: {
@@ -1176,8 +1220,9 @@ const BudgetVoteSchema = new mongoose.Schema(
           required: true,
           min: 0,
         },
-        // For tax rate
-        taxRatePercent: {
+        // The tax post's rate in kronor per hundred kronor of taxable
+        // income ("kr per hundralapp") — what the slider sets.
+        taxRateKr: {
           type: Number,
           min: 0,
           max: 100,
@@ -1267,8 +1312,8 @@ const BudgetResultSchema = new mongoose.Schema(
           required: true,
           min: 0,
         },
-        // For tax rate
-        medianTaxRatePercent: {
+        // Median tax rate, kronor per hundralapp
+        medianTaxRateKr: {
           type: Number,
           min: 0,
           max: 100,
@@ -1327,8 +1372,18 @@ export const WinningProposal = safeModel(
   WinningProposalSchema,
 );
 export const SessionRequest = safeModel("SessionRequest", SessionRequestSchema);
-export const BudgetVote = safeModel("BudgetVote", BudgetVoteSchema);
-export const BudgetResult = safeModel("BudgetResult", BudgetResultSchema);
+// Force-refreshed (see CLAUDE.md, Mongoose Model Cache): the tax-rate field
+// was renamed, and a cached model would silently drop the new one in dev.
+if (mongoose.models["BudgetVote"]) delete mongoose.models["BudgetVote"];
+export const BudgetVote: AnyModel = mongoose.model(
+  "BudgetVote",
+  BudgetVoteSchema,
+);
+if (mongoose.models["BudgetResult"]) delete mongoose.models["BudgetResult"];
+export const BudgetResult: AnyModel = mongoose.model(
+  "BudgetResult",
+  BudgetResultSchema,
+);
 export const CitizenProposalRating = safeModel(
   "CitizenProposalRating",
   CitizenProposalRatingSchema,
@@ -1369,6 +1424,27 @@ if (mongoose.models["BudgetSession"]) delete mongoose.models["BudgetSession"];
 export const BudgetSession: AnyModel = mongoose.model(
   "BudgetSession",
   BudgetSessionSchema,
+);
+
+// BudgetPostImage - the reusable illustration library for budget posts, keyed
+// by post name. Budget posts recur year to year as new BudgetSessions, so the
+// image belongs to the name ("Kulturnämnden"), not to one session's post —
+// see lib/budget/post-images.ts. The file itself lives in Vercel Blob under
+// budget-post-images/.
+const BudgetPostImageSchema = new mongoose.Schema(
+  {
+    // postImageKey(name): NFC, trimmed, lower-cased, whitespace collapsed.
+    key: { type: String, required: true, unique: true },
+    // The name as last uploaded, for display in admin.
+    name: { type: String, required: true },
+    imageUrl: { type: String, required: true },
+  },
+  { timestamps: true },
+);
+
+export const BudgetPostImage = safeModel(
+  "BudgetPostImage",
+  BudgetPostImageSchema,
 );
 
 // BudgetArgument - structured debate arguments tied to budget categories

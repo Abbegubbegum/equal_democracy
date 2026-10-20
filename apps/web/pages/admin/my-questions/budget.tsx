@@ -5,6 +5,7 @@ import { Wallet, List, Settings, ImagePlus, Tags } from "lucide-react";
 import { ALL_CATEGORIES } from "@repo/types";
 import { fetchWithCsrf } from "../../../lib/fetch-with-csrf";
 import MyQuestionsSubNav from "../../../components/admin/MyQuestionsSubNav";
+import BudgetImportForm from "../../../components/admin/BudgetImportForm";
 
 export default function BudgetAdminPage() {
   const { data: session, status } = useSession();
@@ -229,7 +230,7 @@ function SessionsPanel() {
       )}
 
       {showCreateForm && (
-        <CreateSessionForm
+        <BudgetImportForm
           onSuccess={() => {
             setShowCreateForm(false);
             fetchSessions();
@@ -365,6 +366,12 @@ function CategoryEditor({ session, onSaved }) {
   const [categories, setCategories] = useState(
     () => session.categories?.map((c) => ({ ...c })) || [],
   );
+  // Income posts are shown here only for their image — amounts come from the
+  // PDF import, and the image is saved immediately by the upload endpoint, so
+  // nothing about them goes through handleSave.
+  const [incomeCategories, setIncomeCategories] = useState(
+    () => session.incomeCategories?.map((c) => ({ ...c })) || [],
+  );
   const [saving, setSaving] = useState(false);
   const [imageUploading, setImageUploading] = useState(null);
   const [error, setError] = useState("");
@@ -390,20 +397,27 @@ function CategoryEditor({ session, onSaved }) {
     );
   }
 
-  async function uploadImage(categoryId, file) {
+  async function uploadImage(categoryId, file, kind = "expense") {
     setImageUploading(categoryId);
     try {
       const formData = new FormData();
       formData.append("image", file);
       formData.append("sessionId", session.sessionId);
       formData.append("categoryId", categoryId);
+      formData.append("kind", kind);
       const res = await fetch("/api/admin/budget-category-image", {
         method: "POST",
         body: formData,
       });
       if (res.ok) {
         const { imageUrl } = await res.json();
-        updateCategory(categoryId, "imageUrl", imageUrl);
+        if (kind === "income") {
+          setIncomeCategories((prev) =>
+            prev.map((c) => (c.id === categoryId ? { ...c, imageUrl } : c)),
+          );
+        } else {
+          updateCategory(categoryId, "imageUrl", imageUrl);
+        }
       } else {
         const data = await res.json().catch(() => null);
         alert(data?.message || "Kunde inte ladda upp bilden");
@@ -529,6 +543,53 @@ function CategoryEditor({ session, onSaved }) {
           </div>
         </div>
       ))}
+      {incomeCategories.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-bold text-slate-700">Intäkter</h4>
+          {incomeCategories.map((c) => (
+            <div
+              key={c.id}
+              className="bg-white border border-slate-200 rounded-lg p-3 flex items-center gap-3"
+            >
+              {c.imageUrl && (
+                <img
+                  src={c.imageUrl}
+                  alt=""
+                  className="w-16 h-16 rounded-lg object-cover"
+                />
+              )}
+              <span className="flex-1 text-sm font-semibold text-slate-800">
+                {c.name}
+              </span>
+              <label
+                className={`flex items-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                  imageUploading === c.id
+                    ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400"
+                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <ImagePlus className="w-3.5 h-3.5" />
+                {imageUploading === c.id
+                  ? "Laddar upp…"
+                  : c.imageUrl
+                    ? "Byt bild"
+                    : "Lägg till bild"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={imageUploading === c.id}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadImage(c.id, file, "income");
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="flex gap-2">
         <button
           onClick={handleSave}
@@ -539,245 +600,6 @@ function CategoryEditor({ session, onSaved }) {
         </button>
       </div>
     </div>
-  );
-}
-
-function CreateSessionForm({ onSuccess, onCancel }) {
-  const [formData, setFormData] = useState({
-    name: "",
-    municipality: "",
-    description: "",
-  });
-  const [pdf, setPdf] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState("");
-  const [uploadStatus, setUploadStatus] = useState("");
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError("");
-    setUploadStatus("");
-
-    if (!pdf) {
-      setError("Please upload a PDF file");
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      setProcessing(true);
-
-      // Step 1: Extract data from PDF using AI
-      setUploadStatus("Processing PDF with AI...");
-      const formDataPdf = new FormData();
-      formDataPdf.append("pdf", pdf);
-      formDataPdf.append("documentType", "expenses");
-
-      const pdfResponse = await fetch("/api/budget/upload-pdf", {
-        method: "POST",
-        body: formDataPdf,
-      });
-
-      const pdfResult = await pdfResponse.json();
-      if (!pdfResponse.ok) {
-        throw new Error(pdfResult.message || "Failed to process PDF");
-      }
-      const extractedData = pdfResult.data;
-
-      // Step 2: Create budget session with extracted data
-      setUploadStatus("Creating budget session...");
-
-      const totalBudget = extractedData?.totalBudget || 0;
-      const categories = extractedData?.categories || [];
-      const incomeCategories = extractedData?.incomeCategories || [];
-
-      // Calculate Tax Base from AI-extracted data
-      // Tax Base = Skatteintäkter / Skattesats (kr)
-      let taxBase = undefined;
-      let defaultTaxRateKr = 19;
-      let minTaxRateKr = 18;
-      let maxTaxRateKr = 21;
-
-      if (extractedData?.taxRateKr && incomeCategories.length > 0) {
-        // Find skatteintäkter category
-        const taxIncome = incomeCategories.find(
-          (cat) => cat.isTaxRate || cat.name.toLowerCase().includes("skatt"),
-        );
-
-        if (taxIncome && taxIncome.amount > 0 && extractedData.taxRateKr > 0) {
-          // Calculate Tax Base: amount / taxRate
-          taxBase = Math.round(taxIncome.amount / extractedData.taxRateKr);
-          defaultTaxRateKr = extractedData.taxRateKr;
-
-          // Set reasonable min/max ranges (±10% of default rate)
-          minTaxRateKr = Math.max(
-            1,
-            Math.round(defaultTaxRateKr * 0.9 * 100) / 100,
-          );
-          maxTaxRateKr = Math.round(defaultTaxRateKr * 1.1 * 100) / 100;
-
-          console.log("Tax configuration calculated:", {
-            taxBase,
-            defaultTaxRateKr,
-            minTaxRateKr,
-            maxTaxRateKr,
-            taxIncomeAmount: taxIncome.amount,
-          });
-        }
-      }
-
-      const response = await fetchWithCsrf("/api/budget/sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formData.name,
-          municipality: formData.municipality,
-          totalBudget,
-          categories,
-          incomeCategories,
-          taxBase,
-          defaultTaxRateKr,
-          minTaxRateKr,
-          maxTaxRateKr,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setUploadStatus("Session created successfully!");
-        setTimeout(() => onSuccess(), 1000);
-      } else {
-        setError(data.message);
-      }
-    } catch (err) {
-      setError(err.message || "Failed to create session");
-      console.error("Error creating session:", err);
-    } finally {
-      setSubmitting(false);
-      setProcessing(false);
-    }
-  }
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-gray-50 rounded-lg p-6 mb-6 space-y-4"
-    >
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">
-        Create New Budget Session
-      </h3>
-
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-          {error}
-        </div>
-      )}
-
-      {uploadStatus && (
-        <div className="p-4 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg">
-          {uploadStatus}
-        </div>
-      )}
-
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-        <p className="font-medium mb-2">How it works:</p>
-        <ol className="list-decimal list-inside space-y-1">
-          <li>Upload PDF with budget data (expenses and income)</li>
-          <li>
-            AI extracts all categories, amounts, and tax rate automatically
-          </li>
-          <li>
-            Tax configuration is calculated from extracted data (Skatteintäkter
-            ÷ Skattesats)
-          </li>
-          <li>Budget session is created and ready for voting</li>
-        </ol>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Session Name *
-        </label>
-        <input
-          type="text"
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          className="w-full p-2 border border-gray-300 rounded-lg"
-          placeholder="Vallentuna Budget 2025"
-          required
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Municipality / Organization *
-        </label>
-        <input
-          type="text"
-          value={formData.municipality}
-          onChange={(e) =>
-            setFormData({ ...formData, municipality: e.target.value })
-          }
-          className="w-full p-2 border border-gray-300 rounded-lg"
-          placeholder="Vallentuna kommun, Företag AB, etc."
-          required
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Description (optional)
-        </label>
-        <textarea
-          value={formData.description}
-          onChange={(e) =>
-            setFormData({ ...formData, description: e.target.value })
-          }
-          className="w-full p-2 border border-gray-300 rounded-lg"
-          placeholder="Brief description of this budget session..."
-          rows={2}
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Upload PDF *
-        </label>
-        <input
-          type="file"
-          accept=".pdf"
-          onChange={(e) => setPdf(e.target.files[0])}
-          className="w-full p-2 border border-gray-300 rounded-lg"
-        />
-        {pdf && <p className="text-xs text-green-600 mt-1">✓ {pdf.name}</p>}
-        <p className="text-xs text-gray-500 mt-1">
-          Upload budget PDF (Driftredovisning) with committee expenses
-        </p>
-      </div>
-
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-        >
-          {processing && (
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          )}
-          {submitting ? "Creating Session..." : "Create Session with AI"}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={submitting}
-          className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition-colors disabled:opacity-50"
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
   );
 }
 

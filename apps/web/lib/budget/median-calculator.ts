@@ -1,3 +1,11 @@
+import {
+  budgetTotals,
+  expensePostRange,
+  isTaxIncome,
+  isUnderfunded,
+  taxIncomeRange,
+} from "@repo/types";
+
 /**
  * Median Budget Calculator
  * Calculates the collective median budget from individual votes
@@ -50,25 +58,35 @@ export function calculateMedianBudget(votes, session) {
 
     const medianAmount = calculateMedian(amounts);
 
-    // For tax rate categories, also calculate median tax rate
-    let medianTaxRatePercent = null;
-    if (incomeCategory.isTaxRate) {
+    // For the tax post, also the median tax rate (kr per hundralapp). Read
+    // from `taxRateKr`, the field the sliders actually send — this used to
+    // read `taxRatePercent`, which nothing ever wrote, so the stored median
+    // rate was always empty.
+    let medianTaxRateKr = null;
+    if (isTaxIncome(incomeCategory)) {
       const taxRates = votes
         .map((vote) => {
           const allocation = vote.incomeAllocations.find(
             (a) => a.categoryId === incomeCategory.id,
           );
-          return allocation ? allocation.taxRatePercent : null;
+          if (!allocation) return null;
+          // Proposals saved before taxRateKr was stored carry only the
+          // amount; the rate follows from it exactly as the slider computes
+          // it (amount = rate × tax base).
+          return (
+            allocation.taxRateKr ??
+            allocation.amount / taxIncomeRange(incomeCategory, session).taxBase
+          );
         })
         .filter((rate) => rate !== null && rate !== undefined);
 
-      medianTaxRatePercent = calculateMedian(taxRates);
+      medianTaxRateKr = taxRates.length ? calculateMedian(taxRates) : null;
     }
 
     medianIncomeAllocations.push({
       categoryId: incomeCategory.id,
       medianAmount,
-      medianTaxRatePercent,
+      medianTaxRateKr,
     });
 
     totalMedianIncome += medianAmount;
@@ -177,14 +195,29 @@ export function validateBudgetVote(vote, session) {
       continue;
     }
 
-    // Check minimum amount for category
-    if (allocation.amount < category.minAmount) {
+    // Same bounds the sliders offer (web and app) — the raw minAmount used
+    // to be checked here, which rejected every reduction on a budget whose
+    // minAmount equals its default even though the slider allowed it. The
+    // upper bound was never checked at all, and a locked post (min = max)
+    // must stay at its own figure.
+    const { min, max } = expensePostRange(category);
+    if (allocation.amount > max + 0.5) {
+      errors.push({
+        key: "budget.validation.aboveMaximum",
+        params: {
+          category: category.name,
+          amount: (allocation.amount / 1000000).toFixed(2),
+          maximum: (max / 1000000).toFixed(2),
+        },
+      });
+    }
+    if (allocation.amount < min - 0.5) {
       errors.push({
         key: "budget.validation.belowMinimum",
         params: {
           category: category.name,
           amount: (allocation.amount / 1000000).toFixed(2),
-          minimum: (category.minAmount / 1000000).toFixed(2),
+          minimum: (min / 1000000).toFixed(2),
         },
       });
     }
@@ -215,6 +248,16 @@ export function validateBudgetVote(vote, session) {
         });
       }
     }
+  }
+
+  // No proposal may spend more than it raises. Computed here from the posts
+  // themselves — the client's totalExpenses/totalIncome are never trusted.
+  const { balance } = budgetTotals(session, vote);
+  if (isUnderfunded(balance)) {
+    errors.push({
+      key: "budget.validation.underfunded",
+      params: { deficit: (-balance / 1000000).toFixed(1) },
+    });
   }
 
   return {

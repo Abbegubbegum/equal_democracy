@@ -17,6 +17,10 @@ export interface BudgetCategory {
   defaultAmount: number;
   minAmount: number;
   isFixed: boolean;
+  /** Own slider span, ± percent of defaultAmount (default 70–130%). */
+  adjustPercent?: number;
+  /** Short explanation shown with the post. */
+  note?: string | null;
   color: string;
   subcategories: BudgetSubcategory[];
   tags?: string[];
@@ -31,8 +35,29 @@ export interface BudgetIncomeCategory {
   name: string;
   amount: number;
   color: string;
+  imageUrl?: string | null;
+  /** Counted in the balance but not adjustable (e.g. state grants). */
+  isFixed?: boolean;
   isTaxRate: boolean;
   taxRatePercent?: number;
+}
+
+/**
+ * A party's own budget proposal for the same year, shown as a marker on each
+ * slider so a voter can compare their choice with what the parties propose.
+ * The session's own posts carry the governing coalition's figures (the
+ * slider default); these are the alternatives.
+ */
+export interface BudgetAlternative {
+  /** Short party name shown on the marker, e.g. "S". */
+  key: string;
+  label: string;
+  /** Marker colour. */
+  color: string;
+  /** The party's tax rate, kr per hundralapp. */
+  taxRateKr?: number;
+  /** The party's amount per post (kr). A post it has no figure for is left out. */
+  allocations: { categoryId: string; amount: number }[];
 }
 
 export interface BudgetSession extends BaseDocument {
@@ -50,6 +75,7 @@ export interface BudgetSession extends BaseDocument {
   maxTaxRateKr: number;
   categories: BudgetCategory[];
   incomeCategories: BudgetIncomeCategory[];
+  alternatives?: BudgetAlternative[];
 }
 
 export interface BudgetVoteAllocation {
@@ -61,7 +87,8 @@ export interface BudgetVoteAllocation {
 export interface BudgetVoteIncomeAllocation {
   categoryId: string;
   amount: number;
-  taxRatePercent?: number;
+  /** Tax post only: kronor per hundred kronor of taxable income. */
+  taxRateKr?: number;
 }
 
 export interface BudgetVote extends BaseDocument {
@@ -87,7 +114,7 @@ export interface BudgetMedianAllocation {
 export interface BudgetMedianIncomeAllocation {
   categoryId: string;
   medianAmount: number;
-  medianTaxRatePercent?: number;
+  medianTaxRateKr?: number;
 }
 
 export interface BudgetResult extends BaseDocument {
